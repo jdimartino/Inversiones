@@ -27,6 +27,8 @@ import {
   query,
 } from "firebase/firestore";
 
+import { Firestore } from "firebase/firestore";
+
 // ------------------------------------------------------------------
 //  ZONA DE CONFIGURACIÓN
 // ------------------------------------------------------------------
@@ -40,7 +42,7 @@ const firebaseConfig = {
   measurementId: "G-CWEKWBNZLG",
 };
 
-let db;
+let db: Firestore;
 try {
   const app = initializeApp(firebaseConfig);
   db = getFirestore(app);
@@ -68,7 +70,7 @@ const COIN_COLORS = {
   DEFAULT: "bg-slate-700/20 text-slate-400 border-slate-700/40",
 };
 
-const getCoinStyle = (coin) => COIN_COLORS[coin] || COIN_COLORS.DEFAULT;
+const getCoinStyle = (coin: string) => COIN_COLORS[coin as keyof typeof COIN_COLORS] || COIN_COLORS.DEFAULT;
 
 // ------------------------------------------------------------------
 //  CONSTANTES DE RIESGO VERIFICADAS
@@ -96,7 +98,7 @@ const SYMBOL_MAP = {
 
 const AVAILABLE_COINS = Object.keys(SYMBOL_MAP);
 
-const DeleteButton = ({ onDelete }) => {
+const DeleteButton = ({ onDelete }: { onDelete: () => void }) => {
   const [confirming, setConfirming] = useState(false);
   useEffect(() => {
     if (confirming) {
@@ -132,8 +134,8 @@ const DeleteButton = ({ onDelete }) => {
 };
 
 // COMPONENTE BARRA LTV PRO
-const LtvProgressBar = ({ ltv, exchange }) => {
-  const params = RISK_PARAMS[exchange] || RISK_PARAMS["Binance"];
+const LtvProgressBar = ({ ltv, exchange }: { ltv: number; exchange: string }) => {
+  const params = RISK_PARAMS[exchange as keyof typeof RISK_PARAMS] || RISK_PARAMS["Binance"];
   const posInit = params.initial;
   const posMargin = params.marginCall;
   const posLiq = params.liquidation;
@@ -160,9 +162,8 @@ const LtvProgressBar = ({ ltv, exchange }) => {
             LTV Actual
           </span>
           <span
-            className={`text-lg font-bold ${
-              ltv > posMargin ? "text-red-500" : "text-white"
-            }`}
+            className={`text-lg font-bold ${ltv > posMargin ? "text-red-500" : "text-white"
+              }`}
           >
             {ltv.toFixed(2)}%
           </span>
@@ -172,13 +173,12 @@ const LtvProgressBar = ({ ltv, exchange }) => {
             Estado
           </span>
           <span
-            className={`text-xs font-bold px-2 py-0.5 rounded ${
-              ltv > posMargin
-                ? "bg-red-500/20 text-red-400"
-                : ltv > posInit
+            className={`text-xs font-bold px-2 py-0.5 rounded ${ltv > posMargin
+              ? "bg-red-500/20 text-red-400"
+              : ltv > posInit
                 ? "bg-yellow-500/20 text-yellow-400"
                 : "bg-green-500/20 text-green-400"
-            }`}
+              }`}
           >
             {statusText}
           </span>
@@ -235,12 +235,41 @@ const LtvProgressBar = ({ ltv, exchange }) => {
   );
 };
 
+// ------------------------------------------------------------------
+//  INTERFACES DE DATOS
+// ------------------------------------------------------------------
+interface Investment {
+  id: string;
+  coin: string;
+  buyPrice: number;
+  quantity: number;
+  invested: number;
+  date: number;
+  currentPrice?: number;
+  currentValue?: number;
+  profit?: number;
+  roi?: number;
+}
+
+interface Loan {
+  id: string;
+  exchange: string;
+  collateralCoin: string;
+  collateralQty: number;
+  borrowedUSDT: number;
+  apy: number;
+  date: number;
+  collateralValue?: number;
+  ltv?: number;
+  liquidationPrice?: number;
+}
+
 const App = () => {
-  const [portfolio, setPortfolio] = useState([]);
-  const [loans, setLoans] = useState([]);
-  const [prices, setPrices] = useState({});
+  const [portfolio, setPortfolio] = useState<Investment[]>([]);
+  const [loans, setLoans] = useState<Loan[]>([]);
+  const [prices, setPrices] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
-  const [editingLoan, setEditingLoan] = useState(null);
+  const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
 
   const [newCoin, setNewCoin] = useState("BTC");
   const [newPrice, setNewPrice] = useState("");
@@ -253,16 +282,20 @@ const App = () => {
   const [loanAPY, setLoanAPY] = useState("");
 
   useEffect(() => {
-    if (RISK_PARAMS[loanExchange]) setLoanAPY(RISK_PARAMS[loanExchange].apy);
+    if (RISK_PARAMS[loanExchange as keyof typeof RISK_PARAMS]) setLoanAPY(RISK_PARAMS[loanExchange as keyof typeof RISK_PARAMS].apy.toString());
   }, [loanExchange]);
 
   useEffect(() => {
     try {
       onSnapshot(query(collection(db, "inversiones")), (snap) => {
-        setPortfolio(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setPortfolio(
+          snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as Investment))
+        );
       });
       onSnapshot(query(collection(db, "prestamos")), (snap) => {
-        setLoans(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setLoans(
+          snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as Loan))
+        );
       });
     } catch (e) {
       console.error("Error DB:", e);
@@ -276,9 +309,9 @@ const App = () => {
         "https://api.binance.com/api/v3/ticker/price"
       );
       const data = await response.json();
-      const p = {};
-      data.forEach((t) => {
-        const symbol = AVAILABLE_COINS.find((c) => SYMBOL_MAP[c] === t.symbol);
+      const p: Record<string, number> = {};
+      data.forEach((t: { symbol: string; price: string }) => {
+        const symbol = AVAILABLE_COINS.find((c) => SYMBOL_MAP[c as keyof typeof SYMBOL_MAP] === t.symbol);
         if (symbol) p[symbol] = parseFloat(t.price);
       });
       p["USDT"] = 1.0;
@@ -296,7 +329,7 @@ const App = () => {
     return () => clearInterval(i);
   }, []);
 
-  const handleAddInvestment = async (e) => {
+  const handleAddInvestment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPrice || !newQty) return;
     await addDoc(collection(db, "inversiones"), {
@@ -310,7 +343,7 @@ const App = () => {
     setNewQty("");
   };
 
-  const handleAddLoan = async (e) => {
+  const handleAddLoan = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!loanCollateralQty || !loanBorrowedUSDT) return;
     await addDoc(collection(db, "prestamos"), {
@@ -325,18 +358,18 @@ const App = () => {
     setLoanBorrowedUSDT("");
   };
 
-  const handleUpdateLoan = async (e) => {
+  const handleUpdateLoan = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingLoan) return;
-    await updateDoc(doc(db, "prestamos", editingLoan.id), {
-      collateralQty: parseFloat(editingLoan.collateralQty),
-      borrowedUSDT: parseFloat(editingLoan.borrowedUSDT),
-      apy: parseFloat(editingLoan.apy),
+    await updateDoc(doc(db, "prestamos", (editingLoan as any).id), {
+      collateralQty: (editingLoan as any).collateralQty,
+      borrowedUSDT: (editingLoan as any).borrowedUSDT,
+      apy: (editingLoan as any).apy,
     });
     setEditingLoan(null);
   };
 
-  const handleDelete = async (col, id) => {
+  const handleDelete = async (col: string, id: string) => {
     try {
       await deleteDoc(doc(db, col, id));
     } catch (e) {
@@ -362,7 +395,7 @@ const App = () => {
   const processedLoans = loans.map((loan) => {
     const colVal = loan.collateralQty * (prices[loan.collateralCoin] || 0);
     const ltv = colVal > 0 ? (loan.borrowedUSDT / colVal) * 100 : 0;
-    const p = RISK_PARAMS[loan.exchange] || RISK_PARAMS["Binance"];
+    const p = RISK_PARAMS[loan.exchange as keyof typeof RISK_PARAMS] || RISK_PARAMS["Binance"];
     const liqPrice =
       (loan.borrowedUSDT * 100) / (p.liquidation * loan.collateralQty);
     return {
@@ -373,9 +406,9 @@ const App = () => {
     };
   });
 
-  const fmt = (n) =>
+  const fmt = (n: number) =>
     new Intl.NumberFormat("en-US", { maximumFractionDigits: 6 }).format(n);
-  const fmtUSD = (n) =>
+  const fmtUSD = (n: number) =>
     new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
@@ -426,34 +459,30 @@ const App = () => {
               <PieChart className="absolute right-4 top-4 text-slate-700 w-10 h-10 opacity-20" />
             </div>
             <div
-              className={`p-5 rounded-xl border shadow-lg relative overflow-hidden ${
-                totalPnl >= 0
-                  ? "bg-green-900/10 border-green-900/50"
-                  : "bg-red-900/10 border-red-900/50"
-              }`}
+              className={`p-5 rounded-xl border shadow-lg relative overflow-hidden ${totalPnl >= 0
+                ? "bg-green-900/10 border-green-900/50"
+                : "bg-red-900/10 border-red-900/50"
+                }`}
             >
               <p className="text-[10px] text-slate-500 uppercase font-bold">
                 PNL Global
               </p>
               <p
-                className={`text-2xl font-bold ${
-                  totalPnl >= 0 ? "text-green-400" : "text-red-400"
-                }`}
+                className={`text-2xl font-bold ${totalPnl >= 0 ? "text-green-400" : "text-red-400"
+                  }`}
               >
                 {totalPnl >= 0 ? "+" : ""}
                 {fmtUSD(totalPnl)}
               </p>
               <p
-                className={`text-sm font-bold mt-1 ${
-                  totalPnl >= 0 ? "text-green-500" : "text-red-500"
-                }`}
+                className={`text-sm font-bold mt-1 ${totalPnl >= 0 ? "text-green-500" : "text-red-500"
+                  }`}
               >
                 {totalRoi.toFixed(2)}%
               </p>
               <TrendingUp
-                className={`absolute right-4 top-4 w-10 h-10 opacity-20 ${
-                  totalPnl >= 0 ? "text-green-500" : "text-red-500"
-                }`}
+                className={`absolute right-4 top-4 w-10 h-10 opacity-20 ${totalPnl >= 0 ? "text-green-500" : "text-red-500"
+                  }`}
               />
             </div>
           </div>
@@ -492,9 +521,8 @@ const App = () => {
                       {fmtUSD(item.currentValue)}
                     </p>
                     <p
-                      className={`text-xs font-bold ${
-                        item.profit >= 0 ? "text-green-400" : "text-red-400"
-                      }`}
+                      className={`text-xs font-bold ${item.profit >= 0 ? "text-green-400" : "text-red-400"
+                        }`}
                     >
                       {item.profit >= 0 ? "+" : ""}
                       {fmtUSD(item.profit)}
@@ -539,17 +567,15 @@ const App = () => {
                     </td>
                     <td className="p-5 text-right">
                       <div
-                        className={`font-bold ${
-                          item.profit >= 0 ? "text-green-400" : "text-red-400"
-                        }`}
+                        className={`font-bold ${item.profit >= 0 ? "text-green-400" : "text-red-400"
+                          }`}
                       >
                         {item.profit >= 0 ? "+" : ""}
                         {fmtUSD(item.profit)}
                       </div>
                       <div
-                        className={`text-[10px] font-bold ${
-                          item.profit >= 0 ? "text-green-600" : "text-red-600"
-                        }`}
+                        className={`text-[10px] font-bold ${item.profit >= 0 ? "text-green-600" : "text-red-600"
+                          }`}
                       >
                         {item.roi.toFixed(2)}%
                       </div>
@@ -581,11 +607,10 @@ const App = () => {
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex items-center gap-3">
                       <span
-                        className={`text-[10px] font-bold px-2 py-1 rounded ${
-                          loan.exchange === "Bybit"
-                            ? "bg-black text-white border border-slate-600"
-                            : "bg-yellow-500 text-black"
-                        }`}
+                        className={`text-[10px] font-bold px-2 py-1 rounded ${loan.exchange === "Bybit"
+                          ? "bg-black text-white border border-slate-600"
+                          : "bg-yellow-500 text-black"
+                          }`}
                       >
                         {loan.exchange}
                       </span>
@@ -638,7 +663,7 @@ const App = () => {
                         {fmtUSD(loan.liquidationPrice)}
                       </p>
                       <p className="text-[9px] text-slate-600 font-bold">
-                        Calculado al {RISK_PARAMS[loan.exchange]?.liquidation}%
+                        Calculado al {RISK_PARAMS[loan.exchange as keyof typeof RISK_PARAMS]?.liquidation}%
                         LTV
                       </p>
                     </div>
@@ -757,9 +782,9 @@ const App = () => {
                   step="any"
                   value={editingLoan.borrowedUSDT}
                   onChange={(e) =>
-                    setEditingLoan({
+                    editingLoan && setEditingLoan({
                       ...editingLoan,
-                      borrowedUSDT: e.target.value,
+                      borrowedUSDT: parseFloat(e.target.value) || 0,
                     })
                   }
                   className="w-full bg-slate-900 border-slate-700 rounded-xl p-4 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
@@ -774,9 +799,9 @@ const App = () => {
                   step="any"
                   value={editingLoan.collateralQty}
                   onChange={(e) =>
-                    setEditingLoan({
+                    editingLoan && setEditingLoan({
                       ...editingLoan,
-                      collateralQty: e.target.value,
+                      collateralQty: parseFloat(e.target.value) || 0,
                     })
                   }
                   className="w-full bg-slate-900 border-slate-700 rounded-xl p-4 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
@@ -791,7 +816,7 @@ const App = () => {
                   step="any"
                   value={editingLoan.apy}
                   onChange={(e) =>
-                    setEditingLoan({ ...editingLoan, apy: e.target.value })
+                    editingLoan && setEditingLoan({ ...editingLoan, apy: parseFloat(e.target.value) || 0 })
                   }
                   className="w-full bg-slate-900 border-slate-700 rounded-xl p-4 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                 />
