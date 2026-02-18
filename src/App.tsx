@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { Activity, RefreshCw } from "lucide-react";
 import { RISK_PARAMS } from "./lib/constants";
-import { ProcessedInvestment, ProcessedLoan, Loan } from "./lib/constants";
+import { ProcessedInvestment, ProcessedLoan, Loan, AggregatedAsset } from "./lib/constants";
+import AggregatedTable from "./components/AggregatedTable";
 import { usePortfolio } from "./hooks/usePortfolio";
 import { useLoans } from "./hooks/useLoans";
 import { usePrices } from "./hooks/usePrices";
@@ -42,6 +43,40 @@ const App: React.FC = () => {
       totalRoi: inv > 0 ? (pnl / inv) * 100 : 0,
     };
   }, [sortedPortfolio]);
+
+  const aggregatedList = useMemo<AggregatedAsset[]>(() => {
+    const map = new Map<string, { totalQty: number; totalInvested: number }>();
+
+    for (const item of portfolio) {
+      const entry = map.get(item.coin) || { totalQty: 0, totalInvested: 0 };
+      entry.totalQty += item.quantity;
+      entry.totalInvested += item.invested;
+      map.set(item.coin, entry);
+    }
+
+    return Array.from(map.entries())
+      .map(([coin, { totalQty, totalInvested }]) => {
+        const avgBuyPrice = totalQty > 0 ? totalInvested / totalQty : 0;
+        const currentPrice = prices[coin] ?? 0;
+        const currentValue = totalQty * currentPrice;
+        const pnl = currentValue - totalInvested;
+        const priceDiffPercent =
+          avgBuyPrice > 0
+            ? ((currentPrice - avgBuyPrice) / avgBuyPrice) * 100
+            : 0;
+        return {
+          coin,
+          totalQty,
+          totalInvested,
+          avgBuyPrice,
+          currentPrice,
+          currentValue,
+          pnl,
+          priceDiffPercent,
+        };
+      })
+      .sort((a, b) => b.pnl - a.pnl);
+  }, [portfolio, prices]);
 
   const processedLoans = useMemo<ProcessedLoan[]>(() => {
     return loans.map((loan) => {
@@ -110,6 +145,8 @@ const App: React.FC = () => {
           items={sortedPortfolio}
           onDelete={removeInvestment}
         />
+
+        <AggregatedTable items={aggregatedList} />
 
         <LoanSection
           loans={processedLoans}

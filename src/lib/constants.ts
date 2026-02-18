@@ -33,6 +33,17 @@ export interface ProcessedLoan extends Loan {
     liquidationPrice: number;
 }
 
+export interface AggregatedAsset {
+    coin: string;
+    totalQty: number;
+    totalInvested: number;
+    avgBuyPrice: number;
+    currentPrice: number;
+    currentValue: number;
+    pnl: number;
+    priceDiffPercent: number;
+}
+
 // ------------------------------------------------------------------
 //  RISK PARAMETERS (verified against exchange docs)
 // ------------------------------------------------------------------

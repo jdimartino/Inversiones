@@ -1,0 +1,1086 @@
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import {
+  Plus,
+  Trash2,
+  RefreshCw,
+  PieChart,
+  DollarSign,
+  Activity,
+  ShieldAlert,
+  XCircle,
+  Edit,
+  X,
+  Save,
+  AlertTriangle,
+  TrendingUp,
+  Calculator,
+  Loader2,
+  AlertCircle,
+} from "lucide-react";
+import { initializeApp } from "firebase/app";
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  query,
+} from "firebase/firestore";
+
+// ------------------------------------------------------------------
+//  INTERFACES Y TIPOS
+// ------------------------------------------------------------------
+
+interface RiskParams {
+  initial: number;
+  marginCall: number;
+  liquidation: number;
+  apy: number;
+}
+
+interface Investment {
+  id: string;
+  coin: string;
+  buyPrice: number;
+  quantity: number;
+  invested: number;
+  date: number;
+}
+
+interface Loan {
+  id: string;
+  exchange: string;
+  collateralCoin: string;
+  collateralQty: number;
+  borrowedUSDT: number;
+  apy: number;
+  date: number;
+}
+
+interface EnrichedInvestment extends Investment {
+  currentPrice: number;
+  currentValue: number;
+  profit: number;
+  roi: number;
+}
+
+interface ProcessedLoan extends Loan {
+  collateralValue: number;
+  ltv: number;
+  liquidationPrice: number;
+  riskLevel: "LOW" | "MEDIUM" | "HIGH";
+}
+
+interface AggregatedAsset {
+  coin: string;
+  totalQty: number;
+  totalInvested: number;
+  avgBuyPrice: number;
+  currentPrice: number;
+  currentValue: number;
+  pnl: number;
+  priceDiffPercent: number;
+}
+
+// ------------------------------------------------------------------
+//  ZONA DE CONFIGURACIÓN FIREBASE
+// ------------------------------------------------------------------
+const firebaseConfig = {
+  apiKey: "AIzaSyABbxfNUY3Zr5d4RmKsP59pd6iKFruBZBY",
+  authDomain: "micriptoapp.firebaseapp.com",
+  projectId: "micriptoapp",
+  storageBucket: "micriptoapp.firebasestorage.app",
+  messagingSenderId: "1094343839118",
+  appId: "1:1094343839118:web:4cf161de183507889ba8df",
+  measurementId: "G-CWEKWBNZLG",
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// ------------------------------------------------------------------
+//  CONSTANTES
+// ------------------------------------------------------------------
+
+const DEFAULT_RISK_PARAMS: RiskParams = {
+  initial: 75,
+  marginCall: 85,
+  liquidation: 90,
+  apy: 5.0,
+};
+
+const RISK_PARAMS: Record<string, RiskParams> = {
+  Binance: { initial: 75, marginCall: 85, liquidation: 91, apy: 4.39 },
+  Bybit: { initial: 80, marginCall: 85, liquidation: 92, apy: 3.98 },
+};
+
+const SYMBOL_MAP: Record<string, string> = {
+  BTC: "BTCUSDT",
+  ETH: "ETHUSDT",
+  ADA: "ADAUSDT",
+  DOGE: "DOGEUSDT",
+  LTC: "LTCUSDT",
+  BNB: "BNBUSDT",
+  SOL: "SOLUSDT",
+  XRP: "XRPUSDT",
+  DOT: "DOTUSDT",
+  MATIC: "MATICUSDT",
+  SHIB: "SHIBUSDT",
+  AVAX: "AVAXUSDT",
+  LINK: "LINKUSDT",
+};
+
+const AVAILABLE_COINS = Object.keys(SYMBOL_MAP);
+
+const COIN_COLORS: Record<string, string> = {
+  BTC: "bg-orange-500/20 text-orange-400 border-orange-500/40",
+  ETH: "bg-indigo-500/20 text-indigo-400 border-indigo-500/40",
+  BNB: "bg-yellow-500/20 text-yellow-500 border-yellow-500/40",
+  SOL: "bg-cyan-500/20 text-cyan-400 border-cyan-500/40",
+  ADA: "bg-blue-600/20 text-blue-400 border-blue-600/40",
+  DEFAULT: "bg-slate-700/20 text-slate-400 border-slate-700/40",
+};
+
+// ------------------------------------------------------------------
+//  UTILIDADES
+// ------------------------------------------------------------------
+
+const getCoinStyle = (coin: string): string =>
+  COIN_COLORS[coin] ?? COIN_COLORS.DEFAULT;
+
+// Formateador dinámico: 3 decimales para DOGE y ADA, 2 para el resto
+const fmtUSD = (n: number, coin?: string): string => {
+  const decimals = coin === "DOGE" || coin === "ADA" ? 3 : 2;
+  return new Intl.NumberFormat("es-ES", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(n);
+};
+
+const getRiskParams = (exchange: string): RiskParams =>
+  RISK_PARAMS[exchange] ?? DEFAULT_RISK_PARAMS;
+
+const isValidPositiveNumber = (n: any): boolean =>
+  !isNaN(parseFloat(n)) && isFinite(n) && parseFloat(n) > 0;
+
+// ------------------------------------------------------------------
+//  SUB-COMPONENTES MEMORIZADOS
+// ------------------------------------------------------------------
+
+const DeleteButton = React.memo(({ onDelete }: { onDelete: () => void }) => {
+  const [confirming, setConfirming] = useState(false);
+
+  useEffect(() => {
+    if (confirming) {
+      const timer = setTimeout(() => setConfirming(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [confirming]);
+
+  if (confirming) {
+    return (
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete();
+        }}
+        className="bg-red-600 text-white px-2 py-1 rounded text-xs font-bold animate-pulse"
+        aria-label="Confirmar eliminación"
+      >
+        <XCircle className="w-3 h-3 inline mr-1" /> Confirma
+      </button>
+    );
+  }
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        setConfirming(true);
+      }}
+      className="text-slate-500 hover:text-red-400 p-1 transition-colors"
+      aria-label="Eliminar elemento"
+    >
+      <Trash2 className="w-4 h-4" />
+    </button>
+  );
+});
+
+const LtvProgressBar = React.memo(
+  ({ ltv, exchange }: { ltv: number; exchange: string }) => {
+    const params = getRiskParams(exchange);
+    const visualLtv = Math.min(Math.max(ltv, 0), 100);
+
+    let statusColor = "bg-emerald-500";
+    let statusText = "Riesgo Bajo";
+    if (ltv > params.initial) {
+      statusColor = "bg-yellow-500";
+      statusText = "Riesgo Medio";
+    }
+    if (ltv > params.marginCall) {
+      statusColor = "bg-red-500 animate-pulse";
+      statusText = "RIESGO ALTO";
+    }
+
+    return (
+      <div
+        className="mt-4 mb-6 select-none"
+        role="progressbar"
+        aria-valuenow={ltv}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      >
+        <div className="grid grid-cols-3 gap-0.5 mb-2 overflow-hidden rounded-sm text-[9px] uppercase font-bold text-center">
+          <div className="bg-emerald-950/40 text-emerald-500 p-2 border-b-2 border-emerald-500">
+            {params.initial}%<br />
+            Bajo
+          </div>
+          <div className="bg-orange-950/40 text-orange-500 p-2 border-b-2 border-orange-500">
+            {params.marginCall}%<br />
+            Medio
+          </div>
+          <div className="bg-red-950/40 text-red-500 p-2 border-b-2 border-red-500">
+            {params.liquidation}%<br />
+            Alto
+          </div>
+        </div>
+
+        <div className="flex justify-between items-end mb-2">
+          <div className="flex flex-col">
+            <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest leading-none">
+              Ratio LTV Actual
+            </span>
+            <span
+              className={`text-xl font-mono font-bold ${
+                ltv > params.marginCall ? "text-red-500" : "text-emerald-400"
+              }`}
+            >
+              {ltv.toFixed(2)}%
+            </span>
+          </div>
+          <span
+            className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${
+              ltv > params.marginCall
+                ? "bg-red-500/10 text-red-500"
+                : "bg-emerald-500/10 text-emerald-500"
+            }`}
+          >
+            {statusText}
+          </span>
+        </div>
+
+        <div className="relative h-2 w-full bg-slate-900 rounded-full border border-slate-800">
+          <div
+            className="absolute top-0 bottom-0 w-0.5 bg-slate-700"
+            style={{ left: `${params.initial}%` }}
+          ></div>
+          <div
+            className="absolute top-0 bottom-0 w-0.5 bg-slate-700"
+            style={{ left: `${params.marginCall}%` }}
+          ></div>
+          <div
+            className={`h-full rounded-full transition-all duration-1000 ${statusColor}`}
+            style={{ width: `${visualLtv}%` }}
+          ></div>
+          <div
+            className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-slate-800 border-2 border-white rounded shadow-lg transition-all duration-1000"
+            style={{ left: `calc(${visualLtv}% - 8px)` }}
+          ></div>
+        </div>
+      </div>
+    );
+  }
+);
+
+// ------------------------------------------------------------------
+//  APP PRINCIPAL
+// ------------------------------------------------------------------
+
+const App = () => {
+  // Estado Global
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Datos
+  const [portfolio, setPortfolio] = useState<Investment[]>([]);
+  const [loans, setLoans] = useState<Loan[]>([]);
+  const [prices, setPrices] = useState<Record<string, number>>({});
+  const [loadingPrices, setLoadingPrices] = useState(false);
+
+  // Formularios
+  const [newCoin, setNewCoin] = useState("BTC");
+  const [newPrice, setNewPrice] = useState("");
+  const [newQty, setNewQty] = useState("");
+
+  const [loanExchange, setLoanExchange] = useState("Bybit");
+  const [loanBorrowedUSDT, setLoanBorrowedUSDT] = useState("");
+  const [loanCollateralCoin, setLoanCollateralCoin] = useState("BTC");
+  const [loanCollateralQty, setLoanCollateralQty] = useState("");
+
+  const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
+
+  // 1. Data Realtime
+  useEffect(() => {
+    try {
+      const unsubInv = onSnapshot(
+        query(collection(db, "inversiones")),
+        (snap) =>
+          setPortfolio(
+            snap.docs.map((d) => ({ id: d.id, ...d.data() } as Investment))
+          ),
+        (err) => setErrorMsg("Error sincronizando inversiones: " + err.message)
+      );
+
+      const unsubLoans = onSnapshot(
+        query(collection(db, "prestamos")),
+        (snap) =>
+          setLoans(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Loan))),
+        (err) => setErrorMsg("Error sincronizando préstamos: " + err.message)
+      );
+
+      return () => {
+        unsubInv();
+        unsubLoans();
+      };
+    } catch (e: any) {
+      setErrorMsg("Error de conexión a DB: " + e.message);
+    }
+  }, []);
+
+  // 2. API Prices (Con Proxy Fix para CORS)
+  const fetchPrices = useCallback(async () => {
+    setLoadingPrices(true);
+    setErrorMsg(null);
+    try {
+      let response = await fetch(
+        "https://api.binance.com/api/v3/ticker/price"
+      ).catch(() => null);
+
+      if (!response || !response.ok) {
+        response = await fetch(
+          "https://api.allorigins.win/raw?url=" +
+            encodeURIComponent("https://api.binance.com/api/v3/ticker/price")
+        );
+      }
+
+      if (!response || !response.ok)
+        throw new Error("No se pudo conectar a la API de precios.");
+
+      const data = await response.json();
+      const p: Record<string, number> = {};
+
+      for (const t of data) {
+        const symbolKey = AVAILABLE_COINS.find(
+          (c) => SYMBOL_MAP[c] === t.symbol
+        );
+        if (symbolKey) p[symbolKey] = parseFloat(t.price);
+      }
+      p["USDT"] = 1.0;
+      setPrices(p);
+    } catch (e: any) {
+      console.error(e);
+    } finally {
+      setLoadingPrices(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPrices();
+    const i = setInterval(fetchPrices, 30000);
+    return () => clearInterval(i);
+  }, [fetchPrices]);
+
+  // ------------------------------------------------------------------
+  //  LÓGICA MEMORIZADA (CÁLCULOS)
+  // ------------------------------------------------------------------
+
+  const enrichedPortfolio = useMemo<EnrichedInvestment[]>(() => {
+    return portfolio
+      .map((item) => {
+        const currentPrice = prices[item.coin] ?? item.buyPrice ?? 0;
+        const currentValue = item.quantity * currentPrice;
+        const profit = currentValue - item.invested;
+        const roi = item.invested > 0 ? (profit / item.invested) * 100 : 0;
+        return { ...item, currentPrice, currentValue, profit, roi };
+      })
+      .sort((a, b) => b.profit - a.profit);
+  }, [portfolio, prices]);
+
+  const totals = useMemo(() => {
+    return enrichedPortfolio.reduce(
+      (acc, item) => ({
+        invested: acc.invested + (item.invested || 0),
+        value: acc.value + (item.currentValue || 0),
+      }),
+      { invested: 0, value: 0 }
+    );
+  }, [enrichedPortfolio]);
+
+  const totalPnl = totals.value - totals.invested;
+  const totalRoi = totals.invested > 0 ? (totalPnl / totals.invested) * 100 : 0;
+
+  const aggregatedList = useMemo<AggregatedAsset[]>(() => {
+    const map = new Map<string, AggregatedAsset>();
+
+    for (const item of portfolio) {
+      if (!map.has(item.coin)) {
+        map.set(item.coin, {
+          coin: item.coin,
+          totalQty: 0,
+          totalInvested: 0,
+          avgBuyPrice: 0,
+          currentPrice: 0,
+          currentValue: 0,
+          pnl: 0,
+          priceDiffPercent: 0,
+        });
+      }
+      const entry = map.get(item.coin)!;
+      entry.totalQty += item.quantity;
+      entry.totalInvested += item.invested;
+    }
+
+    return Array.from(map.values())
+      .map((asset) => {
+        const avgBuyPrice =
+          asset.totalQty > 0 ? asset.totalInvested / asset.totalQty : 0;
+        const currentPrice = prices[asset.coin] ?? 0;
+        const currentValue = asset.totalQty * currentPrice;
+        const pnl = currentValue - asset.totalInvested;
+        const priceDiffPercent =
+          avgBuyPrice > 0
+            ? ((currentPrice - avgBuyPrice) / avgBuyPrice) * 100
+            : 0;
+
+        return {
+          ...asset,
+          avgBuyPrice,
+          currentPrice,
+          currentValue,
+          pnl,
+          priceDiffPercent,
+        };
+      })
+      .sort((a, b) => b.pnl - a.pnl);
+  }, [portfolio, prices]);
+
+  const processedLoans = useMemo<ProcessedLoan[]>(() => {
+    return loans.map((loan) => {
+      const collateralPrice = prices[loan.collateralCoin] ?? 0;
+      const collateralValue = loan.collateralQty * collateralPrice;
+
+      const ltv =
+        collateralValue > 0 ? (loan.borrowedUSDT / collateralValue) * 100 : 0;
+      const params = getRiskParams(loan.exchange);
+
+      const liquidationPrice =
+        loan.collateralQty * params.liquidation > 0
+          ? (loan.borrowedUSDT * 100) /
+            (params.liquidation * loan.collateralQty)
+          : 0;
+
+      let riskLevel: "LOW" | "MEDIUM" | "HIGH" = "LOW";
+      if (ltv > params.marginCall) riskLevel = "HIGH";
+      else if (ltv > params.initial) riskLevel = "MEDIUM";
+
+      return { ...loan, collateralValue, ltv, liquidationPrice, riskLevel };
+    });
+  }, [loans, prices]);
+
+  // ------------------------------------------------------------------
+  //  HANDLERS
+  // ------------------------------------------------------------------
+
+  const handleAddInvestment = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!isValidPositiveNumber(newPrice) || !isValidPositiveNumber(newQty))
+        return;
+
+      try {
+        await addDoc(collection(db, "inversiones"), {
+          coin: newCoin,
+          buyPrice: parseFloat(newPrice),
+          quantity: parseFloat(newQty),
+          invested: parseFloat(newPrice) * parseFloat(newQty),
+          date: Date.now(),
+        });
+        setNewPrice("");
+        setNewQty("");
+      } catch (err: any) {
+        setErrorMsg("Error guardando inversión: " + err.message);
+      }
+    },
+    [newCoin, newPrice, newQty]
+  );
+
+  const handleAddLoan = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (
+        !isValidPositiveNumber(loanCollateralQty) ||
+        !isValidPositiveNumber(loanBorrowedUSDT)
+      )
+        return;
+
+      try {
+        await addDoc(collection(db, "prestamos"), {
+          exchange: loanExchange,
+          collateralCoin: loanCollateralCoin,
+          collateralQty: parseFloat(loanCollateralQty),
+          borrowedUSDT: parseFloat(loanBorrowedUSDT),
+          apy: getRiskParams(loanExchange).apy,
+          date: Date.now(),
+        });
+        setLoanCollateralQty("");
+        setLoanBorrowedUSDT("");
+      } catch (err: any) {
+        setErrorMsg("Error guardando préstamo: " + err.message);
+      }
+    },
+    [loanExchange, loanCollateralCoin, loanCollateralQty, loanBorrowedUSDT]
+  );
+
+  const handleUpdateLoan = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!editingLoan) return;
+
+      try {
+        await updateDoc(doc(db, "prestamos", editingLoan.id), {
+          collateralQty: parseFloat(editingLoan.collateralQty.toString()),
+          borrowedUSDT: parseFloat(editingLoan.borrowedUSDT.toString()),
+          apy: parseFloat(editingLoan.apy.toString()) || 0,
+        });
+        setEditingLoan(null);
+      } catch (err: any) {
+        setErrorMsg("Error actualizando: " + err.message);
+      }
+    },
+    [editingLoan]
+  );
+
+  const handleDelete = useCallback(async (colName: string, id: string) => {
+    try {
+      await deleteDoc(doc(db, colName, id));
+    } catch (err: any) {
+      setErrorMsg("Error eliminando: " + err.message);
+    }
+  }, []);
+
+  // ------------------------------------------------------------------
+  //  RENDER
+  // ------------------------------------------------------------------
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-sans pb-40 overflow-x-hidden">
+      {errorMsg && (
+        <div className="fixed top-4 right-4 z-50 bg-red-900/90 border border-red-500 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4 max-w-sm backdrop-blur-sm">
+          <AlertCircle className="w-5 h-5 shrink-0" />
+          <p className="text-sm font-medium">{errorMsg}</p>
+          <button
+            onClick={() => setErrorMsg(null)}
+            className="ml-auto hover:bg-red-800 p-1 rounded"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <header className="flex justify-between items-center mb-10">
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2 text-yellow-400">
+              <Activity className="w-8 h-8" /> Crypto Command
+            </h1>
+            <p className="text-slate-500 text-[10px] uppercase font-bold tracking-widest mt-1">
+              LTV FLEXIBLE: BINANCE (91%) / BYBIT (92%)
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={fetchPrices}
+              className="bg-slate-900 border border-slate-800 p-3 rounded-xl hover:bg-slate-800 shadow-lg transition-all active:scale-95"
+              aria-label="Actualizar precios"
+              disabled={loadingPrices}
+            >
+              <RefreshCw
+                className={`w-5 h-5 ${
+                  loadingPrices
+                    ? "animate-spin text-yellow-500"
+                    : "text-slate-400"
+                }`}
+              />
+            </button>
+          </div>
+        </header>
+
+        {/* 1. RESUMEN GLOBAL */}
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
+          <article className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl relative overflow-hidden">
+            <p className="text-[10px] text-slate-500 uppercase font-black mb-1">
+              Total Invertido
+            </p>
+            <p className="text-2xl font-bold text-white">
+              {fmtUSD(totals.invested)}
+            </p>
+            <DollarSign className="absolute -right-2 -bottom-2 w-16 h-16 text-slate-800 opacity-20" />
+          </article>
+          <article className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl relative overflow-hidden">
+            <p className="text-[10px] text-slate-500 uppercase font-black mb-1">
+              Valor Actual
+            </p>
+            <p className="text-2xl font-bold text-blue-400">
+              {fmtUSD(totals.value)}
+            </p>
+            <PieChart className="absolute -right-2 -bottom-2 w-16 h-16 text-slate-800 opacity-20" />
+          </article>
+          <article
+            className={`p-6 rounded-2xl border shadow-xl relative overflow-hidden ${
+              totalPnl >= 0
+                ? "bg-emerald-500/5 border-emerald-500/20"
+                : "bg-red-500/5 border-red-500/20"
+            }`}
+          >
+            <p className="text-[10px] text-slate-500 uppercase font-black mb-1">
+              PNL Global
+            </p>
+            <p
+              className={`text-2xl font-bold ${
+                totalPnl >= 0 ? "text-emerald-400" : "text-red-400"
+              }`}
+            >
+              {totalPnl >= 0 ? "+" : ""}
+              {fmtUSD(totalPnl)}
+            </p>
+            <p
+              className={`text-sm font-bold mt-1 ${
+                totalPnl >= 0 ? "text-emerald-600" : "text-red-600"
+              }`}
+            >
+              {totalPnl >= 0 ? "+" : ""}
+              {totalRoi.toFixed(2)}% ROI
+            </p>
+            <TrendingUp
+              className={`absolute -right-2 -bottom-2 w-16 h-16 opacity-20 ${
+                totalPnl >= 0 ? "text-emerald-800" : "text-red-800"
+              }`}
+            />
+          </article>
+        </section>
+
+        {/* 2. TABLA DE ACTIVOS SPOT */}
+        <section className="mb-12">
+          <h2 className="text-[10px] font-black text-slate-500 mb-4 uppercase flex items-center gap-2 border-b border-slate-900 pb-2 tracking-widest text-emerald-500">
+            Mis Activos Spot
+          </h2>
+          <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl overflow-x-auto">
+            {enrichedPortfolio.length === 0 ? (
+              <div className="p-8 text-center text-slate-500 text-sm">
+                No hay inversiones registradas aún.
+              </div>
+            ) : (
+              <table className="w-full text-left text-sm min-w-[600px]">
+                <thead className="bg-slate-950 text-slate-600 uppercase text-[10px] font-bold">
+                  <tr>
+                    <th className="p-5">Activo</th>
+                    <th className="p-5 text-right">Compra Avg</th>
+                    <th className="p-5 text-right text-yellow-500 font-black">
+                      Actual
+                    </th>
+                    <th className="p-5 text-right">PNL Neto</th>
+                    <th className="p-5 text-center">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                  {enrichedPortfolio.map((item) => (
+                    <tr
+                      key={item.id}
+                      className="hover:bg-slate-800/20 transition-colors"
+                    >
+                      <td className="p-5 font-bold">
+                        <span
+                          className={`border px-3 py-1 rounded-lg text-xs font-black tracking-tighter ${getCoinStyle(
+                            item.coin
+                          )}`}
+                        >
+                          {item.coin}
+                        </span>
+                      </td>
+                      <td className="p-5 text-right text-slate-500 font-mono text-xs">
+                        {fmtUSD(item.buyPrice, item.coin)}
+                      </td>
+                      <td className="p-5 text-right text-yellow-400 font-mono font-bold">
+                        {fmtUSD(item.currentPrice, item.coin)}
+                      </td>
+                      <td className="p-5 text-right">
+                        <div
+                          className={`font-bold ${
+                            item.profit >= 0
+                              ? "text-emerald-400"
+                              : "text-red-400"
+                          }`}
+                        >
+                          {fmtUSD(item.profit, item.coin)}
+                        </div>
+                        <div
+                          className={`text-[10px] font-bold ${
+                            item.profit >= 0
+                              ? "text-emerald-600"
+                              : "text-red-600"
+                          }`}
+                        >
+                          {item.roi.toFixed(2)}%
+                        </div>
+                      </td>
+                      <td className="p-5 text-center">
+                        <DeleteButton
+                          onDelete={() => handleDelete("inversiones", item.id)}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </section>
+
+        {/* 2.5 CUADRO DE PROMEDIOS */}
+        {aggregatedList.length > 0 && (
+          <section className="mb-12">
+            <h2 className="text-[10px] font-black text-slate-500 mb-4 uppercase flex items-center gap-2 border-b border-slate-900 pb-2 tracking-widest text-blue-500">
+              <Calculator className="w-4 h-4" /> Promedios y PNL Consolidado
+            </h2>
+            <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl overflow-x-auto">
+              <table className="w-full text-left text-sm min-w-[600px]">
+                <thead className="bg-slate-950 text-slate-600 uppercase text-[10px] font-bold">
+                  <tr>
+                    <th className="p-5">Moneda</th>
+                    <th className="p-5 text-right">Cantidad Total</th>
+                    <th className="p-5 text-right text-blue-400">
+                      Precio Promedio
+                    </th>
+                    <th className="p-5 text-right">Precio Actual</th>
+                    <th className="p-5 text-right">PNL Neto Promedio</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                  {aggregatedList.map((asset) => (
+                    <tr
+                      key={asset.coin}
+                      className="hover:bg-slate-800/20 transition-colors"
+                    >
+                      <td className="p-5 font-bold">
+                        <span
+                          className={`border px-3 py-1 rounded-lg text-xs font-black tracking-tighter ${getCoinStyle(
+                            asset.coin
+                          )}`}
+                        >
+                          {asset.coin}
+                        </span>
+                      </td>
+                      <td className="p-5 text-right text-slate-400 font-mono text-xs font-bold">
+                        {asset.totalQty.toFixed(4)}
+                      </td>
+                      <td className="p-5 text-right text-blue-400 font-mono font-bold">
+                        {fmtUSD(asset.avgBuyPrice, asset.coin)}
+                      </td>
+                      <td className="p-5 text-right text-slate-500 font-mono text-xs">
+                        {fmtUSD(asset.currentPrice, asset.coin)}
+                      </td>
+                      <td className="p-5 text-right">
+                        <div
+                          className={`font-bold ${
+                            asset.pnl >= 0 ? "text-emerald-400" : "text-red-400"
+                          }`}
+                        >
+                          {fmtUSD(asset.pnl, asset.coin)}
+                        </div>
+                        <div
+                          className={`text-[10px] font-bold ${
+                            asset.pnl >= 0 ? "text-emerald-600" : "text-red-600"
+                          }`}
+                        >
+                          {asset.priceDiffPercent >= 0 ? "+" : ""}
+                          {asset.priceDiffPercent.toFixed(2)}% vs Prom.
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        {/* 3. MONITOR DE RIESGO LTV */}
+        {processedLoans.length > 0 && (
+          <section className="mb-12">
+            <h2 className="text-[10px] font-black text-slate-500 mb-4 uppercase flex items-center gap-2 border-b border-slate-900 pb-2 tracking-widest text-orange-500">
+              Monitor de Riesgo & LTV
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {processedLoans.map((loan) => (
+                <div
+                  key={loan.id}
+                  className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-2xl group relative overflow-hidden transition-all hover:border-slate-700"
+                >
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`text-[10px] font-bold px-2 py-1 rounded-md shadow-sm ${
+                          loan.exchange === "Bybit"
+                            ? "bg-black text-white border border-slate-700"
+                            : "bg-yellow-500 text-black"
+                        }`}
+                      >
+                        {loan.exchange}
+                      </span>
+                      <div>
+                        <p className="font-bold text-white text-lg leading-none">
+                          {fmtUSD(loan.borrowedUSDT)}
+                        </p>
+                        <p className="text-[9px] text-slate-500 font-bold uppercase mt-1">
+                          Deuda Total USDT
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setEditingLoan(loan)}
+                        className="bg-slate-800 p-1.5 rounded hover:bg-blue-600 transition-colors"
+                        aria-label="Editar préstamo"
+                      >
+                        <Edit className="w-3.5 h-3.5 text-white" />
+                      </button>
+                      <DeleteButton
+                        onDelete={() => handleDelete("prestamos", loan.id)}
+                      />
+                    </div>
+                  </div>
+
+                  <LtvProgressBar ltv={loan.ltv} exchange={loan.exchange} />
+
+                  <div className="grid grid-cols-2 gap-4 bg-slate-950 p-4 rounded-2xl border border-slate-900 mt-2">
+                    <div>
+                      <p className="text-[9px] uppercase text-slate-600 font-black mb-1 tracking-widest">
+                        Garantía ({loan.collateralCoin})
+                      </p>
+                      <p className="font-mono text-slate-200 font-bold text-sm leading-tight">
+                        {loan.collateralQty} {loan.collateralCoin}
+                      </p>
+                      <p className="text-[10px] text-blue-500 font-bold">
+                        {fmtUSD(loan.collateralValue, loan.collateralCoin)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[9px] uppercase text-slate-600 font-black mb-1 tracking-widest flex items-center justify-end gap-1">
+                        <AlertTriangle className="w-2.5 h-2.5 text-red-500" />{" "}
+                        Liquidación Est.
+                      </p>
+                      <p className="font-mono font-bold text-red-500 text-lg leading-tight tracking-tighter">
+                        {fmtUSD(loan.liquidationPrice, loan.collateralCoin)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* 4. FORMULARIOS */}
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-slate-900 pt-12 mt-8">
+          <form
+            onSubmit={handleAddInvestment}
+            className="bg-slate-900/50 p-8 rounded-3xl border border-slate-800 shadow-lg"
+          >
+            <h3 className="text-yellow-500 font-black mb-6 flex items-center gap-2 uppercase text-[10px] tracking-widest">
+              <Plus className="w-4 h-4" /> Registrar Compra Spot
+            </h3>
+            <div className="space-y-4">
+              <select
+                value={newCoin}
+                onChange={(e) => setNewCoin(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white outline-none focus:ring-1 focus:ring-yellow-500"
+              >
+                {AVAILABLE_COINS.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+              <div className="grid grid-cols-2 gap-4">
+                <input
+                  type="number"
+                  step="any"
+                  placeholder="Precio Compra"
+                  value={newPrice}
+                  onChange={(e) => setNewPrice(e.target.value)}
+                  className="bg-slate-950 border border-slate-800 rounded-xl p-4 text-white outline-none focus:ring-1 focus:ring-yellow-500"
+                />
+                <input
+                  type="number"
+                  step="any"
+                  placeholder="Cantidad"
+                  value={newQty}
+                  onChange={(e) => setNewQty(e.target.value)}
+                  className="bg-slate-950 border border-slate-800 rounded-xl p-4 text-white outline-none focus:ring-1 focus:ring-yellow-500"
+                />
+              </div>
+              <button
+                disabled={
+                  !isValidPositiveNumber(newPrice) ||
+                  !isValidPositiveNumber(newQty)
+                }
+                className="w-full bg-yellow-600 hover:bg-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed font-black py-4 rounded-2xl transition-all text-white uppercase text-[10px] tracking-widest active:scale-95 shadow-lg"
+              >
+                Añadir Activo
+              </button>
+            </div>
+          </form>
+
+          <form
+            onSubmit={handleAddLoan}
+            className="bg-slate-900/30 p-8 rounded-3xl border border-slate-800 border-dashed"
+          >
+            <h3 className="text-orange-500 font-black mb-6 flex items-center gap-2 uppercase text-[10px] tracking-widest">
+              <ShieldAlert className="w-4 h-4" /> Registrar Préstamo LTV
+            </h3>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <select
+                  value={loanExchange}
+                  onChange={(e) => setLoanExchange(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white outline-none focus:ring-1 focus:ring-orange-500"
+                >
+                  <option value="Binance">Binance</option>
+                  <option value="Bybit">Bybit</option>
+                </select>
+                <select
+                  value={loanCollateralCoin}
+                  onChange={(e) => setLoanCollateralCoin(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white outline-none focus:ring-1 focus:ring-orange-500"
+                >
+                  {AVAILABLE_COINS.map((c) => (
+                    <option key={c} value={c}>
+                      {c} (Garantía)
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <input
+                type="number"
+                placeholder="Deuda Total (USDT)"
+                value={loanBorrowedUSDT}
+                onChange={(e) => setLoanBorrowedUSDT(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white outline-none focus:ring-1 focus:ring-orange-500"
+              />
+              <input
+                type="number"
+                placeholder={`Cantidad ${loanCollateralCoin} en Garantía`}
+                value={loanCollateralQty}
+                onChange={(e) => setLoanCollateralQty(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white outline-none focus:ring-1 focus:ring-orange-500"
+              />
+              <button
+                disabled={
+                  !isValidPositiveNumber(loanBorrowedUSDT) ||
+                  !isValidPositiveNumber(loanCollateralQty)
+                }
+                className="w-full bg-orange-600 hover:bg-orange-500 disabled:opacity-50 disabled:cursor-not-allowed font-black py-4 rounded-2xl transition-all text-white uppercase text-[10px] tracking-widest active:scale-95 shadow-lg"
+              >
+                Activar Monitor
+              </button>
+            </div>
+          </form>
+        </section>
+      </div>
+
+      {/* MODAL EDICIÓN */}
+      {editingLoan && (
+        <div
+          className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-[200] p-4"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="bg-slate-900 w-full max-w-md rounded-3xl border border-slate-700 p-8 shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center mb-8">
+              <h3 className="text-lg font-bold flex items-center gap-2 text-white">
+                <Edit className="text-blue-500 w-5 h-5" /> Ajustar Parámetros
+                LTV
+              </h3>
+              <button
+                onClick={() => setEditingLoan(null)}
+                className="p-2 hover:bg-slate-800 rounded-full transition-colors"
+                aria-label="Cerrar modal"
+              >
+                <X className="text-slate-500 hover:text-white" />
+              </button>
+            </div>
+            <form onSubmit={handleUpdateLoan} className="space-y-5">
+              <div>
+                <label className="text-[10px] uppercase font-black text-slate-500 mb-1 block tracking-widest">
+                  Deuda (USDT)
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  value={editingLoan.borrowedUSDT}
+                  onChange={(e) =>
+                    setEditingLoan({
+                      ...editingLoan,
+                      borrowedUSDT: parseFloat(e.target.value),
+                    })
+                  }
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-black text-slate-500 mb-1 block tracking-widest">
+                  Garantía ({editingLoan.collateralCoin})
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  value={editingLoan.collateralQty}
+                  onChange={(e) =>
+                    setEditingLoan({
+                      ...editingLoan,
+                      collateralQty: parseFloat(e.target.value),
+                    })
+                  }
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-black text-slate-500 mb-1 block tracking-widest">
+                  Interés APY %
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  value={editingLoan.apy}
+                  onChange={(e) =>
+                    setEditingLoan({
+                      ...editingLoan,
+                      apy: parseFloat(e.target.value),
+                    })
+                  }
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+              <button className="w-full bg-blue-600 hover:bg-blue-500 font-black py-4 rounded-2xl uppercase text-[10px] tracking-widest mt-4 shadow-lg active:scale-95 transition-all">
+                <Save className="inline-block mr-2 w-4 h-4" /> Guardar Cambios
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default App;
