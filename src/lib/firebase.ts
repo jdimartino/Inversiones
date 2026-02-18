@@ -8,8 +8,9 @@ import {
     doc,
     onSnapshot,
     query,
+    type Firestore,
+    type DocumentData,
 } from "firebase/firestore";
-import { Firestore, DocumentData } from "firebase/firestore";
 
 const firebaseConfig = {
     apiKey: "AIzaSyABbxfNUY3Zr5d4RmKsP59pd6iKFruBZBY",

@@ -1,13 +1,18 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { Activity, RefreshCw } from "lucide-react";
-import { RISK_PARAMS } from "./lib/constants";
-import { ProcessedInvestment, ProcessedLoan, Loan, AggregatedAsset } from "./lib/constants";
-import AggregatedTable from "./components/AggregatedTable";
+import {
+  RISK_PARAMS,
+  type ProcessedInvestment,
+  type ProcessedLoan,
+  type Loan,
+  type AggregatedAsset,
+} from "./lib/constants";
 import { usePortfolio } from "./hooks/usePortfolio";
 import { useLoans } from "./hooks/useLoans";
 import { usePrices } from "./hooks/usePrices";
 import SummaryCards from "./components/SummaryCards";
 import AssetTable from "./components/AssetTable";
+import AggregatedTable from "./components/AggregatedTable";
 import { LoanSection } from "./components/LoanCard";
 import InvestmentForm from "./components/InvestmentForm";
 import LoanForm from "./components/LoanForm";
@@ -19,7 +24,7 @@ const App: React.FC = () => {
   const { prices, loading, refresh } = usePrices();
   const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
 
-  // ── Computed data (memoized) ──────────────────────────────────────
+  // ── Computed: portfolio with live prices ──────────────────────────
   const sortedPortfolio = useMemo<ProcessedInvestment[]>(() => {
     return portfolio
       .map((item) => {
@@ -32,9 +37,14 @@ const App: React.FC = () => {
       .sort((a, b) => b.profit - a.profit);
   }, [portfolio, prices]);
 
+  // ── Computed: totals (single-pass reduce) ────────────────────────
   const { totalInvested, totalValue, totalPnl, totalRoi } = useMemo(() => {
-    const inv = sortedPortfolio.reduce((a, b) => a + b.invested, 0);
-    const val = sortedPortfolio.reduce((a, b) => a + b.currentValue, 0);
+    let inv = 0;
+    let val = 0;
+    for (const item of sortedPortfolio) {
+      inv += item.invested;
+      val += item.currentValue;
+    }
     const pnl = val - inv;
     return {
       totalInvested: inv,
@@ -44,13 +54,16 @@ const App: React.FC = () => {
     };
   }, [sortedPortfolio]);
 
+  // ── Computed: aggregated averages per coin ────────────────────────
   const aggregatedList = useMemo<AggregatedAsset[]>(() => {
     const map = new Map<string, { totalQty: number; totalInvested: number }>();
 
     for (const item of portfolio) {
+      const qty = Number.isFinite(item.quantity) ? item.quantity : 0;
+      const inv = Number.isFinite(item.invested) ? item.invested : 0;
       const entry = map.get(item.coin) || { totalQty: 0, totalInvested: 0 };
-      entry.totalQty += item.quantity;
-      entry.totalInvested += item.invested;
+      entry.totalQty += qty;
+      entry.totalInvested += inv;
       map.set(item.coin, entry);
     }
 
@@ -78,37 +91,31 @@ const App: React.FC = () => {
       .sort((a, b) => b.pnl - a.pnl);
   }, [portfolio, prices]);
 
+  // ── Computed: loans with live LTV ────────────────────────────────
   const processedLoans = useMemo<ProcessedLoan[]>(() => {
     return loans.map((loan) => {
       const colVal = loan.collateralQty * (prices[loan.collateralCoin] || 0);
       const ltv = colVal > 0 ? (loan.borrowedUSDT / colVal) * 100 : 0;
       const params = RISK_PARAMS[loan.exchange] || RISK_PARAMS["Binance"];
       const liquidationPrice =
-        (loan.borrowedUSDT * 100) / (params.liquidation * loan.collateralQty);
+        loan.collateralQty > 0
+          ? (loan.borrowedUSDT * 100) /
+          (params.liquidation * loan.collateralQty)
+          : 0;
       return { ...loan, collateralValue: colVal, ltv, liquidationPrice };
     });
   }, [loans, prices]);
 
-  // ── Callbacks ─────────────────────────────────────────────────────
+  // ── Callbacks ────────────────────────────────────────────────────
   const handleEditLoan = useCallback((loan: ProcessedLoan) => {
     setEditingLoan(loan);
   }, []);
-
-  const handleSaveLoan = useCallback(
-    async (
-      id: string,
-      updates: { collateralQty: number; borrowedUSDT: number; apy: number }
-    ) => {
-      await updateLoan(id, updates);
-    },
-    [updateLoan]
-  );
 
   const handleCloseModal = useCallback(() => {
     setEditingLoan(null);
   }, []);
 
-  // ── Render ────────────────────────────────────────────────────────
+  // ── Render ───────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 p-3 md:p-8 font-sans pb-40">
       <div className="max-w-6xl mx-auto">
@@ -165,7 +172,7 @@ const App: React.FC = () => {
       {editingLoan && (
         <EditLoanModal
           loan={editingLoan}
-          onSave={handleSaveLoan}
+          onSave={updateLoan}
           onClose={handleCloseModal}
         />
       )}
