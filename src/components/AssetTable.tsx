@@ -1,6 +1,6 @@
 import React from "react";
 import { Activity } from "lucide-react";
-import { getCoinStyle, type ProcessedInvestment } from "../lib/constants";
+import { getCoinStyle, ProcessedInvestment } from "../lib/constants";
 import { fmt, fmtUSD } from "../lib/format";
 import DeleteButton from "./DeleteButton";
 

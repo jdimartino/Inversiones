@@ -8,8 +8,8 @@ import {
     doc,
     onSnapshot,
     query,
-    type Firestore,
-    type DocumentData,
+    Firestore,
+    DocumentData,
 } from "firebase/firestore";
 
 const firebaseConfig = {

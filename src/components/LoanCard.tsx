@@ -1,6 +1,6 @@
 import React from "react";
 import { ShieldAlert, Edit, AlertTriangle } from "lucide-react";
-import { RISK_PARAMS, type ProcessedLoan } from "../lib/constants";
+import { RISK_PARAMS, ProcessedLoan } from "../lib/constants";
 import { fmt, fmtUSD } from "../lib/format";
 import LtvProgressBar from "./LtvProgressBar";
 import DeleteButton from "./DeleteButton";

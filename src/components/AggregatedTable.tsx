@@ -1,6 +1,6 @@
 import React from "react";
 import { Calculator } from "lucide-react";
-import { getCoinStyle, type AggregatedAsset } from "../lib/constants";
+import { getCoinStyle, AggregatedAsset } from "../lib/constants";
 import { fmtUSD } from "../lib/format";
 
 interface AggregatedTableProps {

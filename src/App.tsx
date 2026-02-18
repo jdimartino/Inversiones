@@ -2,10 +2,10 @@ import React, { useState, useMemo, useCallback } from "react";
 import { Activity, RefreshCw } from "lucide-react";
 import {
   RISK_PARAMS,
-  type ProcessedInvestment,
-  type ProcessedLoan,
-  type Loan,
-  type AggregatedAsset,
+  ProcessedInvestment,
+  ProcessedLoan,
+  Loan,
+  AggregatedAsset,
 } from "./lib/constants";
 import { usePortfolio } from "./hooks/usePortfolio";
 import { useLoans } from "./hooks/useLoans";
