@@ -1,1 +1,3 @@
 node_modules
+# Local historical backups
+history/
