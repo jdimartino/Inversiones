@@ -13,7 +13,7 @@ import {
 } from "firebase/firestore";
 
 const firebaseConfig = {
-    apiKey: "AIzaSyABbxfNUY3Zr5d4RmKsP59pd6iKFruBZBY",
+    apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
     authDomain: "micriptoapp.firebaseapp.com",
     projectId: "micriptoapp",
     storageBucket: "micriptoapp.firebasestorage.app",

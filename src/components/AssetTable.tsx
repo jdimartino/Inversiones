@@ -63,10 +63,12 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                         <thead className="bg-slate-950 text-slate-500 uppercase text-[10px] tracking-widest">
                             <tr>
                                 <th className="p-5">Activo</th>
-                                <th className="p-5 text-right">Compra Avg</th>
+                                <th className="p-5 text-right">Cantidad</th>
+                                <th className="p-5 text-right">Precio Compra</th>
                                 <th className="p-5 text-right">Precio Actual</th>
+                                <th className="p-5 text-right">Valor</th>
                                 <th className="p-5 text-right">PNL Neto</th>
-                                <th className="p-5 text-center">Acciones</th>
+                                <th className="p-5 text-center">Acción</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-700">
@@ -84,11 +86,17 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                                             {item.coin}
                                         </span>
                                     </td>
+                                    <td className="p-5 text-right text-slate-400 font-mono text-xs font-bold">
+                                        {fmt(item.quantity)}
+                                    </td>
                                     <td className="p-5 text-right text-slate-500 font-mono italic">
                                         {fmtUSD(item.buyPrice)}
                                     </td>
                                     <td className="p-5 text-right text-yellow-300 font-mono font-bold">
                                         {fmtUSD(item.currentPrice)}
+                                    </td>
+                                    <td className="p-5 text-right text-emerald-300 font-mono font-bold">
+                                        {fmtUSD(item.currentValue)}
                                     </td>
                                     <td className="p-5 text-right">
                                         <div
@@ -99,7 +107,7 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                                             {fmtUSD(item.profit)}
                                         </div>
                                         <div
-                                            className={`text-[10px] font-bold ${item.profit >= 0 ? "text-green-600" : "text-red-600"
+                                            className={`text-xs font-bold ${item.profit >= 0 ? "text-green-600" : "text-red-600"
                                                 }`}
                                         >
                                             {item.roi.toFixed(2)}%
