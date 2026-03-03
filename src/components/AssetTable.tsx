@@ -22,11 +22,11 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                     {/* Mobile */}
                     <div className="md:hidden divide-y divide-slate-700">
                         {items.map((item) => (
-                            <div
-                                key={item.id}
-                                className="p-4 flex justify-between items-center"
-                            >
-                                <div className="flex items-center gap-3">
+                            <div key={item.id} className="p-4 relative hover:bg-slate-700/10 transition-colors">
+                                <div className="absolute top-4 right-4">
+                                    <DeleteButton onDelete={() => onDelete(item.id)} />
+                                </div>
+                                <div className="flex items-center gap-3 mb-4">
                                     <div
                                         className={`w-10 h-10 border rounded-full flex items-center justify-center font-bold text-[11px] shadow-sm ${getCoinStyle(
                                             item.coin
@@ -35,25 +35,44 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                                         {item.coin}
                                     </div>
                                     <div>
-                                        <p className="font-bold text-white text-sm">{item.coin}</p>
-                                        <p className="text-[10px] text-slate-500">
+                                        <p className="font-bold text-white text-base">{item.coin}</p>
+                                        <p className="text-xs text-slate-400 font-mono font-bold tracking-tight">
                                             {fmt(item.quantity)} u.
                                         </p>
                                     </div>
                                 </div>
-                                <div className="text-right">
-                                    <p className="text-sm font-bold text-white">
-                                        {fmtUSD(item.currentValue)}
-                                    </p>
-                                    <p
-                                        className={`text-xs font-bold ${item.profit >= 0 ? "text-green-400" : "text-red-400"
-                                            }`}
-                                    >
-                                        {item.profit >= 0 ? "+" : ""}
-                                        {fmtUSD(item.profit)}
-                                    </p>
+
+                                <div className="grid grid-cols-2 gap-x-2 gap-y-3 text-sm">
+                                    <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50">
+                                        <p className="text-[9px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Precio Compra</p>
+                                        <p className="text-slate-400 font-mono text-xs italic">{fmtUSD(item.buyPrice)}</p>
+                                    </div>
+                                    <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50 text-right">
+                                        <p className="text-[9px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Precio Actual</p>
+                                        <p className="text-yellow-300 font-mono text-xs font-bold">{fmtUSD(item.currentPrice)}</p>
+                                    </div>
+                                    <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50">
+                                        <p className="text-[9px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Valor Total</p>
+                                        <p className="text-emerald-300 font-mono text-xs font-bold">{fmtUSD(item.currentValue)}</p>
+                                    </div>
+                                    <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50 text-right">
+                                        <p className="text-[9px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">PNL Neto</p>
+                                        <div
+                                            className={`font-bold text-xs ${item.profit >= 0 ? "text-green-400" : "text-red-400"
+                                                }`}
+                                        >
+                                            {item.profit >= 0 ? "+" : ""}
+                                            {fmtUSD(item.profit)}
+                                        </div>
+                                        <div
+                                            className={`text-[9px] font-bold tracking-tight ${item.profit >= 0 ? "text-green-600" : "text-red-600"
+                                                }`}
+                                        >
+                                            {item.profit >= 0 ? "+" : ""}
+                                            {item.roi.toFixed(2)}%
+                                        </div>
+                                    </div>
                                 </div>
-                                <DeleteButton onDelete={() => onDelete(item.id)} />
                             </div>
                         ))}
                     </div>
@@ -110,6 +129,7 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                                             className={`text-xs font-bold ${item.profit >= 0 ? "text-green-600" : "text-red-600"
                                                 }`}
                                         >
+                                            {item.profit >= 0 ? "+" : ""}
                                             {item.roi.toFixed(2)}%
                                         </div>
                                     </td>

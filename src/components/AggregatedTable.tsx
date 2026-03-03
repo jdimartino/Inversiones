@@ -21,11 +21,8 @@ const AggregatedTable: React.FC<AggregatedTableProps> = React.memo(
                     {/* Mobile */}
                     <div className="md:hidden divide-y divide-slate-700">
                         {items.map((asset) => (
-                            <div
-                                key={asset.coin}
-                                className="p-4 flex justify-between items-center"
-                            >
-                                <div className="flex items-center gap-3">
+                            <div key={asset.coin} className="p-4 relative hover:bg-slate-700/10 transition-colors">
+                                <div className="flex items-center gap-3 mb-4">
                                     <div
                                         className={`w-10 h-10 border rounded-full flex items-center justify-center font-bold text-[11px] shadow-sm ${getCoinStyle(
                                             asset.coin
@@ -34,23 +31,41 @@ const AggregatedTable: React.FC<AggregatedTableProps> = React.memo(
                                         {asset.coin}
                                     </div>
                                     <div>
-                                        <p className="font-bold text-white text-sm">{asset.coin}</p>
-                                        <p className="text-[10px] text-slate-500">
+                                        <p className="font-bold text-white text-base">{asset.coin}</p>
+                                        <p className="text-xs text-slate-400 font-mono font-bold tracking-tight">
                                             {asset.totalQty.toFixed(4)} u.
                                         </p>
                                     </div>
                                 </div>
-                                <div className="text-right">
-                                    <p className="text-sm text-blue-400 font-mono font-bold">
-                                        {fmtUSD(asset.avgBuyPrice)}
-                                    </p>
-                                    <p
-                                        className={`text-xs font-bold ${asset.pnl >= 0 ? "text-green-400" : "text-red-400"
-                                            }`}
-                                    >
-                                        {asset.pnl >= 0 ? "+" : ""}
-                                        {fmtUSD(asset.pnl)}
-                                    </p>
+
+                                <div className="grid grid-cols-2 gap-x-2 gap-y-3 text-sm">
+                                    <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50">
+                                        <p className="text-[9px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Precio Promedio</p>
+                                        <p className="text-blue-400 font-mono text-xs font-bold">{fmtUSD(asset.avgBuyPrice)}</p>
+                                    </div>
+                                    <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50 text-right">
+                                        <p className="text-[9px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Precio Actual</p>
+                                        <p className="text-yellow-300 font-mono text-xs font-bold">{fmtUSD(asset.currentPrice)}</p>
+                                    </div>
+                                    <div className="col-span-2 bg-slate-900/40 p-3 rounded-lg border border-slate-700/50 flex justify-between items-center">
+                                        <p className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">PNL Neto Promedio</p>
+                                        <div className="text-right">
+                                            <div
+                                                className={`font-bold text-sm ${asset.pnl >= 0 ? "text-green-400" : "text-red-400"
+                                                    }`}
+                                            >
+                                                {asset.pnl >= 0 ? "+" : ""}
+                                                {fmtUSD(asset.pnl)}
+                                            </div>
+                                            <div
+                                                className={`text-[10px] font-bold tracking-tight ${asset.pnl >= 0 ? "text-green-600" : "text-red-600"
+                                                    }`}
+                                            >
+                                                {asset.priceDiffPercent >= 0 ? "+" : ""}
+                                                {asset.priceDiffPercent.toFixed(2)}% vs Prom.
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         ))}

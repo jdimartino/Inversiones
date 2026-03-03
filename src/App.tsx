@@ -13,10 +13,12 @@ import { usePrices } from "./hooks/usePrices";
 import SummaryCards from "./components/SummaryCards";
 import AssetTable from "./components/AssetTable";
 import AggregatedTable from "./components/AggregatedTable";
+import AnalyticsSection from "./components/AnalyticsSection";
 import { LoanSection } from "./components/LoanCard";
 import InvestmentForm from "./components/InvestmentForm";
 import LoanForm from "./components/LoanForm";
 import EditLoanModal from "./components/EditLoanModal";
+import AlertSettings from "./components/AlertSettings";
 
 const App: React.FC = () => {
   const { portfolio, addInvestment, removeInvestment } = usePortfolio();
@@ -153,6 +155,13 @@ const App: React.FC = () => {
           onDelete={removeInvestment}
         />
 
+        <AnalyticsSection
+          aggregated={aggregatedList}
+          items={sortedPortfolio}
+          loans={processedLoans}
+          totalValue={totalValue}
+        />
+
         <AggregatedTable items={aggregatedList} />
 
         <LoanSection
@@ -160,6 +169,8 @@ const App: React.FC = () => {
           onEdit={handleEditLoan}
           onDelete={removeLoan}
         />
+
+        <AlertSettings />
 
         {/* Forms */}
         <div className="border-t-2 border-slate-800 pt-10 mt-12 grid grid-cols-1 md:grid-cols-2 gap-8">
