@@ -1,5 +1,5 @@
 import React from "react";
-import { Activity } from "lucide-react";
+import { Activity, Pencil } from "lucide-react";
 import { getCoinStyle, ProcessedInvestment } from "../lib/constants";
 import { fmt, fmtUSD } from "../lib/format";
 import DeleteButton from "./DeleteButton";
@@ -7,10 +7,20 @@ import DeleteButton from "./DeleteButton";
 interface AssetTableProps {
     items: ProcessedInvestment[];
     onDelete: (id: string) => void;
+    onEdit: (item: ProcessedInvestment) => void;
+}
+
+function fmtDate(ts: number): string {
+    if (!ts) return "—";
+    return new Date(ts).toLocaleDateString("es", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+    });
 }
 
 const AssetTable: React.FC<AssetTableProps> = React.memo(
-    ({ items, onDelete }) => {
+    ({ items, onDelete, onEdit }) => {
         if (items.length === 0) return null;
 
         return (
@@ -23,9 +33,18 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                     <div className="md:hidden divide-y divide-slate-700">
                         {items.map((item) => (
                             <div key={item.id} className="p-4 relative hover:bg-slate-700/10 transition-colors">
-                                <div className="absolute top-4 right-4">
+                                {/* Action buttons top-right */}
+                                <div className="absolute top-4 right-4 flex items-center gap-1">
+                                    <button
+                                        onClick={() => onEdit(item)}
+                                        className="text-slate-500 hover:text-yellow-400 p-1 transition-colors"
+                                        title="Modificar"
+                                    >
+                                        <Pencil className="w-4 h-4" />
+                                    </button>
                                     <DeleteButton onDelete={() => onDelete(item.id)} />
                                 </div>
+
                                 <div className="flex items-center gap-3 mb-4">
                                     <div
                                         className={`w-10 h-10 border rounded-full flex items-center justify-center font-bold text-[11px] shadow-sm ${getCoinStyle(
@@ -38,6 +57,9 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                                         <p className="font-bold text-white text-base">{item.coin}</p>
                                         <p className="text-xs text-slate-400 font-mono font-bold tracking-tight">
                                             {fmt(item.quantity)} u.
+                                        </p>
+                                        <p className="text-xs text-slate-500 mt-0.5">
+                                            📅 {fmtDate(item.date)}
                                         </p>
                                     </div>
                                 </div>
@@ -87,6 +109,7 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                                 <th className="p-5 text-right">Precio Actual</th>
                                 <th className="p-5 text-right">Valor</th>
                                 <th className="p-5 text-right">PNL Neto</th>
+                                <th className="p-5 text-center">Fecha</th>
                                 <th className="p-5 text-center">Acción</th>
                             </tr>
                         </thead>
@@ -133,8 +156,20 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                                             {item.roi.toFixed(2)}%
                                         </div>
                                     </td>
+                                    <td className="p-5 text-center text-slate-400 text-xs">
+                                        {fmtDate(item.date)}
+                                    </td>
                                     <td className="p-5 text-center">
-                                        <DeleteButton onDelete={() => onDelete(item.id)} />
+                                        <div className="flex items-center justify-center gap-1">
+                                            <button
+                                                onClick={() => onEdit(item)}
+                                                className="text-slate-500 hover:text-yellow-400 p-1 transition-colors"
+                                                title="Modificar"
+                                            >
+                                                <Pencil className="w-4 h-4" />
+                                            </button>
+                                            <DeleteButton onDelete={() => onDelete(item.id)} />
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

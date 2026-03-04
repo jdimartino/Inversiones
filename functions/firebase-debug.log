@@ -1,35 +1,35 @@
-[debug] [2026-03-03T20:45:07.357Z] ----------------------------------------------------------------------
-[debug] [2026-03-03T20:45:07.359Z] Command:       /usr/local/bin/node /Users/jdimartino/.npm/_npx/7750544ccf494d8b/node_modules/.bin/firebase functions:shell --project micriptoapp
-[debug] [2026-03-03T20:45:07.359Z] CLI Version:   15.8.0
-[debug] [2026-03-03T20:45:07.359Z] Platform:      darwin
-[debug] [2026-03-03T20:45:07.359Z] Node Version:  v24.11.1
-[debug] [2026-03-03T20:45:07.359Z] Time:          Tue Mar 03 2026 16:45:07 GMT-0400 (Venezuela Time)
-[debug] [2026-03-03T20:45:07.359Z] ----------------------------------------------------------------------
+[debug] [2026-03-04T14:00:22.676Z] ----------------------------------------------------------------------
+[debug] [2026-03-04T14:00:22.682Z] Command:       /usr/local/bin/node /Users/jdimartino/.npm/_npx/7750544ccf494d8b/node_modules/.bin/firebase functions:shell --project micriptoapp
+[debug] [2026-03-04T14:00:22.683Z] CLI Version:   15.8.0
+[debug] [2026-03-04T14:00:22.683Z] Platform:      darwin
+[debug] [2026-03-04T14:00:22.683Z] Node Version:  v24.11.1
+[debug] [2026-03-04T14:00:22.683Z] Time:          Wed Mar 04 2026 10:00:22 GMT-0400 (Venezuela Time)
+[debug] [2026-03-04T14:00:22.683Z] ----------------------------------------------------------------------
 [debug] 
-[debug] [2026-03-03T20:45:09.111Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
-[debug] [2026-03-03T20:45:09.111Z] > authorizing via signed-in user (dimartinoj@gmail.com)
-[debug] [2026-03-03T20:45:09.111Z] [iam] checking project micriptoapp for permissions ["firebase.projects.get"]
-[debug] [2026-03-03T20:45:09.112Z] Checked if tokens are valid: true, expires at: 1772574040807
-[debug] [2026-03-03T20:45:09.112Z] Checked if tokens are valid: true, expires at: 1772574040807
-[debug] [2026-03-03T20:45:09.113Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/micriptoapp:testIamPermissions [none]
-[debug] [2026-03-03T20:45:09.113Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/micriptoapp:testIamPermissions  x-goog-user-project=micriptoapp
-[debug] [2026-03-03T20:45:09.113Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/micriptoapp:testIamPermissions {"permissions":["firebase.projects.get"]}
-[debug] [2026-03-03T20:45:09.761Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/micriptoapp:testIamPermissions 200
-[debug] [2026-03-03T20:45:09.761Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/micriptoapp:testIamPermissions {"permissions":["firebase.projects.get"]}
-[warn] ⚠  functions: Functions Emulator unable to start on port 5000, starting on 5001 instead. {"metadata":{"emulator":{"name":"functions"},"message":"Functions Emulator unable to start on port 5000, starting on 5001 instead."}}
-[debug] [2026-03-03T20:45:09.962Z] [functions] Functions Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
-[debug] [2026-03-03T20:45:10.104Z] defaultcredentials: writing to file /Users/jdimartino/.config/firebase/dimartinoj_gmail_com_application_default_credentials.json
-[debug] [2026-03-03T20:45:10.109Z] DEBUG: Setting GAC to /Users/jdimartino/.config/firebase/dimartinoj_gmail_com_application_default_credentials.json
-[debug] [2026-03-03T20:45:10.110Z] Checked if tokens are valid: true, expires at: 1772574040807
-[debug] [2026-03-03T20:45:10.110Z] Checked if tokens are valid: true, expires at: 1772574040807
-[debug] [2026-03-03T20:45:10.110Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/micriptoapp/adminSdkConfig [none]
-[debug] [2026-03-03T20:45:10.609Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/micriptoapp/adminSdkConfig 200
-[debug] [2026-03-03T20:45:10.609Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/micriptoapp/adminSdkConfig {"projectId":"micriptoapp","storageBucket":"micriptoapp.firebasestorage.app"}
-[debug] [2026-03-03T20:45:10.623Z] [functions] Watching "/Users/jdimartino/Desktop/Antigravity/inversiones/functions" for Cloud Functions...
-[debug] [2026-03-03T20:45:10.626Z] Validating nodejs source
+[debug] [2026-03-04T14:00:23.628Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-03-04T14:00:23.628Z] > authorizing via signed-in user (dimartinoj@gmail.com)
+[debug] [2026-03-04T14:00:23.628Z] [iam] checking project micriptoapp for permissions ["firebase.projects.get"]
+[debug] [2026-03-04T14:00:23.629Z] Checked if tokens are valid: true, expires at: 1772634914654
+[debug] [2026-03-04T14:00:23.629Z] Checked if tokens are valid: true, expires at: 1772634914654
+[debug] [2026-03-04T14:00:23.629Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/micriptoapp:testIamPermissions [none]
+[debug] [2026-03-04T14:00:23.629Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/micriptoapp:testIamPermissions  x-goog-user-project=micriptoapp
+[debug] [2026-03-04T14:00:23.629Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/micriptoapp:testIamPermissions {"permissions":["firebase.projects.get"]}
+[debug] [2026-03-04T14:00:24.222Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/micriptoapp:testIamPermissions 200
+[debug] [2026-03-04T14:00:24.222Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/micriptoapp:testIamPermissions {"permissions":["firebase.projects.get"]}
+[warn] ⚠  functions: Functions Emulator unable to start on port 5000, starting on 5003 instead. {"metadata":{"emulator":{"name":"functions"},"message":"Functions Emulator unable to start on port 5000, starting on 5003 instead."}}
+[debug] [2026-03-04T14:00:24.472Z] [functions] Functions Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-03-04T14:00:24.487Z] defaultcredentials: writing to file /Users/jdimartino/.config/firebase/dimartinoj_gmail_com_application_default_credentials.json
+[debug] [2026-03-04T14:00:24.490Z] DEBUG: Setting GAC to /Users/jdimartino/.config/firebase/dimartinoj_gmail_com_application_default_credentials.json
+[debug] [2026-03-04T14:00:24.490Z] Checked if tokens are valid: true, expires at: 1772634914654
+[debug] [2026-03-04T14:00:24.490Z] Checked if tokens are valid: true, expires at: 1772634914654
+[debug] [2026-03-04T14:00:24.490Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/micriptoapp/adminSdkConfig [none]
+[debug] [2026-03-04T14:00:25.057Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/micriptoapp/adminSdkConfig 200
+[debug] [2026-03-04T14:00:25.058Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/micriptoapp/adminSdkConfig {"projectId":"micriptoapp","storageBucket":"micriptoapp.firebasestorage.app"}
+[debug] [2026-03-04T14:00:25.085Z] [functions] Watching "/Users/jdimartino/Desktop/Antigravity/inversiones/functions" for Cloud Functions...
+[debug] [2026-03-04T14:00:25.099Z] Validating nodejs source
 [warn] ⚠  functions: package.json indicates an outdated version of firebase-functions. Please upgrade using npm install --save firebase-functions@latest in your functions directory. 
 [warn] ⚠  functions: Please note that there will be breaking changes when you upgrade. 
-[debug] [2026-03-03T20:45:11.584Z] > [functions] package.json contents: {
+[debug] [2026-03-04T14:00:25.918Z] > [functions] package.json contents: {
   "name": "functions",
   "scripts": {
     "build": "tsc",
@@ -53,54 +53,37 @@
   },
   "private": true
 }
-[debug] [2026-03-03T20:45:11.584Z] Building nodejs source
-[debug] [2026-03-03T20:45:11.584Z] Failed to find version of module node: reached end of search path /Users/jdimartino/Desktop/Antigravity/inversiones/functions/node_modules
+[debug] [2026-03-04T14:00:25.918Z] Building nodejs source
+[debug] [2026-03-04T14:00:25.919Z] Failed to find version of module node: reached end of search path /Users/jdimartino/Desktop/Antigravity/inversiones/functions/node_modules
 [warn] ⚠  functions: Your requested "node" version "20" doesn't match your global version "24". Using node@24 from host. 
 [info] i  functions: You are using a version of firebase-functions SDK (4.9.0) that does not have support for the newest Firebase Extensions features. Please update firebase-functions SDK to >=5.1.0 to use them correctly 
-[debug] [2026-03-03T20:45:11.586Z] Could not find functions.yaml. Must use http discovery
-[debug] [2026-03-03T20:45:11.598Z] Found firebase-functions binary at '/Users/jdimartino/Desktop/Antigravity/inversiones/functions/node_modules/.bin/firebase-functions'
-[info] Serving at port 8392
+[debug] [2026-03-04T14:00:25.920Z] Could not find functions.yaml. Must use http discovery
+[debug] [2026-03-04T14:00:25.928Z] Found firebase-functions binary at '/Users/jdimartino/Desktop/Antigravity/inversiones/functions/node_modules/.bin/firebase-functions'
+[info] Serving at port 8619
 
-[debug] [2026-03-03T20:45:12.040Z] Got response from /__/functions.yaml {"endpoints":{"checkPNLAlerts":{"platform":"gcfv1","availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"scheduleTrigger":{"schedule":"every 1 hours","retryConfig":{"retryCount":null,"maxDoublings":null,"maxRetryDuration":null,"maxBackoffDuration":null,"minBackoffDuration":null},"timeZone":null},"labels":{},"entryPoint":"checkPNLAlerts"}},"specVersion":"v1alpha1","requiredAPIs":[{"api":"cloudscheduler.googleapis.com","reason":"Needed for scheduled functions."}]}
-[debug] [2026-03-03T20:45:16.066Z] [functions] Loaded functions definitions from source: checkPNLAlerts.
-[debug] [2026-03-03T20:45:16.068Z] [functions[us-central1-checkPNLAlerts]] function ignored because the pubsub emulator does not exist or is not running.
+[debug] [2026-03-04T14:00:26.444Z] Got response from /__/functions.yaml {"endpoints":{"checkPNLAlerts":{"platform":"gcfv1","availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"scheduleTrigger":{"schedule":"every 1 hours","retryConfig":{"retryCount":null,"maxDoublings":null,"maxRetryDuration":null,"maxBackoffDuration":null,"minBackoffDuration":null},"timeZone":null},"labels":{},"entryPoint":"checkPNLAlerts"}},"specVersion":"v1alpha1","requiredAPIs":[{"api":"cloudscheduler.googleapis.com","reason":"Needed for scheduled functions."}]}
+[debug] [2026-03-04T14:00:30.481Z] [functions] Loaded functions definitions from source: checkPNLAlerts.
+[debug] [2026-03-04T14:00:30.482Z] [functions[us-central1-checkPNLAlerts]] function ignored because the pubsub emulator does not exist or is not running.
 [info] i  functions: Loaded functions: checkPNLAlerts 
 [warn] ⚠  functions: The following emulators are not running, calls to these services will affect production: firestore, database, pubsub, storage, eventarc, tasks 
-[debug] [2026-03-03T20:45:39.109Z] DEBUG: File /Users/jdimartino/Desktop/Antigravity/inversiones/functions/test_alert.js changed, reloading triggers
-[debug] [2026-03-03T20:45:40.124Z] Validating nodejs source
-[warn] ⚠  functions: package.json indicates an outdated version of firebase-functions. Please upgrade using npm install --save firebase-functions@latest in your functions directory. 
-[warn] ⚠  functions: Please note that there will be breaking changes when you upgrade. 
-[debug] [2026-03-03T20:45:41.736Z] > [functions] package.json contents: {
-  "name": "functions",
-  "scripts": {
-    "build": "tsc",
-    "serve": "npm run build && firebase emulators:start --only functions",
-    "shell": "npm run build && firebase functions:shell",
-    "start": "npm run shell",
-    "deploy": "firebase deploy --only functions",
-    "logs": "firebase functions:log"
-  },
-  "engines": {
-    "node": "20"
-  },
-  "main": "lib/index.js",
-  "dependencies": {
-    "axios": "^1.6.0",
-    "firebase-admin": "^11.8.0",
-    "firebase-functions": "^4.3.1"
-  },
-  "devDependencies": {
-    "typescript": "^4.9.0"
-  },
-  "private": true
-}
-[debug] [2026-03-03T20:45:41.736Z] Building nodejs source
-[debug] [2026-03-03T20:45:41.736Z] Failed to find version of module node: reached end of search path /Users/jdimartino/Desktop/Antigravity/inversiones/functions/node_modules
-[warn] ⚠  functions: Your requested "node" version "20" doesn't match your global version "24". Using node@24 from host. 
-[info] i  functions: You are using a version of firebase-functions SDK (4.9.0) that does not have support for the newest Firebase Extensions features. Please update firebase-functions SDK to >=5.1.0 to use them correctly 
-[debug] [2026-03-03T20:45:41.739Z] Could not find functions.yaml. Must use http discovery
-[debug] [2026-03-03T20:45:41.741Z] Found firebase-functions binary at '/Users/jdimartino/Desktop/Antigravity/inversiones/functions/node_modules/.bin/firebase-functions'
-[info] Serving at port 8389
-
-[debug] [2026-03-03T20:45:42.180Z] Got response from /__/functions.yaml {"endpoints":{"checkPNLAlerts":{"platform":"gcfv1","availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"scheduleTrigger":{"schedule":"every 1 hours","retryConfig":{"retryCount":null,"maxDoublings":null,"maxRetryDuration":null,"maxBackoffDuration":null,"minBackoffDuration":null},"timeZone":null},"labels":{},"entryPoint":"checkPNLAlerts"}},"specVersion":"v1alpha1","requiredAPIs":[{"api":"cloudscheduler.googleapis.com","reason":"Needed for scheduled functions."}]}
-[debug] [2026-03-03T20:45:46.202Z] [functions] Loaded functions definitions from source: checkPNLAlerts.
+[debug] [2026-03-04T14:00:35.587Z] shell:checkPNLAlerts: trigger={"entryPoint":"checkPNLAlerts","platform":"gcfv1","region":"us-central1","name":"checkPNLAlerts","id":"us-central1-checkPNLAlerts","codebase":"default","availableMemoryMb":256,"labels":{"EVENTARC_CLOUD_EVENT_SOURCE":"cloudfunctions-emulated.googleapis.com/projects/micriptoapp/locations/us-central1/functions/checkPNLAlerts"},"timeoutSeconds":60,"secretEnvironmentVariables":[],"eventTrigger":{"eventType":"pubsub","resource":""},"schedule":{"schedule":"every 1 hours","timeZone":null,"retryConfig":{"maxBackoffSeconds":null,"minBackoffSeconds":null,"maxRetrySeconds":null,"retryCount":null,"maxDoublings":null}}}
+[debug] [2026-03-04T14:00:35.588Z] shell:checkPNLAlerts: opts={}, data={}
+[debug] [2026-03-04T14:00:35.598Z] DEBUG: [worker-pool] addWorker(us-central1-checkPNLAlerts)
+[debug] [2026-03-04T14:00:35.598Z] DEBUG: [worker-pool] Adding worker with key us-central1-checkPNLAlerts, total=1
+[debug] [2026-03-04T14:00:37.177Z] DEBUG: [runtime-status] [74768] Resolved module firebase-admin {"declared":true,"installed":true,"version":"11.11.1","resolution":"/Users/jdimartino/Desktop/Antigravity/inversiones/functions/node_modules/firebase-admin/lib/index.js"}
+[debug] [2026-03-04T14:00:37.178Z] DEBUG: [runtime-status] [74768] Resolved module firebase-functions {"declared":true,"installed":true,"version":"4.9.0","resolution":"/Users/jdimartino/Desktop/Antigravity/inversiones/functions/node_modules/firebase-functions/lib/v1/index.js"}
+[debug] [2026-03-04T14:00:37.178Z] DEBUG: [runtime-status] [74768] Outgoing network have been stubbed. [{"name":"http","status":"mocked"},{"name":"http","status":"mocked"},{"name":"https","status":"mocked"},{"name":"https","status":"mocked"},{"name":"net","status":"mocked"}]
+[debug] [2026-03-04T14:00:37.178Z] DEBUG: [runtime-status] [74768] Resolved module firebase-functions {"declared":true,"installed":true,"version":"4.9.0","resolution":"/Users/jdimartino/Desktop/Antigravity/inversiones/functions/node_modules/firebase-functions/lib/v1/index.js"}
+[debug] [2026-03-04T14:00:37.589Z] DEBUG: [runtime-status] [74768] Resolved module firebase-admin {"declared":true,"installed":true,"version":"11.11.1","resolution":"/Users/jdimartino/Desktop/Antigravity/inversiones/functions/node_modules/firebase-admin/lib/index.js"}
+[debug] [2026-03-04T14:00:37.590Z] DEBUG: [runtime-status] [74768] Resolved module firebase-functions {"declared":true,"installed":true,"version":"4.9.0","resolution":"/Users/jdimartino/Desktop/Antigravity/inversiones/functions/node_modules/firebase-functions/lib/v1/index.js"}
+[debug] [2026-03-04T14:00:37.741Z] DEBUG: [runtime-status] [74768] firebase-admin has been stubbed. {"adminResolution":{"declared":true,"installed":true,"version":"11.11.1","resolution":"/Users/jdimartino/Desktop/Antigravity/inversiones/functions/node_modules/firebase-admin/lib/index.js"}}
+[debug] [2026-03-04T14:00:37.804Z] DEBUG: [runtime-status] [74768] initializeApp(DEFAULT) {"storageBucket":"micriptoapp.firebasestorage.app","projectId":"micriptoapp"}
+[warn] ⚠  functions: The Cloud Firestore emulator is not running, so calls to Firestore will affect production. {"metadata":{"emulator":{"name":"functions"},"function":{"name":"us-central1-checkPNLAlerts"},"extension":{},"message":"The Cloud Firestore emulator is not running, so calls to Firestore will affect production."}}
+[debug] [2026-03-04T14:00:37.810Z] DEBUG: [runtime-status] [74768] Functions runtime initialized. {"cwd":"/Users/jdimartino/Desktop/Antigravity/inversiones/functions","node_version":"24.11.1"}
+[debug] [2026-03-04T14:00:37.810Z] DEBUG: [runtime-status] [74768] Listening to port: /var/folders/r_/z88d70wn6f32hqpjsjt5ybqw0000gn/T/fire_emu_c339b413bf195c3e.sock
+[debug] [2026-03-04T14:00:37.842Z] DEBUG: [worker-us-central1-checkPNLAlerts-8f857cdd-3e1c-43e4-8d6d-f5bb60471584]: IDLE
+[debug] [2026-03-04T14:00:37.854Z] DEBUG: [runtime-status] [74768] RunBackground {"data":{},"context":{"eventId":"58fd48a3-5e79-4f0c-a3e7-e38f3693d776","timestamp":"2026-03-04T14:00:35.589Z","eventType":"pubsub","auth":{"admin":false}}}
+[warn] ⚠  Google API requested!
+   - URL: "https://oauth2.googleapis.com/token"
+   - Be careful, this may be a production service. {"metadata":{"emulator":{"name":"functions"},"function":{"name":"us-central1-checkPNLAlerts"},"extension":{},"message":"Google API requested!\n   - URL: \"https://oauth2.googleapis.com/token\"\n   - Be careful, this may be a production service."}}
+[info] >  Alerta enviada a Telegram. Global PNL: -32216.931523000007 {"user":"Alerta enviada a Telegram. Global PNL: -32216.931523000007","metadata":{"emulator":{"name":"functions"},"function":{"name":"us-central1-checkPNLAlerts"},"extension":{},"message":"\u001b[90m> \u001b[39m Alerta enviada a Telegram. Global PNL: -32216.931523000007"}}

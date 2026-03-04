@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { db, collection, addDoc, deleteDoc, doc, onSnapshot, query } from "../lib/firebase";
+import { db, collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot, query } from "../lib/firebase";
 import type { Investment } from "../lib/constants";
 
 export function usePortfolio() {
@@ -55,5 +55,21 @@ export function usePortfolio() {
         }
     }, []);
 
-    return { portfolio, error, addInvestment, removeInvestment } as const;
+    const updateInvestment = useCallback(
+        async (id: string, coin: string, buyPrice: number, quantity: number) => {
+            try {
+                await updateDoc(doc(db, "inversiones", id), {
+                    coin,
+                    buyPrice,
+                    quantity,
+                    invested: buyPrice * quantity,
+                });
+            } catch (e) {
+                console.error("Error updating investment:", e);
+            }
+        },
+        []
+    );
+
+    return { portfolio, error, addInvestment, removeInvestment, updateInvestment } as const;
 }

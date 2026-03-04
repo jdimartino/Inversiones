@@ -19,12 +19,14 @@ import InvestmentForm from "./components/InvestmentForm";
 import LoanForm from "./components/LoanForm";
 import EditLoanModal from "./components/EditLoanModal";
 import AlertSettings from "./components/AlertSettings";
+import EditInvestmentModal from "./components/EditInvestmentModal";
 
 const App: React.FC = () => {
-  const { portfolio, addInvestment, removeInvestment } = usePortfolio();
+  const { portfolio, addInvestment, removeInvestment, updateInvestment } = usePortfolio();
   const { loans, addLoan, updateLoan, removeLoan } = useLoans();
   const { prices, loading, refresh } = usePrices();
   const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
+  const [editingInvestment, setEditingInvestment] = useState<ProcessedInvestment | null>(null);
 
   // ── Computed: portfolio with live prices ──────────────────────────
   const sortedPortfolio = useMemo<ProcessedInvestment[]>(() => {
@@ -117,6 +119,14 @@ const App: React.FC = () => {
     setEditingLoan(null);
   }, []);
 
+  const handleEditInvestment = useCallback((item: ProcessedInvestment) => {
+    setEditingInvestment(item);
+  }, []);
+
+  const handleCloseInvestmentModal = useCallback(() => {
+    setEditingInvestment(null);
+  }, []);
+
   // ── Render ───────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 p-3 md:p-8 font-sans pb-40">
@@ -153,6 +163,7 @@ const App: React.FC = () => {
         <AssetTable
           items={sortedPortfolio}
           onDelete={removeInvestment}
+          onEdit={handleEditInvestment}
         />
 
         <AnalyticsSection
@@ -185,6 +196,14 @@ const App: React.FC = () => {
           loan={editingLoan}
           onSave={updateLoan}
           onClose={handleCloseModal}
+        />
+      )}
+
+      {editingInvestment && (
+        <EditInvestmentModal
+          investment={editingInvestment}
+          onSave={updateInvestment}
+          onClose={handleCloseInvestmentModal}
         />
       )}
     </div>
