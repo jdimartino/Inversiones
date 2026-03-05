@@ -10,6 +10,8 @@ import {
 import { usePortfolio } from "./hooks/usePortfolio";
 import { useLoans } from "./hooks/useLoans";
 import { usePrices } from "./hooks/usePrices";
+import { useAlerts } from "./hooks/useAlerts";
+import NavBar, { TabId } from "./components/NavBar";
 import SummaryCards from "./components/SummaryCards";
 import AssetTable from "./components/AssetTable";
 import AggregatedTable from "./components/AggregatedTable";
@@ -20,13 +22,17 @@ import LoanForm from "./components/LoanForm";
 import EditLoanModal from "./components/EditLoanModal";
 import AlertSettings from "./components/AlertSettings";
 import EditInvestmentModal from "./components/EditInvestmentModal";
+import InvestmentAlertModal from "./components/InvestmentAlertModal";
 
 const App: React.FC = () => {
   const { portfolio, addInvestment, removeInvestment, updateInvestment } = usePortfolio();
   const { loans, addLoan, updateLoan, removeLoan } = useLoans();
+  const { config, saveConfig } = useAlerts();
   const { prices, loading, refresh } = usePrices();
+  const [activeTab, setActiveTab] = useState<TabId>("dashboard");
   const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
   const [editingInvestment, setEditingInvestment] = useState<ProcessedInvestment | null>(null);
+  const [alertingInvestment, setAlertingInvestment] = useState<ProcessedInvestment | null>(null);
 
   // ── Computed: portfolio with live prices ──────────────────────────
   const sortedPortfolio = useMemo<ProcessedInvestment[]>(() => {
@@ -81,16 +87,7 @@ const App: React.FC = () => {
           avgBuyPrice > 0
             ? ((currentPrice - avgBuyPrice) / avgBuyPrice) * 100
             : 0;
-        return {
-          coin,
-          totalQty,
-          totalInvested,
-          avgBuyPrice,
-          currentPrice,
-          currentValue,
-          pnl,
-          priceDiffPercent,
-        };
+        return { coin, totalQty, totalInvested, avgBuyPrice, currentPrice, currentValue, pnl, priceDiffPercent };
       })
       .sort((a, b) => b.pnl - a.pnl);
   }, [portfolio, prices]);
@@ -103,42 +100,50 @@ const App: React.FC = () => {
       const params = RISK_PARAMS[loan.exchange] || RISK_PARAMS["Binance"];
       const liquidationPrice =
         loan.collateralQty > 0
-          ? (loan.borrowedUSDT * 100) /
-          (params.liquidation * loan.collateralQty)
+          ? (loan.borrowedUSDT * 100) / (params.liquidation * loan.collateralQty)
           : 0;
       return { ...loan, collateralValue: colVal, ltv, liquidationPrice };
     });
   }, [loans, prices]);
 
   // ── Callbacks ────────────────────────────────────────────────────
-  const handleEditLoan = useCallback((loan: ProcessedLoan) => {
-    setEditingLoan(loan);
-  }, []);
+  const handleEditLoan = useCallback((loan: ProcessedLoan) => setEditingLoan(loan), []);
+  const handleCloseModal = useCallback(() => setEditingLoan(null), []);
+  const handleEditInvestment = useCallback((item: ProcessedInvestment) => setEditingInvestment(item), []);
+  const handleCloseInvestmentModal = useCallback(() => setEditingInvestment(null), []);
+  const handleAlertInvestment = useCallback((item: ProcessedInvestment) => setAlertingInvestment(item), []);
+  const handleCloseAlertModal = useCallback(() => setAlertingInvestment(null), []);
 
-  const handleCloseModal = useCallback(() => {
-    setEditingLoan(null);
-  }, []);
+  const handleSaveInvestmentAlert = useCallback(async (id: string, targetPercent: number, isPersistent: boolean) => {
+    const newAlerts = { ...(config.investmentAlerts || {}) };
+    newAlerts[id] = { targetPercent, isPersistent };
+    await saveConfig({ ...config, investmentAlerts: newAlerts });
+  }, [config, saveConfig]);
 
-  const handleEditInvestment = useCallback((item: ProcessedInvestment) => {
-    setEditingInvestment(item);
-  }, []);
+  const handleRemoveInvestmentAlert = useCallback(async (id: string) => {
+    const newAlerts = { ...(config.investmentAlerts || {}) };
+    delete newAlerts[id];
+    await saveConfig({ ...config, investmentAlerts: newAlerts });
+  }, [config, saveConfig]);
 
-  const handleCloseInvestmentModal = useCallback(() => {
-    setEditingInvestment(null);
-  }, []);
+  const activeAlertIds = useMemo(() => Object.keys(config.investmentAlerts || {}), [config.investmentAlerts]);
+
+  // ── Tab fade animation helper ────────────────────────────────────
+  const tabClass = "animate-fadeIn";
 
   // ── Render ───────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 p-3 md:p-8 font-sans pb-40">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-8">
+    <div className="min-h-screen bg-slate-900 text-slate-100 font-sans">
+
+      {/* ── Sticky Header ─────────────────────────────────────── */}
+      <header className="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800">
+        <div className="max-w-6xl mx-auto px-3 md:px-8 py-3 flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2 text-yellow-400">
-              <Activity className="w-8 h-8" /> Crypto Command
+            <h1 className="text-xl font-bold flex items-center gap-2 text-yellow-400">
+              <Activity className="w-6 h-6" /> Crypto Command
             </h1>
-            <p className="text-slate-400 text-xs mt-1 uppercase tracking-widest font-bold">
-              LTV Flexible: Binance (91%) / Bybit (92%)
+            <p className="text-slate-500 text-[10px] uppercase tracking-widest font-bold hidden sm:block">
+              LTV Flex: Binance 91% · Bybit 92%
             </p>
           </div>
           <button
@@ -146,64 +151,92 @@ const App: React.FC = () => {
             disabled={loading}
             className="bg-yellow-600 p-2 rounded-lg hover:bg-yellow-500 transition-colors shadow-lg active:scale-95"
           >
-            <RefreshCw
-              className={`w-5 h-5 ${loading ? "animate-spin" : ""}`}
-            />
+            <RefreshCw className={`w-5 h-5 ${loading ? "animate-spin" : ""}`} />
           </button>
         </div>
 
-        {/* Dashboard */}
-        <SummaryCards
-          totalInvested={totalInvested}
-          totalValue={totalValue}
-          totalPnl={totalPnl}
-          totalRoi={totalRoi}
-        />
+        {/* ── Tab Bar ───────────────────────── */}
+        <NavBar active={activeTab} onChange={setActiveTab} />
+      </header>
 
-        <AssetTable
-          items={sortedPortfolio}
-          onDelete={removeInvestment}
-          onEdit={handleEditInvestment}
-        />
+      {/* ── Tab Content ───────────────────────────────────────── */}
+      <main className="max-w-6xl mx-auto px-3 md:px-8 py-6 pb-40">
 
-        <AnalyticsSection
-          aggregated={aggregatedList}
-          items={sortedPortfolio}
-          loans={processedLoans}
-          totalValue={totalValue}
-        />
+        {/* ── DASHBOARD ─────────────────────────────────────────────── */}
+        {activeTab === "dashboard" && (
+          <div key="dashboard" className={tabClass}>
+            <SummaryCards
+              totalInvested={totalInvested}
+              totalValue={totalValue}
+              totalPnl={totalPnl}
+              totalRoi={totalRoi}
+            />
+            <AssetTable
+              items={sortedPortfolio}
+              activeAlertIds={activeAlertIds}
+              onDelete={removeInvestment}
+              onEdit={handleEditInvestment}
+              onAlert={handleAlertInvestment}
+            />
+            <AggregatedTable items={aggregatedList} />
+          </div>
+        )}
 
-        <AggregatedTable items={aggregatedList} />
+        {/* ── GRÁFICOS ──────────────────────────────────────────────── */}
+        {activeTab === "graficos" && (
+          <div key="graficos" className={tabClass}>
+            <AnalyticsSection
+              aggregated={aggregatedList}
+              items={sortedPortfolio}
+              loans={processedLoans}
+              totalValue={totalValue}
+            />
+          </div>
+        )}
 
-        <LoanSection
-          loans={processedLoans}
-          onEdit={handleEditLoan}
-          onDelete={removeLoan}
-        />
+        {/* ── PRÉSTAMOS ─────────────────────────────────────────────── */}
+        {activeTab === "prestamos" && (
+          <div key="prestamos" className={tabClass}>
+            <LoanSection
+              loans={processedLoans}
+              onEdit={handleEditLoan}
+              onDelete={removeLoan}
+            />
+          </div>
+        )}
 
-        <AlertSettings />
+        {/* ── OPERACIONES ───────────────────────────────────────────── */}
+        {activeTab === "operaciones" && (
+          <div key="operaciones" className={tabClass}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <InvestmentForm onSubmit={addInvestment} />
+              <LoanForm onSubmit={addLoan} />
+            </div>
+          </div>
+        )}
 
-        {/* Forms */}
-        <div className="border-t-2 border-slate-800 pt-10 mt-12 grid grid-cols-1 md:grid-cols-2 gap-8">
-          <InvestmentForm onSubmit={addInvestment} />
-          <LoanForm onSubmit={addLoan} />
-        </div>
-      </div>
+        {/* ── CONFIGURACIÓN ─────────────────────────────────────────── */}
+        {activeTab === "configuracion" && (
+          <div key="configuracion" className={tabClass}>
+            <AlertSettings config={config} saveConfig={saveConfig} />
+          </div>
+        )}
+      </main>
 
-      {/* Edit Modal */}
+      {/* ── Modals (always mounted regardless of active tab) ───────── */}
       {editingLoan && (
-        <EditLoanModal
-          loan={editingLoan}
-          onSave={updateLoan}
-          onClose={handleCloseModal}
-        />
+        <EditLoanModal loan={editingLoan} onSave={updateLoan} onClose={handleCloseModal} />
       )}
-
       {editingInvestment && (
-        <EditInvestmentModal
-          investment={editingInvestment}
-          onSave={updateInvestment}
-          onClose={handleCloseInvestmentModal}
+        <EditInvestmentModal investment={editingInvestment} onSave={updateInvestment} onClose={handleCloseInvestmentModal} />
+      )}
+      {alertingInvestment && (
+        <InvestmentAlertModal
+          investment={alertingInvestment}
+          currentAlert={config.investmentAlerts?.[alertingInvestment.id]}
+          onSave={handleSaveInvestmentAlert}
+          onRemove={handleRemoveInvestmentAlert}
+          onClose={handleCloseAlertModal}
         />
       )}
     </div>

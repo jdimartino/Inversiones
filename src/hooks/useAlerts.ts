@@ -2,19 +2,19 @@ import { useState, useEffect } from "react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 
-export interface AssetAlert {
-    minPercent: number;
-    maxPercent: number;
+export interface InvestmentAlert {
+    targetPercent: number;
+    isPersistent?: boolean;
 }
 
 export interface AlertConfig {
     minPNL: number;
     maxPNL: number;
-    assetAlerts?: Record<string, AssetAlert>;
+    investmentAlerts?: Record<string, InvestmentAlert>;
 }
 
 export function useAlerts() {
-    const [config, setConfig] = useState<AlertConfig>({ minPNL: -40000, maxPNL: 10000, assetAlerts: {} });
+    const [config, setConfig] = useState<AlertConfig>({ minPNL: -40000, maxPNL: 10000, investmentAlerts: {} });
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -26,7 +26,7 @@ export function useAlerts() {
                     setConfig({
                         minPNL: data.minPNL ?? -40000,
                         maxPNL: data.maxPNL ?? 10000,
-                        assetAlerts: data.assetAlerts ?? {}
+                        investmentAlerts: data.investmentAlerts ?? {}
                     });
                 }
             } catch (e) {

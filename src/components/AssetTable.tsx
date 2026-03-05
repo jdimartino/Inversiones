@@ -1,13 +1,15 @@
 import React from "react";
-import { Activity, Pencil } from "lucide-react";
+import { Activity, Pencil, Bell } from "lucide-react";
 import { getCoinStyle, ProcessedInvestment } from "../lib/constants";
 import { fmt, fmtUSD } from "../lib/format";
 import DeleteButton from "./DeleteButton";
 
 interface AssetTableProps {
     items: ProcessedInvestment[];
+    activeAlertIds: string[];
     onDelete: (id: string) => void;
     onEdit: (item: ProcessedInvestment) => void;
+    onAlert: (item: ProcessedInvestment) => void;
 }
 
 function fmtDate(ts: number): string {
@@ -20,7 +22,7 @@ function fmtDate(ts: number): string {
 }
 
 const AssetTable: React.FC<AssetTableProps> = React.memo(
-    ({ items, onDelete, onEdit }) => {
+    ({ items, activeAlertIds, onDelete, onEdit, onAlert }) => {
         if (items.length === 0) return null;
 
         return (
@@ -35,6 +37,13 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                             <div key={item.id} className="p-4 relative hover:bg-slate-700/10 transition-colors">
                                 {/* Action buttons top-right */}
                                 <div className="absolute top-4 right-4 flex items-center gap-1">
+                                    <button
+                                        onClick={() => onAlert(item)}
+                                        className={`p-1 transition-colors ${activeAlertIds.includes(item.id) ? "text-yellow-400 hover:text-yellow-300" : "text-slate-500 hover:text-yellow-400"}`}
+                                        title="Configurar Alerta"
+                                    >
+                                        <Bell className="w-4 h-4" />
+                                    </button>
                                     <button
                                         onClick={() => onEdit(item)}
                                         className="text-slate-500 hover:text-yellow-400 p-1 transition-colors"
@@ -161,6 +170,13 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                                     </td>
                                     <td className="p-5 text-center">
                                         <div className="flex items-center justify-center gap-1">
+                                            <button
+                                                onClick={() => onAlert(item)}
+                                                className={`p-1 transition-colors ${activeAlertIds.includes(item.id) ? "text-yellow-400 hover:text-yellow-300" : "text-slate-500 hover:text-yellow-400"}`}
+                                                title="Configurar Alerta"
+                                            >
+                                                <Bell className="w-4 h-4" />
+                                            </button>
                                             <button
                                                 onClick={() => onEdit(item)}
                                                 className="text-slate-500 hover:text-yellow-400 p-1 transition-colors"
