@@ -67,28 +67,46 @@ exports.checkPNLAlerts = functions.pubsub.schedule("every 1 hours").onRun(async 
                 return;
             }
             const roiPercent = (pnl / inv.invested) * 100;
-            // 4. Evaluar si hay alerta individual configurada para este activo
+            // 4. Evaluar alertas individuales para este activo (pueden ser múltiples)
             const alertRules = investmentAlerts[docSnap.id];
-            if (alertRules) {
-                const target = alertRules.targetPercent;
-                let isTriggered = false;
-                if (target >= 0 && roiPercent >= target) {
-                    isTriggered = true;
-                    triggeredMessages.push(`🚀 *${inv.coin}* alcanzó *+${roiPercent.toFixed(1)}%* ` +
-                        `(Compra: $${inv.buyPrice} | Meta: +${target}%)`);
-                }
-                else if (target < 0 && roiPercent <= target) {
-                    isTriggered = true;
-                    triggeredMessages.push(`📉 *${inv.coin}* cayó a *${roiPercent.toFixed(1)}%* ` +
-                        `(Compra: $${inv.buyPrice} | Límite: ${target}%)`);
-                }
-                if (isTriggered) {
-                    console.log(`[ALERTA] ${inv.coin} (ID: ${docSnap.id}) — ROI: ${roiPercent.toFixed(2)}% — Target: ${target}% — Persistente: ${!!alertRules.isPersistent}`);
-                    // Solo borrar de Firestore si NO es permanente (one-shot)
-                    if (!alertRules.isPersistent) {
-                        delete investmentAlerts[docSnap.id];
-                        hasAlertsToRemove = true;
+            if (Array.isArray(alertRules) && alertRules.length > 0) {
+                const remaining = [];
+                for (const rule of alertRules) {
+                    const target = rule.targetPercent;
+                    let isTriggered = false;
+                    if (target >= 0 && roiPercent >= target) {
+                        isTriggered = true;
+                        triggeredMessages.push(`🚀 *${inv.coin}* alcanzó *+${roiPercent.toFixed(1)}%* ` +
+                            `(Meta: +${target}%)`);
                     }
+                    else if (target < 0 && roiPercent <= target) {
+                        isTriggered = true;
+                        triggeredMessages.push(`📉 *${inv.coin}* cayó a *${roiPercent.toFixed(1)}%* ` +
+                            `(Límite: ${target}%)`);
+                    }
+                    if (isTriggered) {
+                        console.log(`[ALERTA] ${inv.coin} (ID: ${docSnap.id}) — ROI: ${roiPercent.toFixed(2)}% — Target: ${target}% — Persistente: ${!!rule.isPersistent}`);
+                        if (rule.isPersistent) {
+                            // Permanente: mantener en el array
+                            remaining.push(rule);
+                        }
+                        else {
+                            // One-shot: eliminar (no se añade a remaining)
+                            hasAlertsToRemove = true;
+                        }
+                    }
+                    else {
+                        // No disparada: conservar siempre
+                        remaining.push(rule);
+                    }
+                }
+                // Actualizar el array (puede quedar vacío si todas eran one-shot)
+                if (remaining.length === 0) {
+                    delete investmentAlerts[docSnap.id];
+                }
+                else if (remaining.length !== alertRules.length) {
+                    investmentAlerts[docSnap.id] = remaining;
+                    hasAlertsToRemove = true;
                 }
             }
             // Línea de detalle para el resumen del mensaje

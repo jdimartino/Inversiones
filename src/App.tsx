@@ -114,12 +114,29 @@ const App: React.FC = () => {
   const handleAlertInvestment = useCallback((item: ProcessedInvestment) => setAlertingInvestment(item), []);
   const handleCloseAlertModal = useCallback(() => setAlertingInvestment(null), []);
 
+  // Add a new alert to the array for this asset
   const handleSaveInvestmentAlert = useCallback(async (id: string, targetPercent: number, isPersistent: boolean) => {
     const newAlerts = { ...(config.investmentAlerts || {}) };
-    newAlerts[id] = { targetPercent, isPersistent };
+    const existing = newAlerts[id] ? [...newAlerts[id]] : [];
+    existing.push({ targetPercent, isPersistent });
+    newAlerts[id] = existing;
     await saveConfig({ ...config, investmentAlerts: newAlerts });
   }, [config, saveConfig]);
 
+  // Remove one alert by index within the asset's array
+  const handleRemoveInvestmentAlertByIndex = useCallback(async (id: string, index: number) => {
+    const newAlerts = { ...(config.investmentAlerts || {}) };
+    if (!newAlerts[id]) return;
+    const updated = newAlerts[id].filter((_, i) => i !== index);
+    if (updated.length === 0) {
+      delete newAlerts[id];
+    } else {
+      newAlerts[id] = updated;
+    }
+    await saveConfig({ ...config, investmentAlerts: newAlerts });
+  }, [config, saveConfig]);
+
+  // Remove ALL alerts for an asset (used from AlertSettings panel)
   const handleRemoveInvestmentAlert = useCallback(async (id: string) => {
     const newAlerts = { ...(config.investmentAlerts || {}) };
     delete newAlerts[id];
@@ -233,9 +250,9 @@ const App: React.FC = () => {
       {alertingInvestment && (
         <InvestmentAlertModal
           investment={alertingInvestment}
-          currentAlert={config.investmentAlerts?.[alertingInvestment.id]}
-          onSave={handleSaveInvestmentAlert}
-          onRemove={handleRemoveInvestmentAlert}
+          currentAlerts={config.investmentAlerts?.[alertingInvestment.id] ?? []}
+          onAddAlert={handleSaveInvestmentAlert}
+          onRemoveAlert={handleRemoveInvestmentAlertByIndex}
           onClose={handleCloseAlertModal}
         />
       )}

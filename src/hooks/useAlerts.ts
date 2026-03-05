@@ -10,7 +10,7 @@ export interface InvestmentAlert {
 export interface AlertConfig {
     minPNL: number;
     maxPNL: number;
-    investmentAlerts?: Record<string, InvestmentAlert>;
+    investmentAlerts?: Record<string, InvestmentAlert[]>;
 }
 
 export function useAlerts() {
@@ -23,10 +23,25 @@ export function useAlerts() {
                 const snap = await getDoc(doc(db, "config", "alerts"));
                 if (snap.exists()) {
                     const data = snap.data();
+
+                    // ── Normalize legacy format ─────────────────────────────
+                    // Old format: { [id]: { targetPercent, isPersistent } }
+                    // New format: { [id]: [{ targetPercent, isPersistent }] }
+                    const rawAlerts = data.investmentAlerts ?? {};
+                    const normalizedAlerts: Record<string, { targetPercent: number; isPersistent?: boolean }[]> = {};
+                    for (const [id, value] of Object.entries(rawAlerts)) {
+                        if (Array.isArray(value)) {
+                            normalizedAlerts[id] = value as { targetPercent: number; isPersistent?: boolean }[];
+                        } else if (value && typeof value === "object") {
+                            // Legacy single-object → wrap in array
+                            normalizedAlerts[id] = [value as { targetPercent: number; isPersistent?: boolean }];
+                        }
+                    }
+
                     setConfig({
                         minPNL: data.minPNL ?? -40000,
                         maxPNL: data.maxPNL ?? 10000,
-                        investmentAlerts: data.investmentAlerts ?? {}
+                        investmentAlerts: normalizedAlerts,
                     });
                 }
             } catch (e) {

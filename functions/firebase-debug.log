@@ -489,3 +489,161 @@
 
 [debug] [2026-03-05T20:05:20.389Z] Got response from /__/functions.yaml {"endpoints":{"checkPNLAlerts":{"platform":"gcfv1","availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"scheduleTrigger":{"schedule":"every 1 hours","retryConfig":{"retryCount":null,"maxDoublings":null,"maxRetryDuration":null,"maxBackoffDuration":null,"minBackoffDuration":null},"timeZone":null},"labels":{},"entryPoint":"checkPNLAlerts"}},"specVersion":"v1alpha1","requiredAPIs":[{"api":"cloudscheduler.googleapis.com","reason":"Needed for scheduled functions."}]}
 [debug] [2026-03-05T20:05:24.459Z] [functions] Loaded functions definitions from source: checkPNLAlerts.
+[debug] [2026-03-05T20:36:18.987Z] DEBUG: File /Users/jdimartino/Desktop/Antigravity/inversiones/functions/src/index.ts changed, reloading triggers
+[debug] [2026-03-05T20:36:20.108Z] Validating nodejs source
+[warn] ⚠  functions: package.json indicates an outdated version of firebase-functions. Please upgrade using npm install --save firebase-functions@latest in your functions directory. 
+[warn] ⚠  functions: Please note that there will be breaking changes when you upgrade. 
+[debug] [2026-03-05T20:36:22.737Z] > [functions] package.json contents: {
+  "name": "functions",
+  "scripts": {
+    "build": "tsc",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "20"
+  },
+  "main": "lib/index.js",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "firebase-admin": "^11.8.0",
+    "firebase-functions": "^4.3.1"
+  },
+  "devDependencies": {
+    "typescript": "^4.9.0"
+  },
+  "private": true
+}
+[debug] [2026-03-05T20:36:22.744Z] Building nodejs source
+[debug] [2026-03-05T20:36:22.747Z] Failed to find version of module node: reached end of search path /Users/jdimartino/Desktop/Antigravity/inversiones/functions/node_modules
+[warn] ⚠  functions: Your requested "node" version "20" doesn't match your global version "24". Using node@24 from host. 
+[info] i  functions: Loaded environment variables from .env. 
+[info] i  functions: You are using a version of firebase-functions SDK (4.9.0) that does not have support for the newest Firebase Extensions features. Please update firebase-functions SDK to >=5.1.0 to use them correctly 
+[debug] [2026-03-05T20:36:22.815Z] Could not find functions.yaml. Must use http discovery
+[debug] [2026-03-05T20:36:22.854Z] Found firebase-functions binary at '/Users/jdimartino/Desktop/Antigravity/inversiones/functions/node_modules/.bin/firebase-functions'
+[info] Serving at port 8431
+
+[debug] [2026-03-05T20:36:24.781Z] Got response from /__/functions.yaml {"endpoints":{"checkPNLAlerts":{"platform":"gcfv1","availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"scheduleTrigger":{"schedule":"every 1 hours","retryConfig":{"retryCount":null,"maxDoublings":null,"maxRetryDuration":null,"maxBackoffDuration":null,"minBackoffDuration":null},"timeZone":null},"labels":{},"entryPoint":"checkPNLAlerts"}},"specVersion":"v1alpha1","requiredAPIs":[{"api":"cloudscheduler.googleapis.com","reason":"Needed for scheduled functions."}]}
+[debug] [2026-03-05T20:36:28.854Z] [functions] Loaded functions definitions from source: checkPNLAlerts.
+[debug] [2026-03-05T20:36:45.474Z] DEBUG: File /Users/jdimartino/Desktop/Antigravity/inversiones/functions/lib/index.js.map changed, reloading triggers
+[debug] [2026-03-05T20:36:45.479Z] DEBUG: File /Users/jdimartino/Desktop/Antigravity/inversiones/functions/lib/index.js changed, reloading triggers
+[debug] [2026-03-05T20:36:46.497Z] Validating nodejs source
+[warn] ⚠  functions: package.json indicates an outdated version of firebase-functions. Please upgrade using npm install --save firebase-functions@latest in your functions directory. 
+[warn] ⚠  functions: Please note that there will be breaking changes when you upgrade. 
+[debug] [2026-03-05T20:36:48.285Z] > [functions] package.json contents: {
+  "name": "functions",
+  "scripts": {
+    "build": "tsc",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "20"
+  },
+  "main": "lib/index.js",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "firebase-admin": "^11.8.0",
+    "firebase-functions": "^4.3.1"
+  },
+  "devDependencies": {
+    "typescript": "^4.9.0"
+  },
+  "private": true
+}
+[debug] [2026-03-05T20:36:48.286Z] Building nodejs source
+[debug] [2026-03-05T20:36:48.287Z] Failed to find version of module node: reached end of search path /Users/jdimartino/Desktop/Antigravity/inversiones/functions/node_modules
+[warn] ⚠  functions: Your requested "node" version "20" doesn't match your global version "24". Using node@24 from host. 
+[info] i  functions: Loaded environment variables from .env. 
+[info] i  functions: You are using a version of firebase-functions SDK (4.9.0) that does not have support for the newest Firebase Extensions features. Please update firebase-functions SDK to >=5.1.0 to use them correctly 
+[debug] [2026-03-05T20:36:48.312Z] Could not find functions.yaml. Must use http discovery
+[debug] [2026-03-05T20:36:48.317Z] Found firebase-functions binary at '/Users/jdimartino/Desktop/Antigravity/inversiones/functions/node_modules/.bin/firebase-functions'
+[info] Serving at port 8014
+
+[debug] [2026-03-05T20:36:49.307Z] Got response from /__/functions.yaml {"endpoints":{"checkPNLAlerts":{"platform":"gcfv1","availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"scheduleTrigger":{"schedule":"every 1 hours","retryConfig":{"retryCount":null,"maxDoublings":null,"maxRetryDuration":null,"maxBackoffDuration":null,"minBackoffDuration":null},"timeZone":null},"labels":{},"entryPoint":"checkPNLAlerts"}},"specVersion":"v1alpha1","requiredAPIs":[{"api":"cloudscheduler.googleapis.com","reason":"Needed for scheduled functions."}]}
+[debug] [2026-03-05T20:36:53.391Z] [functions] Loaded functions definitions from source: checkPNLAlerts.
+[debug] [2026-03-05T20:37:15.990Z] DEBUG: File /Users/jdimartino/Desktop/Antigravity/inversiones/functions/src/index.ts changed, reloading triggers
+[debug] [2026-03-05T20:37:17.087Z] Validating nodejs source
+[warn] ⚠  functions: package.json indicates an outdated version of firebase-functions. Please upgrade using npm install --save firebase-functions@latest in your functions directory. 
+[warn] ⚠  functions: Please note that there will be breaking changes when you upgrade. 
+[debug] [2026-03-05T20:37:19.493Z] > [functions] package.json contents: {
+  "name": "functions",
+  "scripts": {
+    "build": "tsc",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "20"
+  },
+  "main": "lib/index.js",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "firebase-admin": "^11.8.0",
+    "firebase-functions": "^4.3.1"
+  },
+  "devDependencies": {
+    "typescript": "^4.9.0"
+  },
+  "private": true
+}
+[debug] [2026-03-05T20:37:19.497Z] Building nodejs source
+[debug] [2026-03-05T20:37:19.502Z] Failed to find version of module node: reached end of search path /Users/jdimartino/Desktop/Antigravity/inversiones/functions/node_modules
+[warn] ⚠  functions: Your requested "node" version "20" doesn't match your global version "24". Using node@24 from host. 
+[info] i  functions: Loaded environment variables from .env. 
+[info] i  functions: You are using a version of firebase-functions SDK (4.9.0) that does not have support for the newest Firebase Extensions features. Please update firebase-functions SDK to >=5.1.0 to use them correctly 
+[debug] [2026-03-05T20:37:19.517Z] Could not find functions.yaml. Must use http discovery
+[debug] [2026-03-05T20:37:19.531Z] Found firebase-functions binary at '/Users/jdimartino/Desktop/Antigravity/inversiones/functions/node_modules/.bin/firebase-functions'
+[info] Serving at port 8186
+
+[debug] [2026-03-05T20:37:20.493Z] Got response from /__/functions.yaml {"endpoints":{"checkPNLAlerts":{"platform":"gcfv1","availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"scheduleTrigger":{"schedule":"every 1 hours","retryConfig":{"retryCount":null,"maxDoublings":null,"maxRetryDuration":null,"maxBackoffDuration":null,"minBackoffDuration":null},"timeZone":null},"labels":{},"entryPoint":"checkPNLAlerts"}},"specVersion":"v1alpha1","requiredAPIs":[{"api":"cloudscheduler.googleapis.com","reason":"Needed for scheduled functions."}]}
+[debug] [2026-03-05T20:37:24.559Z] [functions] Loaded functions definitions from source: checkPNLAlerts.
+[debug] [2026-03-05T20:37:37.747Z] DEBUG: File /Users/jdimartino/Desktop/Antigravity/inversiones/functions/lib/index.js.map changed, reloading triggers
+[debug] [2026-03-05T20:37:37.752Z] DEBUG: File /Users/jdimartino/Desktop/Antigravity/inversiones/functions/lib/index.js changed, reloading triggers
+[debug] [2026-03-05T20:37:38.766Z] Validating nodejs source
+[warn] ⚠  functions: package.json indicates an outdated version of firebase-functions. Please upgrade using npm install --save firebase-functions@latest in your functions directory. 
+[warn] ⚠  functions: Please note that there will be breaking changes when you upgrade. 
+[debug] [2026-03-05T20:37:40.607Z] > [functions] package.json contents: {
+  "name": "functions",
+  "scripts": {
+    "build": "tsc",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "20"
+  },
+  "main": "lib/index.js",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "firebase-admin": "^11.8.0",
+    "firebase-functions": "^4.3.1"
+  },
+  "devDependencies": {
+    "typescript": "^4.9.0"
+  },
+  "private": true
+}
+[debug] [2026-03-05T20:37:40.607Z] Building nodejs source
+[debug] [2026-03-05T20:37:40.607Z] Failed to find version of module node: reached end of search path /Users/jdimartino/Desktop/Antigravity/inversiones/functions/node_modules
+[warn] ⚠  functions: Your requested "node" version "20" doesn't match your global version "24". Using node@24 from host. 
+[info] i  functions: Loaded environment variables from .env. 
+[info] i  functions: You are using a version of firebase-functions SDK (4.9.0) that does not have support for the newest Firebase Extensions features. Please update firebase-functions SDK to >=5.1.0 to use them correctly 
+[debug] [2026-03-05T20:37:40.621Z] Could not find functions.yaml. Must use http discovery
+[debug] [2026-03-05T20:37:40.632Z] Found firebase-functions binary at '/Users/jdimartino/Desktop/Antigravity/inversiones/functions/node_modules/.bin/firebase-functions'
+[info] Serving at port 8029
+
+[debug] [2026-03-05T20:37:41.394Z] Got response from /__/functions.yaml {"endpoints":{"checkPNLAlerts":{"platform":"gcfv1","availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"scheduleTrigger":{"schedule":"every 1 hours","retryConfig":{"retryCount":null,"maxDoublings":null,"maxRetryDuration":null,"maxBackoffDuration":null,"minBackoffDuration":null},"timeZone":null},"labels":{},"entryPoint":"checkPNLAlerts"}},"specVersion":"v1alpha1","requiredAPIs":[{"api":"cloudscheduler.googleapis.com","reason":"Needed for scheduled functions."}]}
+[debug] [2026-03-05T20:37:45.441Z] [functions] Loaded functions definitions from source: checkPNLAlerts.

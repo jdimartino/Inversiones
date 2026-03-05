@@ -1,169 +1,171 @@
-import React, { useState, useCallback } from "react";
-import { X, Bell, Save, Trash2 } from "lucide-react";
-import type { ProcessedInvestment } from "../lib/constants";
-import type { InvestmentAlert } from "../hooks/useAlerts";
-import { fmtUSD } from "../lib/format";
+import React, { useState } from "react";
+import { X, Bell, Trash2, Plus, Repeat, Clock } from "lucide-react";
+import { ProcessedInvestment } from "../lib/constants";
+import { InvestmentAlert } from "../hooks/useAlerts";
 
 interface InvestmentAlertModalProps {
     investment: ProcessedInvestment;
-    currentAlert?: InvestmentAlert;
-    onSave: (id: string, targetPercent: number, isPersistent: boolean) => void;
-    onRemove: (id: string) => void;
+    currentAlerts: InvestmentAlert[];
+    onAddAlert: (id: string, targetPercent: number, isPersistent: boolean) => Promise<void>;
+    onRemoveAlert: (id: string, index: number) => Promise<void>;
     onClose: () => void;
 }
 
-const InvestmentAlertModal: React.FC<InvestmentAlertModalProps> = ({
+export default function InvestmentAlertModal({
     investment,
-    currentAlert,
-    onSave,
-    onRemove,
+    currentAlerts,
+    onAddAlert,
+    onRemoveAlert,
     onClose,
-}) => {
-    // If there is an existing alert, pre-fill it. Otherwise start empty.
-    const [target, setTarget] = useState(
-        currentAlert ? String(currentAlert.targetPercent) : ""
-    );
-    const [isPersistent, setIsPersistent] = useState(
-        currentAlert?.isPersistent ?? false
-    );
+}: InvestmentAlertModalProps) {
+    const [targetPercent, setTargetPercent] = useState<number>(10);
+    const [isPersistent, setIsPersistent] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [removing, setRemoving] = useState<number | null>(null);
 
-    const handleSave = useCallback(
-        (e: React.FormEvent) => {
-            e.preventDefault();
-            if (!target) return;
-            onSave(investment.id, parseFloat(target), isPersistent);
-            onClose();
-        },
-        [investment.id, target, isPersistent, onSave, onClose]
-    );
+    const handleAdd = async () => {
+        if (isNaN(targetPercent)) return;
+        setSaving(true);
+        await onAddAlert(investment.id, targetPercent, isPersistent);
+        setSaving(false);
+        // Reset form
+        setTargetPercent(10);
+        setIsPersistent(false);
+    };
+
+    const handleRemove = async (index: number) => {
+        setRemoving(index);
+        await onRemoveAlert(investment.id, index);
+        setRemoving(null);
+    };
 
     return (
-        <div
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={(e) => e.target === e.currentTarget && onClose()}
-        >
-            <div className="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+
                 {/* Header */}
-                <div className="flex justify-between items-center p-5 border-b border-slate-700 bg-slate-800/80 rounded-t-2xl">
-                    <h2 className="font-bold text-yellow-400 text-sm uppercase tracking-widest flex items-center gap-2">
-                        <Bell className="w-4 h-4" /> Alerta Individual
-                    </h2>
-                    <button
-                        onClick={onClose}
-                        className="text-slate-500 hover:text-white transition-colors"
-                    >
+                <div className="flex justify-between items-center p-5 border-b border-slate-800">
+                    <div className="flex items-center gap-3">
+                        <Bell className="w-5 h-5 text-yellow-400" />
+                        <div>
+                            <h2 className="text-lg font-bold text-white">{investment.coin}</h2>
+                            <p className="text-xs text-slate-400">Alertas de PNL</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors p-1 rounded-lg hover:bg-slate-800">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
 
-                {/* Info summary */}
-                <div className="bg-slate-900/50 p-4 border-b border-slate-700/50">
-                    <p className="text-slate-400 text-xs mb-1">Activo asociado:</p>
-                    <p className="font-bold text-white mb-0.5">
-                        {investment.coin} <span className="text-slate-500 font-mono italic font-normal ml-1">({investment.quantity} u.)</span>
-                    </p>
-                    <p className="text-xs text-slate-500">
-                        Comprado a <span className="font-mono text-slate-300">{fmtUSD(investment.buyPrice)}</span>
-                    </p>
-                </div>
+                {/* Active alerts list */}
+                <div className="p-5">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+                        Alertas Activas ({currentAlerts.length})
+                    </h3>
 
-                {/* Form */}
-                <form onSubmit={handleSave} className="p-5 space-y-5">
-                    <div>
-                        <label className="text-xs text-slate-400 font-bold block mb-2">
-                            Avisarme cuando el PNL Neto alcance:
-                        </label>
-                        <div className="relative">
-                            <input
-                                type="number"
-                                step="any"
-                                placeholder="Ej: 15 o -10"
-                                value={target}
-                                onChange={(e) => setTarget(e.target.value)}
-                                className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 pr-10 text-white outline-none focus:ring-2 focus:ring-yellow-500 transition-all font-mono"
-                                autoFocus
-                            />
-                            <span className="absolute right-4 top-3.5 text-slate-500 font-bold">%</span>
-                        </div>
-                        <p className="text-[10px] text-slate-500 mt-2 leading-relaxed">
-                            Si ingresas un valor positivo (Ej. <span className="text-emerald-400/80">15</span>), el bot te notificará si el ROI sube a <span className="text-emerald-400/80">15% o más</span>.<br />
-                            Si ingresas un valor negativo (Ej. <span className="text-red-400/80">-10</span>), el bot te notificará si el ROI baja a <span className="text-red-400/80">-10% o menos</span>.
+                    {currentAlerts.length === 0 ? (
+                        <p className="text-xs text-slate-600 italic text-center py-4 bg-slate-800/50 rounded-xl border border-slate-800">
+                            No hay alertas configuradas aún
                         </p>
-                    </div>
-
-                    <div className="bg-slate-900 border border-slate-700 rounded-xl p-3">
-                        <label className="text-xs text-slate-400 font-bold block mb-3">Comportamiento:</label>
-                        <div className="space-y-2">
-                            <label className="flex items-center gap-3 cursor-pointer group">
-                                <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${!isPersistent ? 'border-yellow-500 bg-yellow-500/20' : 'border-slate-600 bg-slate-800'}`}>
-                                    {!isPersistent && <div className="w-2 h-2 rounded-full bg-yellow-400" />}
+                    ) : (
+                        <div className="space-y-2 mb-4">
+                            {currentAlerts.map((alert, index) => (
+                                <div key={index} className="flex items-center justify-between bg-slate-800 border border-slate-700 rounded-xl px-4 py-3">
+                                    <div className="flex items-center gap-3">
+                                        <span className={`text-base font-bold ${alert.targetPercent >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                            {alert.targetPercent >= 0 ? "+" : ""}{alert.targetPercent}%
+                                        </span>
+                                        {alert.isPersistent ? (
+                                            <span className="flex items-center gap-1 text-[10px] bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-2 py-0.5 rounded-full font-bold">
+                                                <Repeat className="w-3 h-3" /> Permanente
+                                            </span>
+                                        ) : (
+                                            <span className="flex items-center gap-1 text-[10px] bg-slate-700 text-slate-400 border border-slate-600 px-2 py-0.5 rounded-full font-bold">
+                                                <Clock className="w-3 h-3" /> Una Vez
+                                            </span>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={() => handleRemove(index)}
+                                        disabled={removing === index}
+                                        className="text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors p-1.5 rounded-lg disabled:opacity-40"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
                                 </div>
-                                <input
-                                    type="radio"
-                                    name="persistence"
-                                    className="hidden"
-                                    checked={!isPersistent}
-                                    onChange={() => setIsPersistent(false)}
-                                />
-                                <div>
-                                    <p className="text-sm font-bold text-slate-200 group-hover:text-yellow-400 transition-colors">Notificar Una Vez</p>
-                                    <p className="text-[10px] text-slate-500">La alerta se borra sola tras dispararse.</p>
-                                </div>
-                            </label>
-
-                            <label className="flex items-center gap-3 cursor-pointer group mt-3">
-                                <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${isPersistent ? 'border-yellow-500 bg-yellow-500/20' : 'border-slate-600 bg-slate-800'}`}>
-                                    {isPersistent && <div className="w-2 h-2 rounded-full bg-yellow-400" />}
-                                </div>
-                                <input
-                                    type="radio"
-                                    name="persistence"
-                                    className="hidden"
-                                    checked={isPersistent}
-                                    onChange={() => setIsPersistent(true)}
-                                />
-                                <div>
-                                    <p className="text-sm font-bold text-slate-200 group-hover:text-yellow-400 transition-colors">Permanente</p>
-                                    <p className="text-[10px] text-slate-500">Notificará cada vez que se cumpla la meta.</p>
-                                </div>
-                            </label>
+                            ))}
                         </div>
-                    </div>
+                    )}
 
-                    <div className="flex gap-2 pt-2">
-                        {currentAlert && (
+                    {/* Add new alert form */}
+                    <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-4 mt-4">
+                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                            <Plus className="w-3.5 h-3.5" /> Nueva Alerta
+                        </h3>
+
+                        {/* Target % input */}
+                        <div className="mb-4">
+                            <label className="block text-xs text-slate-400 mb-2 uppercase tracking-wider">
+                                % de ROI Objetivo
+                            </label>
+                            <div className="flex items-center gap-3">
+                                <input
+                                    type="range"
+                                    min={-80}
+                                    max={200}
+                                    step={1}
+                                    value={targetPercent}
+                                    onChange={(e) => setTargetPercent(Number(e.target.value))}
+                                    className="flex-1 accent-yellow-400"
+                                />
+                                <div className="relative w-24">
+                                    <input
+                                        type="number"
+                                        value={targetPercent}
+                                        onChange={(e) => setTargetPercent(Number(e.target.value))}
+                                        className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 pr-6 text-sm font-bold text-center text-white outline-none focus:ring-2 focus:ring-yellow-400"
+                                    />
+                                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 text-xs font-bold">%</span>
+                                </div>
+                            </div>
+                            <p className={`text-center text-sm font-bold mt-2 ${targetPercent >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                Notificar cuando ROI {targetPercent >= 0 ? "alcance" : "caiga a"} {targetPercent >= 0 ? "+" : ""}{targetPercent}%
+                            </p>
+                        </div>
+
+                        {/* Persistence selection */}
+                        <div className="grid grid-cols-2 gap-3 mb-4">
                             <button
-                                type="button"
-                                onClick={() => {
-                                    onRemove(investment.id);
-                                    onClose();
-                                }}
-                                className="bg-slate-700/50 hover:bg-red-500/20 text-slate-400 hover:text-red-400 p-3 rounded-xl transition-colors border border-transparent hover:border-red-500/30"
-                                title="Borrar Alerta"
+                                onClick={() => setIsPersistent(false)}
+                                className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${!isPersistent
+                                        ? "bg-yellow-500 text-slate-900 border-yellow-500 shadow-lg shadow-yellow-500/20"
+                                        : "bg-slate-900 text-slate-400 border-slate-700 hover:border-slate-600"
+                                    }`}
                             >
-                                <Trash2 className="w-4 h-4" />
+                                <Clock className="w-3.5 h-3.5" /> Notificar Una Vez
                             </button>
-                        )}
+                            <button
+                                onClick={() => setIsPersistent(true)}
+                                className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${isPersistent
+                                        ? "bg-yellow-500 text-slate-900 border-yellow-500 shadow-lg shadow-yellow-500/20"
+                                        : "bg-slate-900 text-slate-400 border-slate-700 hover:border-slate-600"
+                                    }`}
+                            >
+                                <Repeat className="w-3.5 h-3.5" /> Permanente
+                            </button>
+                        </div>
+
                         <button
-                            type="button"
-                            onClick={onClose}
-                            className="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold py-3 rounded-xl transition-colors text-xs uppercase tracking-widest"
+                            onClick={handleAdd}
+                            disabled={saving}
+                            className="w-full flex items-center justify-center gap-2 bg-yellow-500 text-slate-900 font-bold py-2.5 rounded-xl hover:bg-yellow-400 transition-all shadow-lg shadow-yellow-500/20 active:scale-95 disabled:opacity-50 text-sm"
                         >
-                            Cancelar
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={!target}
-                            className="flex-1 bg-yellow-600 hover:bg-yellow-500 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest disabled:opacity-50"
-                        >
-                            <Save className="w-4 h-4" />
-                            Guardar
+                            <Plus className="w-4 h-4" />
+                            {saving ? "Guardando..." : "Agregar Alerta"}
                         </button>
                     </div>
-                </form>
+                </div>
             </div>
         </div>
     );
-};
-
-export default InvestmentAlertModal;
+}
