@@ -1,42 +1,52 @@
-import React, { useState } from "react";
-import { X, Bell, Trash2, Plus, Repeat, Clock } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { X, Bell, Trash2, Plus, Repeat, Clock, Check } from "lucide-react";
 import { ProcessedInvestment } from "../lib/constants";
 import { InvestmentAlert } from "../hooks/useAlerts";
 
 interface InvestmentAlertModalProps {
     investment: ProcessedInvestment;
     currentAlerts: InvestmentAlert[];
-    onAddAlert: (id: string, targetPercent: number, isPersistent: boolean) => Promise<void>;
-    onRemoveAlert: (id: string, index: number) => Promise<void>;
+    onSaveAlerts: (id: string, alerts: InvestmentAlert[]) => Promise<void>;
     onClose: () => void;
 }
 
 export default function InvestmentAlertModal({
     investment,
     currentAlerts,
-    onAddAlert,
-    onRemoveAlert,
+    onSaveAlerts,
     onClose,
 }: InvestmentAlertModalProps) {
+    const [draftAlerts, setDraftAlerts] = useState<InvestmentAlert[]>(currentAlerts);
     const [targetPercent, setTargetPercent] = useState<number>(10);
     const [isPersistent, setIsPersistent] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [removing, setRemoving] = useState<number | null>(null);
 
-    const handleAdd = async () => {
+    // ESC key closes the modal without saving (Cancel)
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") onClose();
+        };
+        document.addEventListener("keydown", handleKeyDown);
+        return () => document.removeEventListener("keydown", handleKeyDown);
+    }, [onClose]);
+
+    const handleAdd = () => {
         if (isNaN(targetPercent)) return;
-        setSaving(true);
-        await onAddAlert(investment.id, targetPercent, isPersistent);
-        setSaving(false);
+        setDraftAlerts([...draftAlerts, { targetPercent, isPersistent }]);
         // Reset form
         setTargetPercent(10);
         setIsPersistent(false);
     };
 
-    const handleRemove = async (index: number) => {
-        setRemoving(index);
-        await onRemoveAlert(investment.id, index);
-        setRemoving(null);
+    const handleRemove = (index: number) => {
+        setDraftAlerts(draftAlerts.filter((_, i) => i !== index));
+    };
+
+    const handleSave = async () => {
+        setSaving(true);
+        await onSaveAlerts(investment.id, draftAlerts);
+        setSaving(false);
+        onClose();
     };
 
     return (
@@ -60,16 +70,16 @@ export default function InvestmentAlertModal({
                 {/* Active alerts list */}
                 <div className="p-5">
                     <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
-                        Alertas Activas ({currentAlerts.length})
+                        Alertas Activas ({draftAlerts.length})
                     </h3>
 
-                    {currentAlerts.length === 0 ? (
+                    {draftAlerts.length === 0 ? (
                         <p className="text-xs text-slate-600 italic text-center py-4 bg-slate-800/50 rounded-xl border border-slate-800">
                             No hay alertas configuradas aún
                         </p>
                     ) : (
                         <div className="space-y-2 mb-4">
-                            {currentAlerts.map((alert, index) => (
+                            {draftAlerts.map((alert, index) => (
                                 <div key={index} className="flex items-center justify-between bg-slate-800 border border-slate-700 rounded-xl px-4 py-3">
                                     <div className="flex items-center gap-3">
                                         <span className={`text-base font-bold ${alert.targetPercent >= 0 ? "text-green-400" : "text-red-400"}`}>
@@ -87,8 +97,7 @@ export default function InvestmentAlertModal({
                                     </div>
                                     <button
                                         onClick={() => handleRemove(index)}
-                                        disabled={removing === index}
-                                        className="text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors p-1.5 rounded-lg disabled:opacity-40"
+                                        className="text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors p-1.5 rounded-lg"
                                     >
                                         <Trash2 className="w-4 h-4" />
                                     </button>
@@ -138,8 +147,8 @@ export default function InvestmentAlertModal({
                             <button
                                 onClick={() => setIsPersistent(false)}
                                 className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${!isPersistent
-                                        ? "bg-yellow-500 text-slate-900 border-yellow-500 shadow-lg shadow-yellow-500/20"
-                                        : "bg-slate-900 text-slate-400 border-slate-700 hover:border-slate-600"
+                                    ? "bg-yellow-500 text-slate-900 border-yellow-500 shadow-lg shadow-yellow-500/20"
+                                    : "bg-slate-900 text-slate-400 border-slate-700 hover:border-slate-600"
                                     }`}
                             >
                                 <Clock className="w-3.5 h-3.5" /> Notificar Una Vez
@@ -147,8 +156,8 @@ export default function InvestmentAlertModal({
                             <button
                                 onClick={() => setIsPersistent(true)}
                                 className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${isPersistent
-                                        ? "bg-yellow-500 text-slate-900 border-yellow-500 shadow-lg shadow-yellow-500/20"
-                                        : "bg-slate-900 text-slate-400 border-slate-700 hover:border-slate-600"
+                                    ? "bg-yellow-500 text-slate-900 border-yellow-500 shadow-lg shadow-yellow-500/20"
+                                    : "bg-slate-900 text-slate-400 border-slate-700 hover:border-slate-600"
                                     }`}
                             >
                                 <Repeat className="w-3.5 h-3.5" /> Permanente
@@ -157,11 +166,28 @@ export default function InvestmentAlertModal({
 
                         <button
                             onClick={handleAdd}
-                            disabled={saving}
                             className="w-full flex items-center justify-center gap-2 bg-yellow-500 text-slate-900 font-bold py-2.5 rounded-xl hover:bg-yellow-400 transition-all shadow-lg shadow-yellow-500/20 active:scale-95 disabled:opacity-50 text-sm"
                         >
                             <Plus className="w-4 h-4" />
-                            {saving ? "Guardando..." : "Agregar Alerta"}
+                            Agregar Alerta
+                        </button>
+                    </div>
+
+                    {/* Botones de acción principales */}
+                    <div className="flex items-center gap-3 mt-6 pt-5 border-t border-slate-800">
+                        <button
+                            onClick={onClose}
+                            className="flex-1 py-3 rounded-xl font-bold bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white transition-all text-sm uppercase tracking-widest"
+                        >
+                            Cancelar (ESC)
+                        </button>
+                        <button
+                            onClick={handleSave}
+                            disabled={saving}
+                            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold bg-green-500 text-slate-900 hover:bg-green-400 transition-all shadow-lg shadow-green-500/20 active:scale-95 disabled:opacity-50 text-sm uppercase tracking-widest"
+                        >
+                            <Check className="w-4 h-4 shrink-0" />
+                            {saving ? "Guardando..." : "Aceptar"}
                         </button>
                     </div>
                 </div>

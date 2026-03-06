@@ -157,7 +157,7 @@ const PortfolioDonut: React.FC<{ aggregated: AggregatedAsset[]; totalValue: numb
                         ))}
                     </Pie>
                     <Tooltip
-                        content={({ active, payload }) => {
+                        content={({ active, payload }: any) => {
                             if (!active || !payload?.length) return null;
                             const d = payload[0].payload;
                             return (
@@ -209,7 +209,7 @@ const PnlBarChart: React.FC<{ aggregated: AggregatedAsset[] }> = ({ aggregated }
                         tick={{ fill: "#475569", fontSize: 9 }}
                         tickLine={false}
                         axisLine={false}
-                        tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
+                        tickFormatter={(v: any) => `$${(v / 1000).toFixed(0)}k`}
                     />
                     <YAxis
                         type="category"
@@ -317,7 +317,7 @@ const PriceCompareChart: React.FC<{ aggregated: AggregatedAsset[] }> = ({ aggreg
                         tick={{ fill: "#475569", fontSize: 9 }}
                         tickLine={false}
                         axisLine={false}
-                        tickFormatter={(v) => `${v > 0 ? "+" : ""}${v.toFixed(0)}%`}
+                        tickFormatter={(v: any) => `${v > 0 ? "+" : ""}${v.toFixed(0)}%`}
                     />
                     <YAxis
                         type="category"
@@ -329,7 +329,7 @@ const PriceCompareChart: React.FC<{ aggregated: AggregatedAsset[] }> = ({ aggreg
                     />
                     <Tooltip
                         cursor={{ fill: "#1e293b" }}
-                        content={({ active, payload, label }) => {
+                        content={({ active, payload, label }: any) => {
                             if (!active || !payload?.length) return null;
                             const val = payload[0].value as number;
                             return (
@@ -432,14 +432,14 @@ const InvestmentTimeline: React.FC<{ items: ProcessedInvestment[] }> = ({ items 
                         tick={{ fill: "#475569", fontSize: 9 }}
                         tickLine={false}
                         axisLine={false}
-                        tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
+                        tickFormatter={(v: any) => `$${(v / 1000).toFixed(0)}k`}
                         width={38}
                     />
                     <Tooltip
-                        content={({ active, payload, label }) => {
+                        content={({ active, payload, label }: any) => {
                             if (!active || !payload?.length) return null;
-                            const inv = payload.find((p) => p.dataKey === "Invertido")?.value as number;
-                            const val = payload.find((p) => p.dataKey === "Valor Actual")?.value as number;
+                            const inv = payload.find((p: any) => p.dataKey === "Invertido")?.value as number;
+                            const val = payload.find((p: any) => p.dataKey === "Valor Actual")?.value as number;
                             const entry = payload[0]?.payload;
                             const pnl = val - inv;
                             return (

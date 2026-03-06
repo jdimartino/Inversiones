@@ -9,6 +9,7 @@
   ],
   "main": "src/index.tsx",
   "dependencies": {
+    "@types/recharts": "^1.8.29",
     "firebase": "12.6.0",
     "loader-utils": "3.2.1",
     "lucide-react": "0.554.0",

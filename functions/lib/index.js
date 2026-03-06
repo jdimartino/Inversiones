@@ -23,11 +23,27 @@ async function sendTelegram(message) {
         parse_mode: "Markdown",
     });
 }
+// ─── Helper: normalizar formato legacy de alertas ────────────────────────────
+// Antiguo formato en Firestore: { [id]: { targetPercent, isPersistent } }
+// Nuevo formato:                { [id]: [{ targetPercent, isPersistent }] }
+function normalizeAlerts(raw) {
+    const normalized = {};
+    for (const [id, value] of Object.entries(raw)) {
+        if (Array.isArray(value)) {
+            normalized[id] = value;
+        }
+        else if (value && typeof value === "object") {
+            // Legacy: objeto único → envolver en array
+            normalized[id] = [value];
+        }
+    }
+    return normalized;
+}
 // ─── Cloud Function ───────────────────────────────────────────────────────────
-exports.checkPNLAlerts = functions.pubsub.schedule("every 1 hours").onRun(async (_context) => {
+exports.checkPNLAlerts = functions.pubsub.schedule("every 15 minutes").onRun(async (_context) => {
     try {
-        // 1. Obtener precios actuales de Binance
-        const { data: tickerData } = await axios_1.default.get("https://api.binance.com/api/v3/ticker/price");
+        // 1. Obtener precios actuales (usando MEXC para notificaciones, evitando bloqueos de EE.UU. en Google Cloud)
+        const { data: tickerData } = await axios_1.default.get("https://api.mexc.com/api/v3/ticker/price");
         const prices = {};
         for (const item of tickerData) {
             prices[item.symbol] = parseFloat(item.price);
@@ -43,8 +59,10 @@ exports.checkPNLAlerts = functions.pubsub.schedule("every 1 hours").onRun(async 
                 minAlert = conf.minPNL;
             if (conf.maxPNL !== undefined)
                 maxAlert = conf.maxPNL;
-            if (conf.investmentAlerts)
-                investmentAlerts = conf.investmentAlerts;
+            // ── Normalizar formato legacy antes de evaluar ────────────────
+            if (conf.investmentAlerts) {
+                investmentAlerts = normalizeAlerts(conf.investmentAlerts);
+            }
         }
         // 3. Calcular PNL por activo
         const snap = await db.collection("inversiones").get();
@@ -85,14 +103,16 @@ exports.checkPNLAlerts = functions.pubsub.schedule("every 1 hours").onRun(async 
                             `(Límite: ${target}%)`);
                     }
                     if (isTriggered) {
-                        console.log(`[ALERTA] ${inv.coin} (ID: ${docSnap.id}) — ROI: ${roiPercent.toFixed(2)}% — Target: ${target}% — Persistente: ${!!rule.isPersistent}`);
+                        const tipo = rule.isPersistent ? "PERMANENTE (seguirá notificando)" : "UNA VEZ (se eliminará)";
+                        console.log(`[ALERTA] ${inv.coin} (ID: ${docSnap.id}) — ROI: ${roiPercent.toFixed(2)}% — Target: ${target}% — Tipo: ${tipo}`);
                         if (rule.isPersistent) {
-                            // Permanente: mantener en el array
+                            // Permanente: mantener en el array, seguirá notificando cada hora
                             remaining.push(rule);
                         }
                         else {
                             // One-shot: eliminar (no se añade a remaining)
                             hasAlertsToRemove = true;
+                            console.log(`[ONE-SHOT] Alerta de ${inv.coin} (${target}%) eliminada tras dispararse.`);
                         }
                     }
                     else {
@@ -141,7 +161,7 @@ exports.checkPNLAlerts = functions.pubsub.schedule("every 1 hours").onRun(async 
             console.log(`Alerta enviada a Telegram. PNL Global: ${pnlSign}$${Math.round(globalPNL).toLocaleString()}. Activos disparados: ${triggeredMessages.length}`);
             // ── Guardar log de notificación en Firestore ──────────────
             await db.collection("notificationLogs").add({
-                sentAt: admin.firestore.FieldValue.serverTimestamp(),
+                sentAt: new Date(), // Usando Date() simple que Firestore acepta y convierte a Timestamp
                 globalAlertTriggered,
                 globalPNL: Math.round(globalPNL),
                 triggeredAssets: triggeredMessages,

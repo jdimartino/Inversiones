@@ -10,7 +10,7 @@ import {
 import { usePortfolio } from "./hooks/usePortfolio";
 import { useLoans } from "./hooks/useLoans";
 import { usePrices } from "./hooks/usePrices";
-import { useAlerts } from "./hooks/useAlerts";
+import { useAlerts, InvestmentAlert } from "./hooks/useAlerts";
 import NavBar, { TabId } from "./components/NavBar";
 import SummaryCards from "./components/SummaryCards";
 import AssetTable from "./components/AssetTable";
@@ -114,24 +114,13 @@ const App: React.FC = () => {
   const handleAlertInvestment = useCallback((item: ProcessedInvestment) => setAlertingInvestment(item), []);
   const handleCloseAlertModal = useCallback(() => setAlertingInvestment(null), []);
 
-  // Add a new alert to the array for this asset
-  const handleSaveInvestmentAlert = useCallback(async (id: string, targetPercent: number, isPersistent: boolean) => {
+  // Save ALL alerts for a single asset at once (from the modal)
+  const handleSaveAllAlertsForAsset = useCallback(async (id: string, alerts: InvestmentAlert[]) => {
     const newAlerts = { ...(config.investmentAlerts || {}) };
-    const existing = newAlerts[id] ? [...newAlerts[id]] : [];
-    existing.push({ targetPercent, isPersistent });
-    newAlerts[id] = existing;
-    await saveConfig({ ...config, investmentAlerts: newAlerts });
-  }, [config, saveConfig]);
-
-  // Remove one alert by index within the asset's array
-  const handleRemoveInvestmentAlertByIndex = useCallback(async (id: string, index: number) => {
-    const newAlerts = { ...(config.investmentAlerts || {}) };
-    if (!newAlerts[id]) return;
-    const updated = newAlerts[id].filter((_, i) => i !== index);
-    if (updated.length === 0) {
+    if (alerts.length === 0) {
       delete newAlerts[id];
     } else {
-      newAlerts[id] = updated;
+      newAlerts[id] = alerts;
     }
     await saveConfig({ ...config, investmentAlerts: newAlerts });
   }, [config, saveConfig]);
@@ -251,8 +240,7 @@ const App: React.FC = () => {
         <InvestmentAlertModal
           investment={alertingInvestment}
           currentAlerts={config.investmentAlerts?.[alertingInvestment.id] ?? []}
-          onAddAlert={handleSaveInvestmentAlert}
-          onRemoveAlert={handleRemoveInvestmentAlertByIndex}
+          onSaveAlerts={handleSaveAllAlertsForAsset}
           onClose={handleCloseAlertModal}
         />
       )}

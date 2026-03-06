@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, onSnapshot, setDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 
 export interface InvestmentAlert {
@@ -18,15 +18,13 @@ export function useAlerts() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        async function load() {
-            try {
-                const snap = await getDoc(doc(db, "config", "alerts"));
+        const unsubscribe = onSnapshot(
+            doc(db, "config", "alerts"),
+            (snap) => {
                 if (snap.exists()) {
                     const data = snap.data();
 
                     // ── Normalize legacy format ─────────────────────────────
-                    // Old format: { [id]: { targetPercent, isPersistent } }
-                    // New format: { [id]: [{ targetPercent, isPersistent }] }
                     const rawAlerts = data.investmentAlerts ?? {};
                     const normalizedAlerts: Record<string, { targetPercent: number; isPersistent?: boolean }[]> = {};
                     for (const [id, value] of Object.entries(rawAlerts)) {
@@ -43,20 +41,27 @@ export function useAlerts() {
                         maxPNL: data.maxPNL ?? 10000,
                         investmentAlerts: normalizedAlerts,
                     });
+                } else {
+                    // Si no existe, inicializamos con defecto o limpiamos
+                    setConfig({ minPNL: -40000, maxPNL: 10000, investmentAlerts: {} });
                 }
-            } catch (e) {
-                console.error("Error loading alerts", e);
-            } finally {
+                setLoading(false);
+            },
+            (err) => {
+                console.error("Error loading alerts snapshot", err);
                 setLoading(false);
             }
-        }
-        load();
+        );
+
+        return () => unsubscribe();
     }, []);
 
     const saveConfig = async (newConfig: AlertConfig) => {
         try {
-            await setDoc(doc(db, "config", "alerts"), newConfig, { merge: true });
+            // El onSnapshot actualizará el estado local automáticamente, pero podemos aplicarlo
+            // de inmediato en la UI para mayor fluidez.
             setConfig(newConfig);
+            await setDoc(doc(db, "config", "alerts"), newConfig, { merge: true });
             return true;
         } catch (e) {
             console.error("Error saving alerts", e);
