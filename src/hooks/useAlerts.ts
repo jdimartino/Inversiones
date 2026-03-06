@@ -5,6 +5,7 @@ import { db } from "../lib/firebase";
 export interface InvestmentAlert {
     targetPercent: number;
     isPersistent?: boolean;
+    direction?: 'up' | 'down';
 }
 
 export interface AlertConfig {
@@ -26,13 +27,21 @@ export function useAlerts() {
 
                     // ── Normalize legacy format ─────────────────────────────
                     const rawAlerts = data.investmentAlerts ?? {};
-                    const normalizedAlerts: Record<string, { targetPercent: number; isPersistent?: boolean }[]> = {};
+                    const normalizedAlerts: Record<string, InvestmentAlert[]> = {};
                     for (const [id, value] of Object.entries(rawAlerts)) {
                         if (Array.isArray(value)) {
-                            normalizedAlerts[id] = value as { targetPercent: number; isPersistent?: boolean }[];
+                            // Inject direction for older array-based alerts that lack it
+                            normalizedAlerts[id] = value.map(alert => ({
+                                ...alert,
+                                direction: alert.direction || (alert.targetPercent >= 0 ? 'up' : 'down')
+                            }));
                         } else if (value && typeof value === "object") {
-                            // Legacy single-object → wrap in array
-                            normalizedAlerts[id] = [value as { targetPercent: number; isPersistent?: boolean }];
+                            // Legacy single-object → wrap in array and inject direction
+                            const legacyAlert = value as InvestmentAlert;
+                            normalizedAlerts[id] = [{
+                                ...legacyAlert,
+                                direction: legacyAlert.direction || (legacyAlert.targetPercent >= 0 ? 'up' : 'down')
+                            }];
                         }
                     }
 

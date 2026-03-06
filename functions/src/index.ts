@@ -15,6 +15,7 @@ const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 interface AlertRule {
     targetPercent: number;
     isPersistent?: boolean;
+    direction?: 'up' | 'down';
 }
 
 // ─── Helper: send Telegram message ───────────────────────────────────────────
@@ -32,16 +33,23 @@ async function sendTelegram(message: string): Promise<void> {
 
 // ─── Helper: normalizar formato legacy de alertas ────────────────────────────
 // Antiguo formato en Firestore: { [id]: { targetPercent, isPersistent } }
-// Nuevo formato:                { [id]: [{ targetPercent, isPersistent }] }
+// Nuevo formato:                { [id]: [{ targetPercent, isPersistent, direction }] }
 function normalizeAlerts(raw: Record<string, unknown>): Record<string, AlertRule[]> {
     const normalized: Record<string, AlertRule[]> = {};
     for (const [id, value] of Object.entries(raw)) {
+        let alertsArray: AlertRule[] = [];
         if (Array.isArray(value)) {
-            normalized[id] = value as AlertRule[];
+            alertsArray = value as AlertRule[];
         } else if (value && typeof value === "object") {
             // Legacy: objeto único → envolver en array
-            normalized[id] = [value as AlertRule];
+            alertsArray = [value as AlertRule];
         }
+
+        // Inject direction for older alerts without it
+        normalized[id] = alertsArray.map(alert => ({
+            ...alert,
+            direction: alert.direction || (alert.targetPercent >= 0 ? 'up' : 'down')
+        }));
     }
     return normalized;
 }
@@ -74,14 +82,16 @@ export const checkPNLAlerts = functions.pubsub.schedule("every 15 minutes").onRu
             }
         }
 
-        // 3. Calcular PNL por activo
+        // 3. Calcular PNL por activo y recolectar alertas
         const snap = await db.collection("inversiones").get();
         let totalInvested = 0;
         let totalCurrentValue = 0;
 
-        const assetDetails: string[] = [];
         const triggeredMessages: string[] = [];
         let hasAlertsToRemove = false;
+
+        // Array para recolectar las inversiones de manera individual, pero procesadas para ordenar
+        const individualAssets: { coin: string, pnl: number, roi: number }[] = [];
 
         snap.forEach((docSnap) => {
             const inv = docSnap.data();
@@ -101,6 +111,13 @@ export const checkPNLAlerts = functions.pubsub.schedule("every 15 minutes").onRu
             }
             const roiPercent = (pnl / inv.invested) * 100;
 
+            // Recolectar para el bloque "Detalle por activo"
+            individualAssets.push({
+                coin: inv.coin,
+                pnl: pnl,
+                roi: roiPercent
+            });
+
             // 4. Evaluar alertas individuales para este activo (pueden ser múltiples)
             const alertRules = investmentAlerts[docSnap.id];
             if (Array.isArray(alertRules) && alertRules.length > 0) {
@@ -108,25 +125,26 @@ export const checkPNLAlerts = functions.pubsub.schedule("every 15 minutes").onRu
 
                 for (const rule of alertRules) {
                     const target = rule.targetPercent;
+                    const direction = rule.direction || (target >= 0 ? 'up' : 'down');
                     let isTriggered = false;
 
-                    if (target >= 0 && roiPercent >= target) {
+                    if (direction === 'up' && roiPercent >= target) {
                         isTriggered = true;
                         triggeredMessages.push(
-                            `🚀 *${inv.coin}* alcanzó *+${roiPercent.toFixed(1)}%* ` +
-                            `(Meta: +${target}%)`
+                            `🚀 *${inv.coin}* subió a/pasó de *${roiPercent.toFixed(1)}%* ` +
+                            `(Meta: 🔼 >= ${target}%)`
                         );
-                    } else if (target < 0 && roiPercent <= target) {
+                    } else if (direction === 'down' && roiPercent <= target) {
                         isTriggered = true;
                         triggeredMessages.push(
-                            `📉 *${inv.coin}* cayó a *${roiPercent.toFixed(1)}%* ` +
-                            `(Límite: ${target}%)`
+                            `📉 *${inv.coin}* cayó a/bajó de *${roiPercent.toFixed(1)}%* ` +
+                            `(Límite: 🔽 <= ${target}%)`
                         );
                     }
 
                     if (isTriggered) {
                         const tipo = rule.isPersistent ? "PERMANENTE (seguirá notificando)" : "UNA VEZ (se eliminará)";
-                        console.log(`[ALERTA] ${inv.coin} (ID: ${docSnap.id}) — ROI: ${roiPercent.toFixed(2)}% — Target: ${target}% — Tipo: ${tipo}`);
+                        console.log(`[ALERTA] ${inv.coin} (ID: ${docSnap.id}) — ROI: ${roiPercent.toFixed(2)}% — Target: ${direction === 'up' ? '>=' : '<='} ${target}% — Tipo: ${tipo}`);
                         if (rule.isPersistent) {
                             // Permanente: mantener en el array, seguirá notificando cada hora
                             remaining.push(rule);
@@ -149,23 +167,29 @@ export const checkPNLAlerts = functions.pubsub.schedule("every 15 minutes").onRu
                     hasAlertsToRemove = true;
                 }
             }
+        });
 
-            // Línea de detalle para el resumen del mensaje
-            const sign = pnl >= 0 ? "+" : "";
-            assetDetails.push(`${inv.coin}: ${sign}$${Math.round(pnl).toLocaleString()} (${sign}${roiPercent.toFixed(1)}%)`);
+        // 5. Ordenar el registro individual (de ganancias a pérdidas descendente)
+        individualAssets.sort((a, b) => b.pnl - a.pnl);
+
+        const assetDetails = individualAssets.map(({ coin, pnl, roi }) => {
+            const isGain = pnl >= 0;
+            const sign = isGain ? "+" : "";
+            const emoji = isGain ? "🟢" : "🔴";
+            return `${emoji} *${coin}:* ${sign}$${Math.round(pnl).toLocaleString()} (${sign}${roi.toFixed(1)}%)`;
         });
 
         const globalPNL = totalCurrentValue - totalInvested;
         const globalAlertTriggered = globalPNL <= minAlert || globalPNL >= maxAlert;
         const shouldAlert = globalAlertTriggered || triggeredMessages.length > 0;
 
-        // 5. Eliminar alertas one-shot que ya fueron disparadas
+        // 6. Eliminar alertas one-shot que ya fueron disparadas
         if (hasAlertsToRemove) {
             await db.collection("config").doc("alerts").update({ investmentAlerts });
             console.log("Alertas one-shot eliminadas de Firestore tras ser disparadas.");
         }
 
-        // 6. Enviar notificación si hay algo que reportar
+        // 7. Enviar notificación si hay algo que reportar
         if (shouldAlert) {
             const pnlSign = globalPNL >= 0 ? "+" : "";
             let message = `⚠️ *ALERTA PNL — Crypto Command*\n\n`;
@@ -183,7 +207,7 @@ export const checkPNLAlerts = functions.pubsub.schedule("every 15 minutes").onRu
                 `*PNL Total:* ${pnlSign}$${Math.round(globalPNL).toLocaleString()}\n` +
                 `*Invertido:* $${Math.round(totalInvested).toLocaleString()}\n` +
                 `*Valor Actual:* $${Math.round(totalCurrentValue).toLocaleString()}\n\n` +
-                `*Detalle por activo:*\n${assetDetails.join(" | ")}`;
+                `*📊 Detalle del Portafolio:*\n${assetDetails.join("\n")}`;
 
             await sendTelegram(message);
             console.log(`Alerta enviada a Telegram. PNL Global: ${pnlSign}$${Math.round(globalPNL).toLocaleString()}. Activos disparados: ${triggeredMessages.length}`);

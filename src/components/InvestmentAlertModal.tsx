@@ -19,6 +19,7 @@ export default function InvestmentAlertModal({
     const [draftAlerts, setDraftAlerts] = useState<InvestmentAlert[]>(currentAlerts);
     const [targetPercent, setTargetPercent] = useState<number>(10);
     const [isPersistent, setIsPersistent] = useState(false);
+    const [direction, setDirection] = useState<'up' | 'down'>('up');
     const [saving, setSaving] = useState(false);
 
     // ESC key closes the modal without saving (Cancel)
@@ -30,12 +31,20 @@ export default function InvestmentAlertModal({
         return () => document.removeEventListener("keydown", handleKeyDown);
     }, [onClose]);
 
+    const handleTargetChange = (val: number) => {
+        setTargetPercent(val);
+        // Auto-suggest direction based on sign, but user can change it
+        if (val >= 0) setDirection('up');
+        else setDirection('down');
+    };
+
     const handleAdd = () => {
         if (isNaN(targetPercent)) return;
-        setDraftAlerts([...draftAlerts, { targetPercent, isPersistent }]);
-        // Reset form
+        setDraftAlerts([...draftAlerts, { targetPercent, isPersistent, direction }]);
+        // Reset form to defaults
         setTargetPercent(10);
         setIsPersistent(false);
+        setDirection('up');
     };
 
     const handleRemove = (index: number) => {
@@ -49,6 +58,12 @@ export default function InvestmentAlertModal({
         onClose();
     };
 
+    // PNL Calculations for Header
+    const pnlAmount = investment.currentValue - investment.invested;
+    const isPositive = investment.roi >= 0;
+    const pnlColorClass = isPositive ? "text-green-400" : "text-red-400";
+    const pnlBgClass = isPositive ? "bg-green-500/10 border-green-500/20" : "bg-red-500/10 border-red-500/20";
+
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
@@ -56,10 +71,21 @@ export default function InvestmentAlertModal({
                 {/* Header */}
                 <div className="flex justify-between items-center p-5 border-b border-slate-800">
                     <div className="flex items-center gap-3">
-                        <Bell className="w-5 h-5 text-yellow-400" />
+                        <Bell className="w-5 h-5 text-yellow-400 mt-1 self-start" />
                         <div>
-                            <h2 className="text-lg font-bold text-white">{investment.coin}</h2>
-                            <p className="text-xs text-slate-400">Alertas de PNL</p>
+                            <div className="flex items-center gap-2 mb-1">
+                                <h2 className="text-lg font-bold text-white">{investment.coin}</h2>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${pnlBgClass} ${pnlColorClass}`}>
+                                    {isPositive ? "+" : ""}{investment.roi.toFixed(2)}%
+                                </span>
+                            </div>
+                            <p className="text-xs text-slate-400 flex items-center gap-2">
+                                <span>Alertas de PNL</span>
+                                <span className="text-slate-600">•</span>
+                                <span className={`font-medium ${pnlColorClass}`}>
+                                    PNL: {isPositive ? "+" : "-"}${Math.abs(pnlAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                            </p>
                         </div>
                     </div>
                     <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors p-1 rounded-lg hover:bg-slate-800">
@@ -82,7 +108,8 @@ export default function InvestmentAlertModal({
                             {draftAlerts.map((alert, index) => (
                                 <div key={index} className="flex items-center justify-between bg-slate-800 border border-slate-700 rounded-xl px-4 py-3">
                                     <div className="flex items-center gap-3">
-                                        <span className={`text-base font-bold ${alert.targetPercent >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                        <span className={`flex items-center gap-1 text-base font-bold ${alert.targetPercent >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                            {alert.direction === 'up' ? '🔼' : '🔽'}
                                             {alert.targetPercent >= 0 ? "+" : ""}{alert.targetPercent}%
                                         </span>
                                         {alert.isPersistent ? (
@@ -124,21 +151,44 @@ export default function InvestmentAlertModal({
                                     max={200}
                                     step={1}
                                     value={targetPercent}
-                                    onChange={(e) => setTargetPercent(Number(e.target.value))}
+                                    onChange={(e) => handleTargetChange(Number(e.target.value))}
                                     className="flex-1 accent-yellow-400"
                                 />
                                 <div className="relative w-24">
                                     <input
                                         type="number"
                                         value={targetPercent}
-                                        onChange={(e) => setTargetPercent(Number(e.target.value))}
+                                        onChange={(e) => handleTargetChange(Number(e.target.value))}
                                         className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 pr-6 text-sm font-bold text-center text-white outline-none focus:ring-2 focus:ring-yellow-400"
                                     />
                                     <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 text-xs font-bold">%</span>
                                 </div>
                             </div>
-                            <p className={`text-center text-sm font-bold mt-2 ${targetPercent >= 0 ? "text-green-400" : "text-red-400"}`}>
-                                Notificar cuando ROI {targetPercent >= 0 ? "alcance" : "caiga a"} {targetPercent >= 0 ? "+" : ""}{targetPercent}%
+
+                            {/* Direction selection */}
+                            <div className="grid grid-cols-2 gap-3 mt-4">
+                                <button
+                                    onClick={() => setDirection('up')}
+                                    className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold border transition-all ${direction === 'up'
+                                        ? "bg-green-500/20 text-green-400 border-green-500/50"
+                                        : "bg-slate-900 text-slate-400 border-slate-700 hover:border-slate-600"
+                                        }`}
+                                >
+                                    🔼 Subida a...
+                                </button>
+                                <button
+                                    onClick={() => setDirection('down')}
+                                    className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold border transition-all ${direction === 'down'
+                                        ? "bg-red-500/20 text-red-400 border-red-500/50"
+                                        : "bg-slate-900 text-slate-400 border-slate-700 hover:border-slate-600"
+                                        }`}
+                                >
+                                    🔽 Bajada a...
+                                </button>
+                            </div>
+
+                            <p className={`text-center text-sm font-bold mt-3 ${targetPercent >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                Notificar cuando ROI {direction === 'up' ? "suba a" : "caiga a"} {targetPercent >= 0 ? "+" : ""}{targetPercent}%
                             </p>
                         </div>
 
