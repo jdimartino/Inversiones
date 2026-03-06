@@ -18,6 +18,12 @@ interface AlertRule {
     direction?: 'up' | 'down';
 }
 
+interface GlobalAlertRule {
+    targetAmount: number;
+    isPersistent?: boolean;
+    direction?: 'up' | 'down';
+}
+
 // ─── Helper: send Telegram message ───────────────────────────────────────────
 async function sendTelegram(message: string): Promise<void> {
     if (!TELEGRAM_TOKEN || !CHAT_ID) {
@@ -54,6 +60,14 @@ function normalizeAlerts(raw: Record<string, unknown>): Record<string, AlertRule
     return normalized;
 }
 
+function normalizeGlobalAlerts(rawArray: any[]): GlobalAlertRule[] {
+    if (!Array.isArray(rawArray)) return [];
+    return rawArray.map(alert => ({
+        ...alert,
+        direction: alert.direction || (alert.targetAmount >= 0 ? 'up' : 'down')
+    }));
+}
+
 // ─── Cloud Function ───────────────────────────────────────────────────────────
 export const checkPNLAlerts = functions.pubsub.schedule("every 15 minutes").onRun(async (_context) => {
     try {
@@ -70,6 +84,7 @@ export const checkPNLAlerts = functions.pubsub.schedule("every 15 minutes").onRu
         let minAlert = -40000;
         let maxAlert = 10000;
         let investmentAlerts: Record<string, AlertRule[]> = {};
+        let globalAlerts: GlobalAlertRule[] = [];
 
         if (configSnap.exists) {
             const conf = configSnap.data()!;
@@ -80,6 +95,9 @@ export const checkPNLAlerts = functions.pubsub.schedule("every 15 minutes").onRu
             if (conf.investmentAlerts) {
                 investmentAlerts = normalizeAlerts(conf.investmentAlerts);
             }
+            if (conf.globalAlerts) {
+                globalAlerts = normalizeGlobalAlerts(conf.globalAlerts);
+            }
         }
 
         // 3. Calcular PNL por activo y recolectar alertas
@@ -87,8 +105,9 @@ export const checkPNLAlerts = functions.pubsub.schedule("every 15 minutes").onRu
         let totalInvested = 0;
         let totalCurrentValue = 0;
 
-        const triggeredMessages: string[] = [];
+        const triggeredIndividualMessages: string[] = [];
         let hasAlertsToRemove = false;
+        let hasGlobalAlertsToRemove = false;
 
         // Array para recolectar las inversiones de manera individual, pero procesadas para ordenar
         const individualAssets: { coin: string, pnl: number, roi: number }[] = [];
@@ -130,13 +149,13 @@ export const checkPNLAlerts = functions.pubsub.schedule("every 15 minutes").onRu
 
                     if (direction === 'up' && roiPercent >= target) {
                         isTriggered = true;
-                        triggeredMessages.push(
+                        triggeredIndividualMessages.push(
                             `🚀 *${inv.coin}* subió a/pasó de *${roiPercent.toFixed(1)}%* ` +
                             `(Meta: 🔼 >= ${target}%)`
                         );
                     } else if (direction === 'down' && roiPercent <= target) {
                         isTriggered = true;
-                        triggeredMessages.push(
+                        triggeredIndividualMessages.push(
                             `📉 *${inv.coin}* cayó a/bajó de *${roiPercent.toFixed(1)}%* ` +
                             `(Límite: 🔽 <= ${target}%)`
                         );
@@ -180,13 +199,67 @@ export const checkPNLAlerts = functions.pubsub.schedule("every 15 minutes").onRu
         });
 
         const globalPNL = totalCurrentValue - totalInvested;
-        const globalAlertTriggered = globalPNL <= minAlert || globalPNL >= maxAlert;
-        const shouldAlert = globalAlertTriggered || triggeredMessages.length > 0;
+
+        // ── Evaluar Alertas Globales ──────────────────────────────────────────
+        const triggeredGlobalMessages: string[] = [];
+        const originalGlobalAlertsLength = globalAlerts.length;
+        let remainingGlobalAlerts: GlobalAlertRule[] = [];
+
+        // Legacy check (en caso de que no existan globalAlerts y sí los límites viejos)
+        const isLegacyGlobalAlertTriggered = (globalAlerts.length === 0) && (globalPNL <= minAlert || globalPNL >= maxAlert);
+        if (isLegacyGlobalAlertTriggered) {
+            const reason = globalPNL <= minAlert ? "⬇️ Límite inferior alcanzado" : "⬆️ Meta superior alcanzada";
+            triggeredGlobalMessages.push(`🚨 *Alerta Global Legacy:* ${reason} (${globalPNL >= 0 ? "+" : ""}$${Math.round(globalPNL).toLocaleString()})`);
+        }
+
+        // New array check
+        for (const rule of globalAlerts) {
+            const target = rule.targetAmount;
+            const direction = rule.direction || (target >= 0 ? 'up' : 'down');
+            let isTriggered = false;
+
+            if (direction === 'up' && globalPNL >= target) {
+                isTriggered = true;
+                triggeredGlobalMessages.push(
+                    `🚀 *PNL Global* alcanzó/superó *${globalPNL >= 0 ? "+" : ""}$${Math.round(globalPNL).toLocaleString()}* (Meta: 🔼 >= ${target >= 0 ? "+" : ""}$${Math.round(target).toLocaleString()})`
+                );
+            } else if (direction === 'down' && globalPNL <= target) {
+                isTriggered = true;
+                triggeredGlobalMessages.push(
+                    `📉 *PNL Global* cayó/bajó a *${globalPNL >= 0 ? "+" : ""}$${Math.round(globalPNL).toLocaleString()}* (Límite: 🔽 <= ${target >= 0 ? "+" : ""}$${Math.round(target).toLocaleString()})`
+                );
+            }
+
+            if (isTriggered) {
+                const tipo = rule.isPersistent ? "PERMANENTE" : "UNA VEZ";
+                console.log(`[ALERTA GLOBAL] PNL: $${globalPNL.toFixed(2)} — Target: ${direction === 'up' ? '>=' : '<='} $${target} — Tipo: ${tipo}`);
+                if (rule.isPersistent) {
+                    remainingGlobalAlerts.push(rule);
+                } else {
+                    hasGlobalAlertsToRemove = true;
+                    console.log(`[ONE-SHOT GLOBAL] Alerta Global ($${target}) eliminada tras dispararse.`);
+                }
+            } else {
+                remainingGlobalAlerts.push(rule);
+            }
+        }
+
+        const shouldAlert = isLegacyGlobalAlertTriggered || triggeredGlobalMessages.length > 0 || triggeredIndividualMessages.length > 0;
 
         // 6. Eliminar alertas one-shot que ya fueron disparadas
+        const updates: any = {};
         if (hasAlertsToRemove) {
-            await db.collection("config").doc("alerts").update({ investmentAlerts });
-            console.log("Alertas one-shot eliminadas de Firestore tras ser disparadas.");
+            updates.investmentAlerts = investmentAlerts;
+            console.log("Alertas individuales one-shot en cola para eliminación.");
+        }
+        if (hasGlobalAlertsToRemove || originalGlobalAlertsLength !== remainingGlobalAlerts.length) {
+            updates.globalAlerts = remainingGlobalAlerts;
+            console.log("Alertas globales one-shot en cola para eliminación.");
+        }
+
+        if (Object.keys(updates).length > 0) {
+            await db.collection("config").doc("alerts").update(updates);
+            console.log("Actualizadas alertas en Firestore tras dispararse las configuradas para Una Vez.");
         }
 
         // 7. Enviar notificación si hay algo que reportar
@@ -194,13 +267,12 @@ export const checkPNLAlerts = functions.pubsub.schedule("every 15 minutes").onRu
             const pnlSign = globalPNL >= 0 ? "+" : "";
             let message = `⚠️ *ALERTA PNL — Crypto Command*\n\n`;
 
-            if (triggeredMessages.length > 0) {
-                message += `*🎯 Alertas Individuales:*\n${triggeredMessages.join("\n")}\n\n`;
+            if (triggeredGlobalMessages.length > 0) {
+                message += `*🚨 Alertas Globales:*\n${triggeredGlobalMessages.join("\n")}\n\n`;
             }
 
-            if (globalAlertTriggered) {
-                const reason = globalPNL <= minAlert ? "⬇️ Límite inferior alcanzado" : "⬆️ Meta superior alcanzada";
-                message += `🚨 *Alerta Global:* ${reason}\n\n`;
+            if (triggeredIndividualMessages.length > 0) {
+                message += `*🎯 Alertas Individuales:*\n${triggeredIndividualMessages.join("\n")}\n\n`;
             }
 
             message +=
@@ -210,14 +282,15 @@ export const checkPNLAlerts = functions.pubsub.schedule("every 15 minutes").onRu
                 `*📊 Detalle del Portafolio:*\n${assetDetails.join("\n")}`;
 
             await sendTelegram(message);
-            console.log(`Alerta enviada a Telegram. PNL Global: ${pnlSign}$${Math.round(globalPNL).toLocaleString()}. Activos disparados: ${triggeredMessages.length}`);
+            console.log(`Alerta enviada a Telegram. PNL Global: ${pnlSign}$${Math.round(globalPNL).toLocaleString()}. Activos disparados: ${triggeredIndividualMessages.length}, Globales disparadas: ${triggeredGlobalMessages.length}`);
 
             // ── Guardar log de notificación en Firestore ──────────────
             await db.collection("notificationLogs").add({
                 sentAt: new Date(), // Usando Date() simple que Firestore acepta y convierte a Timestamp
-                globalAlertTriggered,
+                globalAlertTriggered: triggeredGlobalMessages.length > 0 || isLegacyGlobalAlertTriggered,
                 globalPNL: Math.round(globalPNL),
-                triggeredAssets: triggeredMessages,
+                triggeredAssets: triggeredIndividualMessages,
+                triggeredGlobalAlerts: triggeredGlobalMessages,
                 totalInvested: Math.round(totalInvested),
                 totalCurrentValue: Math.round(totalCurrentValue),
             });

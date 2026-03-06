@@ -10,7 +10,7 @@ import {
 import { usePortfolio } from "./hooks/usePortfolio";
 import { useLoans } from "./hooks/useLoans";
 import { usePrices } from "./hooks/usePrices";
-import { useAlerts, InvestmentAlert } from "./hooks/useAlerts";
+import { useAlerts, InvestmentAlert, GlobalAlert } from "./hooks/useAlerts";
 import NavBar, { TabId } from "./components/NavBar";
 import SummaryCards from "./components/SummaryCards";
 import AssetTable from "./components/AssetTable";
@@ -23,6 +23,7 @@ import EditLoanModal from "./components/EditLoanModal";
 import AlertSettings from "./components/AlertSettings";
 import EditInvestmentModal from "./components/EditInvestmentModal";
 import InvestmentAlertModal from "./components/InvestmentAlertModal";
+import GlobalAlertModal from "./components/GlobalAlertModal";
 
 const App: React.FC = () => {
   const { portfolio, addInvestment, removeInvestment, updateInvestment } = usePortfolio();
@@ -33,6 +34,9 @@ const App: React.FC = () => {
   const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
   const [editingInvestment, setEditingInvestment] = useState<ProcessedInvestment | null>(null);
   const [alertingInvestment, setAlertingInvestment] = useState<ProcessedInvestment | null>(null);
+  const [isGlobalAlertModalOpen, setIsGlobalAlertModalOpen] = useState(false);
+  const [globalEditIndex, setGlobalEditIndex] = useState<number | null>(null);
+  const [investmentEditIndex, setInvestmentEditIndex] = useState<number | null>(null);
 
   // ── Computed: portfolio with live prices ──────────────────────────
   const sortedPortfolio = useMemo<ProcessedInvestment[]>(() => {
@@ -112,7 +116,35 @@ const App: React.FC = () => {
   const handleEditInvestment = useCallback((item: ProcessedInvestment) => setEditingInvestment(item), []);
   const handleCloseInvestmentModal = useCallback(() => setEditingInvestment(null), []);
   const handleAlertInvestment = useCallback((item: ProcessedInvestment) => setAlertingInvestment(item), []);
-  const handleCloseAlertModal = useCallback(() => setAlertingInvestment(null), []);
+  const handleCloseAlertModal = useCallback(() => {
+    setAlertingInvestment(null);
+    setInvestmentEditIndex(null);
+  }, []);
+
+  const handleEditGlobalAlert = useCallback((index: number) => {
+    setGlobalEditIndex(index);
+    setIsGlobalAlertModalOpen(true);
+  }, []);
+
+  const handleEditInvestmentAlert = useCallback((investmentId: string, index: number) => {
+    const inv = portfolio.find(i => i.id === investmentId);
+    if (!inv) return;
+
+    // We compute the current ProcessedInvestment properties to pass to the modal
+    const currentPrice = prices[inv.coin] || inv.buyPrice;
+    const currentValue = inv.quantity * currentPrice;
+    const profit = currentValue - inv.invested;
+    const roi = inv.invested > 0 ? (profit / inv.invested) * 100 : 0;
+
+    const processedInv: ProcessedInvestment = { ...inv, currentPrice, currentValue, profit, roi };
+
+    setInvestmentEditIndex(index);
+    setAlertingInvestment(processedInv);
+  }, [portfolio, prices]);
+
+  const handleSaveGlobalAlerts = useCallback(async (alerts: GlobalAlert[]) => {
+    await saveConfig({ ...config, globalAlerts: alerts });
+  }, [config, saveConfig]);
 
   // Save ALL alerts for a single asset at once (from the modal)
   const handleSaveAllAlertsForAsset = useCallback(async (id: string, alerts: InvestmentAlert[]) => {
@@ -176,6 +208,8 @@ const App: React.FC = () => {
               totalValue={totalValue}
               totalPnl={totalPnl}
               totalRoi={totalRoi}
+              hasActiveGlobalAlerts={(config.globalAlerts || []).length > 0}
+              onOpenGlobalAlerts={() => setIsGlobalAlertModalOpen(true)}
             />
             <AssetTable
               items={sortedPortfolio}
@@ -221,10 +255,15 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* ── CONFIGURACIÓN ─────────────────────────────────────────── */}
+        {/* ── CONFIGURACIÓN (TELEGRAM) ─────────────────────────────────────────── */}
         {activeTab === "configuracion" && (
           <div key="configuracion" className={tabClass}>
-            <AlertSettings config={config} saveConfig={saveConfig} />
+            <AlertSettings
+              config={config}
+              saveConfig={saveConfig}
+              onEditGlobal={handleEditGlobalAlert}
+              onEditInvestment={handleEditInvestmentAlert}
+            />
           </div>
         )}
       </main>
@@ -242,6 +281,19 @@ const App: React.FC = () => {
           currentAlerts={config.investmentAlerts?.[alertingInvestment.id] ?? []}
           onSaveAlerts={handleSaveAllAlertsForAsset}
           onClose={handleCloseAlertModal}
+          initialEditIndex={investmentEditIndex}
+        />
+      )}
+      {isGlobalAlertModalOpen && (
+        <GlobalAlertModal
+          totalPnl={totalPnl}
+          currentAlerts={config.globalAlerts || []}
+          onSaveAlerts={handleSaveGlobalAlerts}
+          onClose={() => {
+            setIsGlobalAlertModalOpen(false);
+            setGlobalEditIndex(null);
+          }}
+          initialEditIndex={globalEditIndex}
         />
       )}
     </div>

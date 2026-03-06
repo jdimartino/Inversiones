@@ -4,7 +4,7 @@ import {
     BarChart3,
     CreditCard,
     PlusCircle,
-    Settings,
+    Send,
 } from "lucide-react";
 
 export type TabId = "dashboard" | "graficos" | "prestamos" | "operaciones" | "configuracion";
@@ -20,7 +20,7 @@ const TABS: Tab[] = [
     { id: "graficos", label: "Gráficos", icon: <BarChart3 className="w-4 h-4" /> },
     { id: "prestamos", label: "Préstamos", icon: <CreditCard className="w-4 h-4" /> },
     { id: "operaciones", label: "Operaciones", icon: <PlusCircle className="w-4 h-4" /> },
-    { id: "configuracion", label: "Configuración", icon: <Settings className="w-4 h-4" /> },
+    { id: "configuracion", label: "Telegram", icon: <Send className="w-4 h-4" /> },
 ];
 
 interface NavBarProps {

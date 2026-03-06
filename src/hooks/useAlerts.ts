@@ -8,14 +8,21 @@ export interface InvestmentAlert {
     direction?: 'up' | 'down';
 }
 
+export interface GlobalAlert {
+    targetAmount: number;
+    isPersistent?: boolean;
+    direction?: 'up' | 'down';
+}
+
 export interface AlertConfig {
-    minPNL: number;
-    maxPNL: number;
+    minPNL?: number; // Legacy
+    maxPNL?: number; // Legacy
+    globalAlerts?: GlobalAlert[];
     investmentAlerts?: Record<string, InvestmentAlert[]>;
 }
 
 export function useAlerts() {
-    const [config, setConfig] = useState<AlertConfig>({ minPNL: -40000, maxPNL: 10000, investmentAlerts: {} });
+    const [config, setConfig] = useState<AlertConfig>({ minPNL: -40000, maxPNL: 10000, investmentAlerts: {}, globalAlerts: [] });
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -45,14 +52,25 @@ export function useAlerts() {
                         }
                     }
 
+                    // ── Normalize global alerts ────────────────────────────
+                    const rawGlobalAlerts = data.globalAlerts ?? [];
+                    let normalizedGlobalAlerts: GlobalAlert[] = [];
+                    if (Array.isArray(rawGlobalAlerts)) {
+                        normalizedGlobalAlerts = rawGlobalAlerts.map((alert: any) => ({
+                            ...alert,
+                            direction: alert.direction || (alert.targetAmount >= 0 ? 'up' : 'down')
+                        }));
+                    }
+
                     setConfig({
                         minPNL: data.minPNL ?? -40000,
                         maxPNL: data.maxPNL ?? 10000,
                         investmentAlerts: normalizedAlerts,
+                        globalAlerts: normalizedGlobalAlerts,
                     });
                 } else {
                     // Si no existe, inicializamos con defecto o limpiamos
-                    setConfig({ minPNL: -40000, maxPNL: 10000, investmentAlerts: {} });
+                    setConfig({ minPNL: -40000, maxPNL: 10000, investmentAlerts: {}, globalAlerts: [] });
                 }
                 setLoading(false);
             },

@@ -1,26 +1,28 @@
 import React, { useState, useEffect } from "react";
 import { X, Bell, Trash2, Edit2, Plus, Repeat, Clock, Check } from "lucide-react";
-import { ProcessedInvestment } from "../lib/constants";
-import { InvestmentAlert } from "../hooks/useAlerts";
+import { GlobalAlert } from "../hooks/useAlerts";
+import { fmtUSD } from "../lib/format";
 
-interface InvestmentAlertModalProps {
-    investment: ProcessedInvestment;
-    currentAlerts: InvestmentAlert[];
-    onSaveAlerts: (id: string, alerts: InvestmentAlert[]) => Promise<void>;
+interface GlobalAlertModalProps {
+    totalPnl: number;
+    currentAlerts: GlobalAlert[];
+    onSaveAlerts: (alerts: GlobalAlert[]) => Promise<void>;
     onClose: () => void;
     initialEditIndex?: number | null;
 }
 
-export default function InvestmentAlertModal({
-    investment,
+export default function GlobalAlertModal({
+    totalPnl,
     currentAlerts,
     onSaveAlerts,
     onClose,
     initialEditIndex,
-}: InvestmentAlertModalProps) {
-    const [draftAlerts, setDraftAlerts] = useState<InvestmentAlert[]>(currentAlerts);
-    const [targetPercent, setTargetPercent] = useState<number>(0);
-    const [isPersistent, setIsPersistent] = useState(false);
+}: GlobalAlertModalProps) {
+    const [draftAlerts, setDraftAlerts] = useState<GlobalAlert[]>(currentAlerts);
+    // Determine a reasonable default target amount based on current PNL, or 0 if PNL is 0
+    const defaultTarget = totalPnl !== 0 ? Math.round(totalPnl * 1.05 / 100) * 100 : 1000;
+    const [targetAmount, setTargetAmount] = useState<number>(defaultTarget);
+    const [isPersistent, setIsPersistent] = useState(true);
     const [direction, setDirection] = useState<'up' | 'down'>('up');
     const [saving, setSaving] = useState(false);
 
@@ -28,8 +30,8 @@ export default function InvestmentAlertModal({
     useEffect(() => {
         if (initialEditIndex !== undefined && initialEditIndex !== null && currentAlerts[initialEditIndex]) {
             const alertToEdit = currentAlerts[initialEditIndex];
-            setTargetPercent(alertToEdit.targetPercent);
-            setIsPersistent(alertToEdit.isPersistent ?? false);
+            setTargetAmount(alertToEdit.targetAmount);
+            setIsPersistent(alertToEdit.isPersistent ?? true);
             setDirection(alertToEdit.direction ?? 'up');
             // Remove it from draft alerts immediately
             setDraftAlerts(currentAlerts.filter((_, i) => i !== initialEditIndex));
@@ -46,25 +48,25 @@ export default function InvestmentAlertModal({
     }, [onClose]);
 
     const handleTargetChange = (val: number) => {
-        setTargetPercent(val);
-        // Auto-suggest direction based on sign, but user can change it
-        if (val >= 0) setDirection('up');
+        setTargetAmount(val);
+        // Auto-suggest direction based on comparison with current PNL
+        if (val >= totalPnl) setDirection('up');
         else setDirection('down');
     };
 
     const handleAdd = () => {
-        if (isNaN(targetPercent)) return;
-        setDraftAlerts([...draftAlerts, { targetPercent, isPersistent, direction }]);
+        if (isNaN(targetAmount)) return;
+        setDraftAlerts([...draftAlerts, { targetAmount, isPersistent, direction }]);
         // Reset form to defaults
-        setTargetPercent(0);
-        setIsPersistent(false);
+        setTargetAmount(defaultTarget);
+        setIsPersistent(true);
         setDirection('up');
     };
 
     const handleEdit = (index: number) => {
         const alertToEdit = draftAlerts[index];
-        setTargetPercent(alertToEdit.targetPercent);
-        setIsPersistent(alertToEdit.isPersistent ?? false);
+        setTargetAmount(alertToEdit.targetAmount);
+        setIsPersistent(alertToEdit.isPersistent ?? true);
         setDirection(alertToEdit.direction ?? 'up');
         handleRemove(index);
     };
@@ -75,14 +77,13 @@ export default function InvestmentAlertModal({
 
     const handleSave = async () => {
         setSaving(true);
-        await onSaveAlerts(investment.id, draftAlerts);
+        await onSaveAlerts(draftAlerts);
         setSaving(false);
         onClose();
     };
 
     // PNL Calculations for Header
-    const pnlAmount = investment.currentValue - investment.invested;
-    const isPositive = investment.roi >= 0;
+    const isPositive = totalPnl >= 0;
     const pnlColorClass = isPositive ? "text-green-400" : "text-red-400";
     const pnlBgClass = isPositive ? "bg-green-500/10 border-green-500/20" : "bg-red-500/10 border-red-500/20";
 
@@ -96,16 +97,16 @@ export default function InvestmentAlertModal({
                         <Bell className="w-5 h-5 text-yellow-400 mt-1 self-start" />
                         <div>
                             <div className="flex items-center gap-2 mb-1">
-                                <h2 className="text-lg font-bold text-white">{investment.coin}</h2>
-                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${pnlBgClass} ${pnlColorClass}`}>
-                                    {isPositive ? "+" : ""}{investment.roi.toFixed(2)}%
+                                <h2 className="text-lg font-bold text-white">PNL Global</h2>
+                                <span className={`text-xs font-bold px-2 py-0.5 rounded-md border ${pnlBgClass} ${pnlColorClass}`}>
+                                    {isPositive ? "+" : ""}{fmtUSD(totalPnl)}
                                 </span>
                             </div>
                             <p className="text-xs text-slate-400 flex items-center gap-2">
-                                <span>Alertas de PNL</span>
+                                <span>Alertas de Cuenta</span>
                                 <span className="text-slate-600">•</span>
-                                <span className={`font-medium ${pnlColorClass}`}>
-                                    PNL: {isPositive ? "+" : "-"}${Math.abs(pnlAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                <span className="font-medium text-slate-300">
+                                    Monto total
                                 </span>
                             </p>
                         </div>
@@ -123,16 +124,16 @@ export default function InvestmentAlertModal({
 
                     {draftAlerts.length === 0 ? (
                         <p className="text-xs text-slate-600 italic text-center py-4 bg-slate-800/50 rounded-xl border border-slate-800">
-                            No hay alertas configuradas aún
+                            No hay alertas globales configuradas aún
                         </p>
                     ) : (
                         <div className="space-y-2 mb-4">
                             {draftAlerts.map((alert, index) => (
                                 <div key={index} className="flex items-center justify-between bg-slate-800 border border-slate-700 rounded-xl px-4 py-3">
                                     <div className="flex items-center gap-3">
-                                        <span className={`flex items-center gap-1 text-base font-bold ${alert.targetPercent >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                        <span className={`flex items-center gap-1 text-base font-bold ${alert.targetAmount >= totalPnl ? "text-green-400" : "text-red-400"}`}>
                                             {alert.direction === 'up' ? '🔼' : '🔽'}
-                                            {alert.targetPercent >= 0 ? "+" : ""}{alert.targetPercent}%
+                                            {alert.targetAmount >= 0 ? "+" : "-"}{fmtUSD(Math.abs(alert.targetAmount))}
                                         </span>
                                         {alert.isPersistent ? (
                                             <span className="flex items-center gap-1 text-[10px] bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-2 py-0.5 rounded-full font-bold">
@@ -171,29 +172,20 @@ export default function InvestmentAlertModal({
                             <Plus className="w-3.5 h-3.5" /> Nueva Alerta
                         </h3>
 
-                        {/* Target % input */}
+                        {/* Target Amount input */}
                         <div className="mb-4">
                             <label className="block text-xs text-slate-400 mb-2 uppercase tracking-wider">
-                                % de ROI Objetivo
+                                Monto Objetivo (USD)
                             </label>
                             <div className="flex items-center gap-3">
-                                <input
-                                    type="range"
-                                    min={-80}
-                                    max={200}
-                                    step={1}
-                                    value={targetPercent}
-                                    onChange={(e) => handleTargetChange(Number(e.target.value))}
-                                    className="flex-1 accent-yellow-400"
-                                />
-                                <div className="relative w-24">
+                                <div className="relative w-full">
                                     <input
                                         type="number"
-                                        value={targetPercent}
+                                        value={targetAmount}
                                         onChange={(e) => handleTargetChange(Number(e.target.value))}
-                                        className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 pr-6 text-sm font-bold text-center text-white outline-none focus:ring-2 focus:ring-yellow-400"
+                                        className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 pl-8 pr-3 text-sm font-bold text-center text-white outline-none focus:ring-2 focus:ring-yellow-400"
                                     />
-                                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 text-xs font-bold">%</span>
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm font-bold">$</span>
                                 </div>
                             </div>
 
@@ -219,8 +211,8 @@ export default function InvestmentAlertModal({
                                 </button>
                             </div>
 
-                            <p className={`text-center text-sm font-bold mt-3 ${targetPercent >= 0 ? "text-green-400" : "text-red-400"}`}>
-                                Notificar cuando ROI {direction === 'up' ? "suba a" : "caiga a"} {targetPercent >= 0 ? "+" : ""}{targetPercent}%
+                            <p className="text-center text-sm font-bold mt-3 text-slate-300">
+                                Notificar cuando el PNL Global {direction === 'up' ? "llegue/suba a" : "caiga/baje a"} <span className={targetAmount >= 0 ? "text-green-400" : "text-red-400"}>{targetAmount >= 0 ? "+" : "-"}{fmtUSD(Math.abs(targetAmount))}</span>
                             </p>
                         </div>
 
@@ -251,7 +243,7 @@ export default function InvestmentAlertModal({
                             className="w-full flex items-center justify-center gap-2 bg-yellow-500 text-slate-900 font-bold py-2.5 rounded-xl hover:bg-yellow-400 transition-all shadow-lg shadow-yellow-500/20 active:scale-95 disabled:opacity-50 text-sm"
                         >
                             <Plus className="w-4 h-4" />
-                            Agregar Alerta
+                            Agregar Alerta Global
                         </button>
                     </div>
 
@@ -261,7 +253,7 @@ export default function InvestmentAlertModal({
                             onClick={onClose}
                             className="flex-1 py-3 rounded-xl font-bold bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white transition-all text-sm uppercase tracking-widest"
                         >
-                            Cancelar (ESC)
+                            Cancelar
                         </button>
                         <button
                             onClick={handleSave}
