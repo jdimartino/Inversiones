@@ -5,11 +5,11 @@ import axios from "axios";
 admin.initializeApp();
 const db = admin.firestore();
 
-// ─── Telegram config: leído de variables de entorno ─────────────────────────
-// En local: definidas en functions/.env (no sube a Git)
-// En producción: configura con `npx firebase-tools functions:secrets:set TELEGRAM_TOKEN`
+// ─── Telegram config ──────────────────────────────────────────────────────────
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+const TELEGRAM_MAX_LENGTH = 4096;
+const DIVIDER = "────────────────────";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface AlertRule {
@@ -24,22 +24,60 @@ interface GlobalAlertRule {
     direction?: 'up' | 'down';
 }
 
-// ─── Helper: send Telegram message ───────────────────────────────────────────
-async function sendTelegram(message: string): Promise<void> {
-    if (!TELEGRAM_TOKEN || !CHAT_ID) {
+// ─── Utils ────────────────────────────────────────────────────────────────────
+
+/** Pausa async (para reintentos). */
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/** Formatea un número como moneda de forma determinista (sin riesgo de locale del servidor). */
+const fmt = (n: number): string => new Intl.NumberFormat('en-US').format(Math.round(n));
+
+/** Devuelve "+" si el número es positivo, "" si es negativo. */
+const pnlSign = (n: number): string => n >= 0 ? "+" : "";
+
+/** Devuelve el emoji correspondiente al PNL. */
+const pnlEmoji = (n: number): string => n >= 0 ? "🟢" : "🔴";
+
+// ─── Helper: send Telegram message (con reintentos) ───────────────────────────
+async function sendTelegram(message: string): Promise<boolean> {
+    const token = TELEGRAM_TOKEN || functions.config().telegram?.token;
+    const chatid = CHAT_ID || functions.config().telegram?.chat_id;
+
+    if (!token || !chatid) {
         console.error("Telegram config not set. Skipping notification.");
-        return;
+        return false;
     }
-    await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-        chat_id: CHAT_ID,
-        text: message,
-        parse_mode: "Markdown",
-    });
+
+    // Truncar si excede el límite de 4096 caracteres de Telegram
+    let payload = message;
+    if (payload.length > TELEGRAM_MAX_LENGTH) {
+        const truncateNotice = "\n\n_... mensaje truncado por límite de Telegram._";
+        payload = payload.slice(0, TELEGRAM_MAX_LENGTH - truncateNotice.length) + truncateNotice;
+        console.warn(`Mensaje truncado de ${message.length} a ${payload.length} chars para caber en Telegram.`);
+    }
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+            await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
+                chat_id: chatid,
+                text: payload,
+                parse_mode: "Markdown",
+            });
+            return true;
+        } catch (err: any) {
+            const status = err?.response?.status ?? "unknown";
+            console.warn(`[Telegram] Intento ${attempt}/3 fallido (HTTP ${status}): ${err?.message}`);
+            if (attempt < 3) {
+                await sleep(2000 * attempt); // 2s, 4s
+            }
+        }
+    }
+
+    console.error("[Telegram] Fallo definitivo tras 3 intentos. Notificación no enviada.");
+    return false;
 }
 
 // ─── Helper: normalizar formato legacy de alertas ────────────────────────────
-// Antiguo formato en Firestore: { [id]: { targetPercent, isPersistent } }
-// Nuevo formato:                { [id]: [{ targetPercent, isPersistent, direction }] }
 function normalizeAlerts(raw: Record<string, unknown>): Record<string, AlertRule[]> {
     const normalized: Record<string, AlertRule[]> = {};
     for (const [id, value] of Object.entries(raw)) {
@@ -47,11 +85,8 @@ function normalizeAlerts(raw: Record<string, unknown>): Record<string, AlertRule
         if (Array.isArray(value)) {
             alertsArray = value as AlertRule[];
         } else if (value && typeof value === "object") {
-            // Legacy: objeto único → envolver en array
             alertsArray = [value as AlertRule];
         }
-
-        // Inject direction for older alerts without it
         normalized[id] = alertsArray.map(alert => ({
             ...alert,
             direction: alert.direction || (alert.targetPercent >= 0 ? 'up' : 'down')
@@ -71,7 +106,7 @@ function normalizeGlobalAlerts(rawArray: any[]): GlobalAlertRule[] {
 // ─── Cloud Function ───────────────────────────────────────────────────────────
 export const checkPNLAlerts = functions.pubsub.schedule("every 15 minutes").onRun(async (_context) => {
     try {
-        // 1. Obtener precios actuales (usando MEXC para notificaciones, evitando bloqueos de EE.UU. en Google Cloud)
+        // 1. Obtener precios actuales (MEXC evita bloqueos de EE.UU. en Google Cloud)
         const { data: tickerData } = await axios.get("https://api.mexc.com/api/v3/ticker/price");
         const prices: Record<string, number> = {};
         for (const item of tickerData) {
@@ -97,13 +132,12 @@ export const checkPNLAlerts = functions.pubsub.schedule("every 15 minutes").onRu
                 globalAlerts = normalizeGlobalAlerts(conf.globalAlerts);
             }
 
-            // ── Normalizar formato legacy antes de evaluar ────────────────
             if (conf.investmentAlerts) {
                 investmentAlerts = normalizeAlerts(conf.investmentAlerts);
             }
         }
 
-        // 3. Calcular PNL por activo y recolectar alertas
+        // 3. Calcular PNL por activo
         const snap = await db.collection("inversiones").get();
         let totalInvested = 0;
         let totalCurrentValue = 0;
@@ -112,7 +146,6 @@ export const checkPNLAlerts = functions.pubsub.schedule("every 15 minutes").onRu
         let hasAlertsToRemove = false;
         let hasGlobalAlertsToRemove = false;
 
-        // Array para recolectar las inversiones de manera individual, pero procesadas para ordenar
         const individualAssets: { coin: string, pnl: number, roi: number }[] = [];
 
         snap.forEach((docSnap) => {
@@ -126,21 +159,15 @@ export const checkPNLAlerts = functions.pubsub.schedule("every 15 minutes").onRu
 
             const pnl = currentValue - inv.invested;
 
-            // Protección ante división por cero o datos incorrectos
             if (!inv.invested || inv.invested <= 0) {
                 console.warn(`Inversión ${docSnap.id} (${inv.coin}) tiene 'invested' inválido: ${inv.invested}. Omitiendo.`);
                 return;
             }
             const roiPercent = (pnl / inv.invested) * 100;
 
-            // Recolectar para el bloque "Detalle por activo"
-            individualAssets.push({
-                coin: inv.coin,
-                pnl: pnl,
-                roi: roiPercent
-            });
+            individualAssets.push({ coin: inv.coin, pnl, roi: roiPercent });
 
-            // 4. Evaluar alertas individuales para este activo (pueden ser múltiples)
+            // 4. Evaluar alertas individuales
             const alertRules = investmentAlerts[docSnap.id];
             if (Array.isArray(alertRules) && alertRules.length > 0) {
                 const remaining: AlertRule[] = [];
@@ -153,35 +180,29 @@ export const checkPNLAlerts = functions.pubsub.schedule("every 15 minutes").onRu
                     if (direction === 'up' && roiPercent >= target) {
                         isTriggered = true;
                         triggeredIndividualMessages.push(
-                            `🚀 *${inv.coin}* subió a/pasó de *${roiPercent.toFixed(1)}%* ` +
-                            `(Meta: 🔼 >= ${target}%)`
+                            `🚀 *${inv.coin}* subió a *${pnlSign(roiPercent)}${roiPercent.toFixed(1)}%* (Meta: 🔼 >= ${target}%)`
                         );
                     } else if (direction === 'down' && roiPercent <= target) {
                         isTriggered = true;
                         triggeredIndividualMessages.push(
-                            `📉 *${inv.coin}* cayó a/bajó de *${roiPercent.toFixed(1)}%* ` +
-                            `(Límite: 🔽 <= ${target}%)`
+                            `📉 *${inv.coin}* cayó a *${roiPercent.toFixed(1)}%* (Límite: 🔽 <= ${target}%)`
                         );
                     }
 
                     if (isTriggered) {
-                        const tipo = rule.isPersistent ? "PERMANENTE (seguirá notificando)" : "UNA VEZ (se eliminará)";
-                        console.log(`[ALERTA] ${inv.coin} (ID: ${docSnap.id}) — ROI: ${roiPercent.toFixed(2)}% — Target: ${direction === 'up' ? '>=' : '<='} ${target}% — Tipo: ${tipo}`);
+                        const tipo = rule.isPersistent ? "PERMANENTE" : "UNA VEZ";
+                        console.log(`[ALERTA] ${inv.coin} (${docSnap.id}) — ROI: ${roiPercent.toFixed(2)}% — Target: ${direction === 'up' ? '>=' : '<='} ${target}% — Tipo: ${tipo}`);
                         if (rule.isPersistent) {
-                            // Permanente: mantener en el array, seguirá notificando cada hora
                             remaining.push(rule);
                         } else {
-                            // One-shot: eliminar (no se añade a remaining)
                             hasAlertsToRemove = true;
-                            console.log(`[ONE-SHOT] Alerta de ${inv.coin} (${target}%) eliminada tras dispararse.`);
+                            console.log(`[ONE-SHOT] Alerta ${inv.coin} (${target}%) eliminada.`);
                         }
                     } else {
-                        // No disparada: conservar siempre
                         remaining.push(rule);
                     }
                 }
 
-                // Actualizar el array (puede quedar vacío si todas eran one-shot)
                 if (remaining.length === 0) {
                     delete investmentAlerts[docSnap.id];
                 } else if (remaining.length !== alertRules.length) {
@@ -191,32 +212,30 @@ export const checkPNLAlerts = functions.pubsub.schedule("every 15 minutes").onRu
             }
         });
 
-        // 5. Ordenar el registro individual (de ganancias a pérdidas descendente)
+        // 5. Ordenar inversiones individuales (mayor PNL primero)
         individualAssets.sort((a, b) => b.pnl - a.pnl);
 
-        const assetDetails = individualAssets.map(({ coin, pnl, roi }) => {
-            const isGain = pnl >= 0;
-            const sign = isGain ? "+" : "";
-            const emoji = isGain ? "🟢" : "🔴";
-            return `${emoji} *${coin}:* ${sign}$${Math.round(pnl).toLocaleString()} (${sign}${roi.toFixed(1)}%)`;
-        });
+        const assetDetails = individualAssets.map(({ coin, pnl, roi }) =>
+            `${pnlEmoji(pnl)} *${coin}:* ${pnlSign(pnl)}$${fmt(pnl)} (${pnlSign(roi)}${roi.toFixed(1)}%)`
+        );
 
         const globalPNL = totalCurrentValue - totalInvested;
 
-        // ── Evaluar Alertas Globales ──────────────────────────────────────────
+        // 6. Evaluar Alertas Globales
         const triggeredGlobalMessages: string[] = [];
-        const originalGlobalAlertsLength = globalAlerts.length;
         let remainingGlobalAlerts: GlobalAlertRule[] = [];
 
-        // Legacy check: solo aplica si el arreglo 'globalAlerts' es exactamente undefined en la BD (es decir, el usuario no ha migrado al nuevo sistema).
-        // Si el usuario configuró el nuevo sistema pero borró todas las alertas (globalAlerts: []), no debe disparar las legacy.
-        const isLegacyGlobalAlertTriggered = (!hasMigratedToGlobalAlertsArray) && (globalPNL <= minAlert || globalPNL >= maxAlert);
+        // Legacy: solo si el usuario NO ha migrado al nuevo sistema de alertas globales
+        const isLegacyGlobalAlertTriggered = (!hasMigratedToGlobalAlertsArray) &&
+            (globalPNL <= minAlert || globalPNL >= maxAlert);
+
         if (isLegacyGlobalAlertTriggered) {
             const reason = globalPNL <= minAlert ? "⬇️ Límite inferior alcanzado" : "⬆️ Meta superior alcanzada";
-            triggeredGlobalMessages.push(`🚨 *Alerta Global Legacy:* ${reason} (${globalPNL >= 0 ? "+" : ""}$${Math.round(globalPNL).toLocaleString()})`);
+            triggeredGlobalMessages.push(
+                `🚨 *Alerta Global Legacy:* ${reason} (${pnlSign(globalPNL)}$${fmt(globalPNL)})`
+            );
         }
 
-        // New array check
         for (const rule of globalAlerts) {
             const target = rule.targetAmount;
             const direction = rule.direction || (target >= 0 ? 'up' : 'down');
@@ -225,12 +244,12 @@ export const checkPNLAlerts = functions.pubsub.schedule("every 15 minutes").onRu
             if (direction === 'up' && globalPNL >= target) {
                 isTriggered = true;
                 triggeredGlobalMessages.push(
-                    `🚀 *PNL Global* alcanzó/superó *${globalPNL >= 0 ? "+" : ""}$${Math.round(globalPNL).toLocaleString()}* (Meta: 🔼 >= ${target >= 0 ? "+" : ""}$${Math.round(target).toLocaleString()})`
+                    `🚀 *PNL Global* alcanzó *${pnlSign(globalPNL)}$${fmt(globalPNL)}* (Meta: 🔼 >= ${pnlSign(target)}$${fmt(target)})`
                 );
             } else if (direction === 'down' && globalPNL <= target) {
                 isTriggered = true;
                 triggeredGlobalMessages.push(
-                    `📉 *PNL Global* cayó/bajó a *${globalPNL >= 0 ? "+" : ""}$${Math.round(globalPNL).toLocaleString()}* (Límite: 🔽 <= ${target >= 0 ? "+" : ""}$${Math.round(target).toLocaleString()})`
+                    `📉 *PNL Global* cayó a *${pnlSign(globalPNL)}$${fmt(globalPNL)}* (Límite: 🔽 <= ${pnlSign(target)}$${fmt(target)})`
                 );
             }
 
@@ -241,64 +260,69 @@ export const checkPNLAlerts = functions.pubsub.schedule("every 15 minutes").onRu
                     remainingGlobalAlerts.push(rule);
                 } else {
                     hasGlobalAlertsToRemove = true;
-                    console.log(`[ONE-SHOT GLOBAL] Alerta Global ($${target}) eliminada tras dispararse.`);
+                    console.log(`[ONE-SHOT GLOBAL] Alerta Global ($${target}) eliminada.`);
                 }
             } else {
                 remainingGlobalAlerts.push(rule);
             }
         }
 
-        const shouldAlert = isLegacyGlobalAlertTriggered || triggeredGlobalMessages.length > 0 || triggeredIndividualMessages.length > 0;
+        const shouldAlert = isLegacyGlobalAlertTriggered ||
+            triggeredGlobalMessages.length > 0 ||
+            triggeredIndividualMessages.length > 0;
 
-        // 6. Eliminar alertas one-shot que ya fueron disparadas
+        // 7. Limpiar alertas one-shot de Firestore
         const updates: any = {};
         if (hasAlertsToRemove) {
             updates.investmentAlerts = investmentAlerts;
             console.log("Alertas individuales one-shot en cola para eliminación.");
         }
-        if (hasGlobalAlertsToRemove || originalGlobalAlertsLength !== remainingGlobalAlerts.length) {
+        if (hasGlobalAlertsToRemove) {
             updates.globalAlerts = remainingGlobalAlerts;
             console.log("Alertas globales one-shot en cola para eliminación.");
         }
-
         if (Object.keys(updates).length > 0) {
             await db.collection("config").doc("alerts").update(updates);
-            console.log("Actualizadas alertas en Firestore tras dispararse las configuradas para Una Vez.");
+            console.log("Actualizadas alertas one-shot en Firestore.");
         }
 
-        // 7. Enviar notificación si hay algo que reportar
+        // 8. Construir y enviar mensaje Telegram
         if (shouldAlert) {
-            const pnlSign = globalPNL >= 0 ? "+" : "";
-            let message = `⚠️ *ALERTA PNL — Crypto Command*\n\n`;
+            let message = `⚠️ *ALERTA PNL — Crypto Command*\n${DIVIDER}\n`;
 
             if (triggeredGlobalMessages.length > 0) {
                 message += `*🚨 Alertas Globales:*\n${triggeredGlobalMessages.join("\n")}\n\n`;
             }
 
             if (triggeredIndividualMessages.length > 0) {
-                message += `*🎯 Alertas Individuales:*\n${triggeredIndividualMessages.join("\n")}\n\n`;
+                message += `*🎯 Alertas Individuales:*\n${triggeredIndividualMessages.join("\n")}\n`;
             }
 
-            message +=
-                `*PNL Total:* ${pnlSign}$${Math.round(globalPNL).toLocaleString()}\n` +
-                `*Invertido:* $${Math.round(totalInvested).toLocaleString()}\n` +
-                `*Valor Actual:* $${Math.round(totalCurrentValue).toLocaleString()}\n\n` +
+            message += `${DIVIDER}\n` +
+                `*PNL Total:* ${pnlSign(globalPNL)}$${fmt(globalPNL)}\n` +
+                `*Invertido:* $${fmt(totalInvested)}\n` +
+                `*Valor Actual:* $${fmt(totalCurrentValue)}\n` +
+                `${DIVIDER}\n` +
                 `*📊 Detalle del Portafolio:*\n${assetDetails.join("\n")}`;
 
-            await sendTelegram(message);
-            console.log(`Alerta enviada a Telegram. PNL Global: ${pnlSign}$${Math.round(globalPNL).toLocaleString()}. Activos disparados: ${triggeredIndividualMessages.length}, Globales disparadas: ${triggeredGlobalMessages.length}`);
+            const sent = await sendTelegram(message);
 
-            // ── Guardar log de notificación en Firestore ──────────────
-            await db.collection("notificationLogs").add({
-                sentAt: new Date(), // Usando Date() simple que Firestore acepta y convierte a Timestamp
-                globalAlertTriggered: triggeredGlobalMessages.length > 0 || isLegacyGlobalAlertTriggered,
-                globalPNL: Math.round(globalPNL),
-                triggeredAssets: triggeredIndividualMessages,
-                triggeredGlobalAlerts: triggeredGlobalMessages,
-                totalInvested: Math.round(totalInvested),
-                totalCurrentValue: Math.round(totalCurrentValue),
-            });
+            if (sent) {
+                console.log(`✅ Alerta enviada. PNL: ${pnlSign(globalPNL)}$${fmt(globalPNL)} | Individuales: ${triggeredIndividualMessages.length} | Globales: ${triggeredGlobalMessages.length}`);
 
+                // Log en Firestore solo si se envió con éxito
+                await db.collection("notificationLogs").add({
+                    sentAt: new Date(),
+                    globalAlertTriggered: triggeredGlobalMessages.length > 0 || isLegacyGlobalAlertTriggered,
+                    globalPNL: Math.round(globalPNL),
+                    triggeredAssets: triggeredIndividualMessages,
+                    triggeredGlobalAlerts: triggeredGlobalMessages,
+                    totalInvested: Math.round(totalInvested),
+                    totalCurrentValue: Math.round(totalCurrentValue),
+                });
+            } else {
+                console.error("❌ Notificación NO guardada en log porque el envío falló.");
+            }
         } else {
             console.log("Todo dentro de los límites. Sin alertas que enviar.");
         }
