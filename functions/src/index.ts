@@ -85,18 +85,21 @@ export const checkPNLAlerts = functions.pubsub.schedule("every 15 minutes").onRu
         let maxAlert = 10000;
         let investmentAlerts: Record<string, AlertRule[]> = {};
         let globalAlerts: GlobalAlertRule[] = [];
+        let hasMigratedToGlobalAlertsArray = false;
 
         if (configSnap.exists) {
             const conf = configSnap.data()!;
             if (conf.minPNL !== undefined) minAlert = conf.minPNL;
             if (conf.maxPNL !== undefined) maxAlert = conf.maxPNL;
 
+            if (conf.globalAlerts !== undefined) {
+                hasMigratedToGlobalAlertsArray = true;
+                globalAlerts = normalizeGlobalAlerts(conf.globalAlerts);
+            }
+
             // ── Normalizar formato legacy antes de evaluar ────────────────
             if (conf.investmentAlerts) {
                 investmentAlerts = normalizeAlerts(conf.investmentAlerts);
-            }
-            if (conf.globalAlerts) {
-                globalAlerts = normalizeGlobalAlerts(conf.globalAlerts);
             }
         }
 
@@ -205,8 +208,9 @@ export const checkPNLAlerts = functions.pubsub.schedule("every 15 minutes").onRu
         const originalGlobalAlertsLength = globalAlerts.length;
         let remainingGlobalAlerts: GlobalAlertRule[] = [];
 
-        // Legacy check (en caso de que no existan globalAlerts y sí los límites viejos)
-        const isLegacyGlobalAlertTriggered = (globalAlerts.length === 0) && (globalPNL <= minAlert || globalPNL >= maxAlert);
+        // Legacy check: solo aplica si el arreglo 'globalAlerts' es exactamente undefined en la BD (es decir, el usuario no ha migrado al nuevo sistema).
+        // Si el usuario configuró el nuevo sistema pero borró todas las alertas (globalAlerts: []), no debe disparar las legacy.
+        const isLegacyGlobalAlertTriggered = (!hasMigratedToGlobalAlertsArray) && (globalPNL <= minAlert || globalPNL >= maxAlert);
         if (isLegacyGlobalAlertTriggered) {
             const reason = globalPNL <= minAlert ? "⬇️ Límite inferior alcanzado" : "⬆️ Meta superior alcanzada";
             triggeredGlobalMessages.push(`🚨 *Alerta Global Legacy:* ${reason} (${globalPNL >= 0 ? "+" : ""}$${Math.round(globalPNL).toLocaleString()})`);

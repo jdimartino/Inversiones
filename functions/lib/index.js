@@ -62,18 +62,20 @@ exports.checkPNLAlerts = functions.pubsub.schedule("every 15 minutes").onRun(asy
         let maxAlert = 10000;
         let investmentAlerts = {};
         let globalAlerts = [];
+        let hasMigratedToGlobalAlertsArray = false;
         if (configSnap.exists) {
             const conf = configSnap.data();
             if (conf.minPNL !== undefined)
                 minAlert = conf.minPNL;
             if (conf.maxPNL !== undefined)
                 maxAlert = conf.maxPNL;
+            if (conf.globalAlerts !== undefined) {
+                hasMigratedToGlobalAlertsArray = true;
+                globalAlerts = normalizeGlobalAlerts(conf.globalAlerts);
+            }
             // ── Normalizar formato legacy antes de evaluar ────────────────
             if (conf.investmentAlerts) {
                 investmentAlerts = normalizeAlerts(conf.investmentAlerts);
-            }
-            if (conf.globalAlerts) {
-                globalAlerts = normalizeGlobalAlerts(conf.globalAlerts);
             }
         }
         // 3. Calcular PNL por activo y recolectar alertas
@@ -164,8 +166,9 @@ exports.checkPNLAlerts = functions.pubsub.schedule("every 15 minutes").onRun(asy
         const triggeredGlobalMessages = [];
         const originalGlobalAlertsLength = globalAlerts.length;
         let remainingGlobalAlerts = [];
-        // Legacy check (en caso de que no existan globalAlerts y sí los límites viejos)
-        const isLegacyGlobalAlertTriggered = (globalAlerts.length === 0) && (globalPNL <= minAlert || globalPNL >= maxAlert);
+        // Legacy check: solo aplica si el arreglo 'globalAlerts' es exactamente undefined en la BD (es decir, el usuario no ha migrado al nuevo sistema).
+        // Si el usuario configuró el nuevo sistema pero borró todas las alertas (globalAlerts: []), no debe disparar las legacy.
+        const isLegacyGlobalAlertTriggered = (!hasMigratedToGlobalAlertsArray) && (globalPNL <= minAlert || globalPNL >= maxAlert);
         if (isLegacyGlobalAlertTriggered) {
             const reason = globalPNL <= minAlert ? "⬇️ Límite inferior alcanzado" : "⬆️ Meta superior alcanzada";
             triggeredGlobalMessages.push(`🚨 *Alerta Global Legacy:* ${reason} (${globalPNL >= 0 ? "+" : ""}$${Math.round(globalPNL).toLocaleString()})`);
@@ -232,7 +235,7 @@ exports.checkPNLAlerts = functions.pubsub.schedule("every 15 minutes").onRun(asy
             console.log(`Alerta enviada a Telegram. PNL Global: ${pnlSign}$${Math.round(globalPNL).toLocaleString()}. Activos disparados: ${triggeredIndividualMessages.length}, Globales disparadas: ${triggeredGlobalMessages.length}`);
             // ── Guardar log de notificación en Firestore ──────────────
             await db.collection("notificationLogs").add({
-                sentAt: new Date(),
+                sentAt: new Date(), // Usando Date() simple que Firestore acepta y convierte a Timestamp
                 globalAlertTriggered: triggeredGlobalMessages.length > 0 || isLegacyGlobalAlertTriggered,
                 globalPNL: Math.round(globalPNL),
                 triggeredAssets: triggeredIndividualMessages,
