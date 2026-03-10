@@ -3,7 +3,9 @@ import { doc, onSnapshot, setDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 
 export interface InvestmentAlert {
-    targetPercent: number;
+    type?: 'pnl' | 'price';
+    targetPercent: number; // for pnl type
+    targetValue?: number;   // for price type
     isPersistent?: boolean;
     direction?: 'up' | 'down';
 }
@@ -37,16 +39,21 @@ export function useAlerts() {
                     const normalizedAlerts: Record<string, InvestmentAlert[]> = {};
                     for (const [id, value] of Object.entries(rawAlerts)) {
                         if (Array.isArray(value)) {
-                            // Inject direction for older array-based alerts that lack it
+                            // Inject direction and type for older array-based alerts that lack it
                             normalizedAlerts[id] = value.map(alert => ({
                                 ...alert,
-                                direction: alert.direction || (alert.targetPercent >= 0 ? 'up' : 'down')
+                                type: alert.type || 'pnl',
+                                direction: alert.direction || 
+                                    (alert.type === 'price' 
+                                        ? 'up' // price alerts usually need explicit direction, but default to up
+                                        : (alert.targetPercent >= 0 ? 'up' : 'down'))
                             }));
                         } else if (value && typeof value === "object") {
                             // Legacy single-object → wrap in array and inject direction
                             const legacyAlert = value as InvestmentAlert;
                             normalizedAlerts[id] = [{
                                 ...legacyAlert,
+                                type: legacyAlert.type || 'pnl',
                                 direction: legacyAlert.direction || (legacyAlert.targetPercent >= 0 ? 'up' : 'down')
                             }];
                         }

@@ -1,7 +1,7 @@
 import React from "react";
 import { Calculator } from "lucide-react";
 import { getCoinStyle, AggregatedAsset } from "../lib/constants";
-import { fmtUSD } from "../lib/format";
+import { fmtUSD, fmtPrice } from "../lib/format";
 
 interface AggregatedTableProps {
     items: AggregatedAsset[];
@@ -41,11 +41,11 @@ const AggregatedTable: React.FC<AggregatedTableProps> = React.memo(
                                 <div className="grid grid-cols-2 gap-x-2 gap-y-3 text-sm">
                                     <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50">
                                         <p className="text-[9px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Precio Promedio</p>
-                                        <p className="text-blue-400 font-mono text-xs font-bold">{fmtUSD(asset.avgBuyPrice)}</p>
+                                        <p className="text-blue-400 font-mono text-xs font-bold">{fmtPrice(asset.avgBuyPrice)}</p>
                                     </div>
                                     <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50 text-right">
                                         <p className="text-[9px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Precio Actual</p>
-                                        <p className="text-yellow-300 font-mono text-xs font-bold">{fmtUSD(asset.currentPrice)}</p>
+                                        <p className="text-yellow-300 font-mono text-xs font-bold">{fmtPrice(asset.currentPrice)}</p>
                                     </div>
                                     <div className="col-span-2 bg-slate-900/40 p-3 rounded-lg border border-slate-700/50 flex justify-between items-center">
                                         <p className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">PNL Neto Promedio</p>
@@ -103,10 +103,10 @@ const AggregatedTable: React.FC<AggregatedTableProps> = React.memo(
                                         {asset.totalQty.toFixed(4)}
                                     </td>
                                     <td className="p-5 text-right text-blue-400 font-mono font-bold">
-                                        {fmtUSD(asset.avgBuyPrice)}
+                                        {fmtPrice(asset.avgBuyPrice)}
                                     </td>
                                     <td className="p-5 text-right text-yellow-300 font-mono font-bold">
-                                        {fmtUSD(asset.currentPrice)}
+                                        {fmtPrice(asset.currentPrice)}
                                     </td>
                                     <td className="p-5 text-right">
                                         <div

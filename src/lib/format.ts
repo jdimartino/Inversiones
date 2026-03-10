@@ -4,8 +4,20 @@ const fmtCurrency = new Intl.NumberFormat("en-US", {
     currency: "USD",
 });
 
+const fmtCurrency4 = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 4,
+});
+
 /** Format a number with up to 6 decimal places */
 export const fmt = (n: number): string => fmtNumber.format(n);
 
 /** Format a number as USD currency */
 export const fmtUSD = (n: number): string => fmtCurrency.format(n);
+
+/** Format a price: 4 decimals if < $1, 2 decimals otherwise (USD) */
+export const fmtPrice = (n: number): string => {
+    return Math.abs(n) < 1 ? fmtCurrency4.format(n) : fmtCurrency.format(n);
+};

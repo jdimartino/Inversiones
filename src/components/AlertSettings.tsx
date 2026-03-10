@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from "react";
-import { Bell, Save, Trash2, Edit2, Repeat, Clock, History, CheckCircle, AlertTriangle } from "lucide-react";
-import { AlertConfig, GlobalAlert } from "../hooks/useAlerts";
+import { Bell, Save, Trash2, Edit2, Repeat, Clock, History, CheckCircle, AlertTriangle, TrendingUp, TrendingDown } from "lucide-react";
+import { AlertConfig, GlobalAlert, InvestmentAlert } from "../hooks/useAlerts";
 import { usePortfolio } from "../hooks/usePortfolio";
+import { usePrices } from "../hooks/usePrices";
 import { useNotificationLogs } from "../hooks/useNotificationLogs";
-import { fmtUSD } from "../lib/format";
+import { fmtUSD, fmtPrice } from "../lib/format";
 
 interface AlertSettingsProps {
     config: AlertConfig;
@@ -14,6 +14,7 @@ interface AlertSettingsProps {
 
 export default function AlertSettings({ config, saveConfig, onEditGlobal, onEditInvestment }: AlertSettingsProps) {
     const { portfolio } = usePortfolio();
+    const { prices } = usePrices();
     const { logs, loading: logsLoading } = useNotificationLogs(15);
 
     return (
@@ -85,33 +86,46 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
             <div className="bg-slate-900/50 p-4 rounded-lg mb-6 border border-slate-700/50">
                 <h3 className="font-bold text-slate-200 mb-4 text-sm uppercase tracking-wider">🔔 Notificaciones Individuales Activas</h3>
                 {config.investmentAlerts && Object.keys(config.investmentAlerts).length > 0 ? (
-                    <div className="space-y-3">
+                    <div className="space-y-4">
                         {Object.entries(config.investmentAlerts).map(([id, alerts]) => {
                             const inv = portfolio.find((i) => i.id === id);
                             const coinName = inv ? inv.coin : "Activo Desconocido";
+                            const currentPrice = inv ? (prices[inv.coin] || inv.buyPrice) : 0;
                             if (!Array.isArray(alerts) || alerts.length === 0) return null;
+                            
                             return (
                                 <div key={id} className="bg-slate-800 border border-slate-700 rounded-xl p-3">
                                     <div className="flex items-center justify-between mb-2">
-                                        <span className="font-bold text-yellow-400 text-sm">{coinName}</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-bold text-yellow-400 text-sm">{coinName}</span>
+                                            {currentPrice > 0 && (
+                                                <span className="text-[10px] text-slate-500 bg-slate-900 px-2 py-0.5 rounded-full border border-slate-700/50">
+                                                    {fmtPrice(currentPrice)}
+                                                </span>
+                                            )}
+                                        </div>
                                         <span className="text-[10px] text-slate-500 bg-slate-900 px-2 py-0.5 rounded-full">
                                             {alerts.length} alerta{alerts.length !== 1 ? "s" : ""}
                                         </span>
                                     </div>
                                     <div className="space-y-1.5">
-                                        {alerts.map((alertData, index) => (
+                                        {alerts.map((alert: InvestmentAlert, index: number) => (
                                             <div key={index} className="flex items-center justify-between bg-slate-900/60 px-3 py-2 rounded-lg">
                                                 <div className="flex items-center gap-2">
-                                                    <span className={`text-xs font-bold ${alertData.targetPercent >= 0 ? "text-green-400" : "text-red-400"}`}>
-                                                        {alertData.targetPercent >= 0 ? "+" : ""}{alertData.targetPercent}%
+                                                    <span className={`text-xs font-bold flex items-center gap-1 ${alert.type === 'price' ? 'text-yellow-400' : (alert.targetPercent >= 0 ? "text-green-400" : "text-red-400")}`}>
+                                                        {alert.direction === 'up' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                                                        {alert.type === 'price' ? fmtPrice(alert.targetValue || 0) : `${alert.targetPercent >= 0 ? "+" : ""}${alert.targetPercent}%`}
                                                     </span>
-                                                    {alertData.isPersistent ? (
-                                                        <span className="flex items-center gap-1 text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
-                                                            <Repeat className="w-3 h-3" /> Permanente
+                                                    <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest leading-none bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">
+                                                        {alert.type === 'price' ? 'Precio' : 'ROI'}
+                                                    </span>
+                                                    {alert.isPersistent ? (
+                                                        <span className="flex items-center gap-1 text-[9px] bg-yellow-500/10 text-yellow-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                                                            <Repeat className="w-2.5 h-2.5" /> Perman.
                                                         </span>
                                                     ) : (
-                                                        <span className="flex items-center gap-1 text-[10px] bg-slate-700/50 text-slate-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider border border-slate-600">
-                                                            <Clock className="w-3 h-3" /> Una Vez
+                                                        <span className="flex items-center gap-1 text-[9px] bg-slate-700/50 text-slate-500 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                                                            <Clock className="w-2.5 h-2.5" /> Una Vez
                                                         </span>
                                                     )}
                                                 </div>
@@ -162,7 +176,7 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                 {logsLoading ? (
                     <p className="text-xs text-slate-500 italic text-center py-4">Cargando historial...</p>
                 ) : logs.length === 0 ? (
-                    <div className="text-xs text-slate-500 italic text-center py-6 bg-slate-900 border border-slate-800 rounded-xl">
+                    <div className="text-xs text-slate-500 italic text-center py-6 bg-slate-900 border border-slate-700 rounded-xl">
                         Aún no se ha enviado ninguna notificación por Telegram.
                     </div>
                 ) : (

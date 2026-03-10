@@ -1,7 +1,7 @@
 import React from "react";
 import { Activity, Pencil, Bell } from "lucide-react";
 import { getCoinStyle, ProcessedInvestment } from "../lib/constants";
-import { fmt, fmtUSD } from "../lib/format";
+import { fmt, fmtUSD, fmtPrice } from "../lib/format";
 import DeleteButton from "./DeleteButton";
 
 interface AssetTableProps {
@@ -76,11 +76,11 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                                 <div className="grid grid-cols-2 gap-x-2 gap-y-3 text-sm">
                                     <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50">
                                         <p className="text-[9px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Precio Compra</p>
-                                        <p className="text-slate-400 font-mono text-xs italic">{fmtUSD(item.buyPrice)}</p>
+                                        <p className="text-slate-400 font-mono text-xs italic">{fmtPrice(item.buyPrice)}</p>
                                     </div>
                                     <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50 text-right">
                                         <p className="text-[9px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Precio Actual</p>
-                                        <p className="text-yellow-300 font-mono text-xs font-bold">{fmtUSD(item.currentPrice)}</p>
+                                        <p className="text-yellow-300 font-mono text-xs font-bold">{fmtPrice(item.currentPrice)}</p>
                                     </div>
                                     <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50">
                                         <p className="text-[9px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Valor Total</p>
@@ -141,10 +141,10 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                                         {fmt(item.quantity)}
                                     </td>
                                     <td className="p-5 text-right text-slate-500 font-mono italic">
-                                        {fmtUSD(item.buyPrice)}
+                                        {fmtPrice(item.buyPrice)}
                                     </td>
                                     <td className="p-5 text-right text-yellow-300 font-mono font-bold">
-                                        {fmtUSD(item.currentPrice)}
+                                        {fmtPrice(item.currentPrice)}
                                     </td>
                                     <td className="p-5 text-right text-emerald-300 font-mono font-bold">
                                         {fmtUSD(item.currentValue)}
