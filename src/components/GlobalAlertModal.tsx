@@ -178,15 +178,27 @@ export default function GlobalAlertModal({
                                 Monto Objetivo (USD)
                             </label>
                             <div className="flex items-center gap-3">
-                                <div className="relative w-full">
+                                <button
+                                    onClick={() => handleTargetChange(targetAmount - 100)}
+                                    className="flex items-center justify-center w-12 h-12 bg-slate-900 border border-slate-700 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors active:scale-95"
+                                >
+                                    <span className="text-2xl font-bold">-</span>
+                                </button>
+                                <div className="relative flex-1">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm font-bold">$</span>
                                     <input
                                         type="number"
                                         value={targetAmount}
                                         onChange={(e) => handleTargetChange(Number(e.target.value))}
-                                        className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 pl-8 pr-3 text-sm font-bold text-center text-white outline-none focus:ring-2 focus:ring-yellow-400"
+                                        className="w-full h-12 bg-slate-900 border border-slate-700 rounded-xl px-3 pl-8 pr-3 text-lg font-bold text-center text-white outline-none focus:ring-2 focus:ring-yellow-400"
                                     />
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm font-bold">$</span>
                                 </div>
+                                <button
+                                    onClick={() => handleTargetChange(targetAmount + 100)}
+                                    className="flex items-center justify-center w-12 h-12 bg-slate-900 border border-slate-700 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors active:scale-95"
+                                >
+                                    <span className="text-2xl font-bold">+</span>
+                                </button>
                             </div>
 
                             {/* Direction selection */}

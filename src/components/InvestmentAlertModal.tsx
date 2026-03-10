@@ -177,24 +177,27 @@ export default function InvestmentAlertModal({
                                 % de ROI Objetivo
                             </label>
                             <div className="flex items-center gap-3">
-                                <input
-                                    type="range"
-                                    min={-80}
-                                    max={200}
-                                    step={1}
-                                    value={targetPercent}
-                                    onChange={(e) => handleTargetChange(Number(e.target.value))}
-                                    className="flex-1 accent-yellow-400"
-                                />
-                                <div className="relative w-24">
+                                <button
+                                    onClick={() => handleTargetChange(targetPercent - 1)}
+                                    className="flex items-center justify-center w-12 h-12 bg-slate-900 border border-slate-700 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors active:scale-95"
+                                >
+                                    <span className="text-2xl font-bold">-</span>
+                                </button>
+                                <div className="relative flex-1">
                                     <input
                                         type="number"
                                         value={targetPercent}
                                         onChange={(e) => handleTargetChange(Number(e.target.value))}
-                                        className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 pr-6 text-sm font-bold text-center text-white outline-none focus:ring-2 focus:ring-yellow-400"
+                                        className="w-full h-12 bg-slate-900 border border-slate-700 rounded-xl px-3 pr-8 text-lg font-bold text-center text-white outline-none focus:ring-2 focus:ring-yellow-400"
                                     />
-                                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 text-xs font-bold">%</span>
+                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm font-bold">%</span>
                                 </div>
+                                <button
+                                    onClick={() => handleTargetChange(targetPercent + 1)}
+                                    className="flex items-center justify-center w-12 h-12 bg-slate-900 border border-slate-700 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors active:scale-95"
+                                >
+                                    <span className="text-2xl font-bold">+</span>
+                                </button>
                             </div>
 
                             {/* Direction selection */}
