@@ -1,4 +1,5 @@
-import { Bell, Save, Trash2, Edit2, Repeat, Clock, History, CheckCircle, AlertTriangle, TrendingUp, TrendingDown } from "lucide-react";
+import { useState } from "react";
+import { Bell, Save, Trash2, Edit2, Repeat, Clock, History, CheckCircle, AlertTriangle, TrendingUp, TrendingDown, Loader2 } from "lucide-react";
 import { AlertConfig, GlobalAlert, InvestmentAlert } from "../hooks/useAlerts";
 import { usePortfolio } from "../hooks/usePortfolio";
 import { usePrices } from "../hooks/usePrices";
@@ -16,6 +17,7 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
     const { portfolio } = usePortfolio();
     const { prices } = usePrices();
     const { logs, loading: logsLoading } = useNotificationLogs(15);
+    const [savingId, setSavingId] = useState<string | null>(null);
 
     return (
         <div className="bg-slate-800 rounded-xl p-6 shadow-xl border border-slate-700 mt-8 mb-8">
@@ -62,14 +64,18 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                                     </button>
                                     <button
                                         onClick={async () => {
+                                            if (savingId) return;
+                                            setSavingId(`global-${index}`);
                                             const newAlerts = [...(config.globalAlerts || [])];
                                             newAlerts.splice(index, 1);
                                             await saveConfig({ ...config, globalAlerts: newAlerts });
+                                            setSavingId(null);
                                         }}
-                                        className="text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors p-1.5 rounded-lg"
+                                        disabled={savingId === `global-${index}`}
+                                        className="text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors p-1.5 rounded-lg disabled:opacity-50"
                                         title="Eliminar alerta global"
                                     >
-                                        <Trash2 className="w-4 h-4" />
+                                        {savingId === `global-${index}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                                     </button>
                                 </div>
                             </div>
@@ -139,16 +145,20 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                                                     </button>
                                                     <button
                                                         onClick={async () => {
+                                                            if (savingId) return;
+                                                            setSavingId(`inv-${id}-${index}`);
                                                             const newAlerts = { ...config.investmentAlerts };
                                                             const updated = (newAlerts[id] || []).filter((_, i) => i !== index);
                                                             if (updated.length === 0) delete newAlerts[id];
                                                             else newAlerts[id] = updated;
                                                             await saveConfig({ ...config, investmentAlerts: newAlerts });
+                                                            setSavingId(null);
                                                         }}
-                                                        className="text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors p-1.5 rounded-lg"
+                                                        disabled={savingId === `inv-${id}-${index}`}
+                                                        className="text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors p-1.5 rounded-lg disabled:opacity-50"
                                                         title="Eliminar esta alerta"
                                                     >
-                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                        {savingId === `inv-${id}-${index}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                                                     </button>
                                                 </div>
                                             </div>
