@@ -95,7 +95,7 @@ export function useAlerts() {
             // El onSnapshot actualizará el estado local automáticamente, pero podemos aplicarlo
             // de inmediato en la UI para mayor fluidez.
             setConfig(newConfig);
-            await setDoc(doc(db, "config", "alerts"), newConfig, { merge: true });
+            await setDoc(doc(db, "config", "alerts"), newConfig);
             return true;
         } catch (e) {
             console.error("Error saving alerts", e);

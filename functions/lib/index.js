@@ -206,9 +206,17 @@ async function runCheckAlerts() {
                 triggered: false
             });
         }
-        // Fix 3: Remove duplicate ROI calculation and reuse existing variable
         individualAssets.push({ coin: inv.coin, pnl, roi: roiPercent || 0 });
     });
+    // Cleanup orphaned alerts (IDs that no longer exist in 'inversiones')
+    const activeInvIds = new Set(snap.docs.map(d => d.id));
+    for (const invId of Object.keys(investmentAlerts)) {
+        if (!activeInvIds.has(invId)) {
+            console.log(`[CLEANUP] Alerta huérfana detectada para inversion ID: ${invId}. Eliminando...`);
+            delete investmentAlerts[invId];
+            hasAlertsToRemove = true;
+        }
+    }
     individualAssets.sort((a, b) => b.pnl - a.pnl);
     const assetDetails = individualAssets.map(({ coin, pnl, roi }) => `${pnlEmoji(pnl)} *${coin}:* ${pnlSign(pnl)}$${fmt(pnl)} (${pnlSign(roi)}${roi.toFixed(1)}%)`);
     const globalPNL = totalCurrentValue - totalInvested;
