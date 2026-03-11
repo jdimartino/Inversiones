@@ -229,7 +229,7 @@ async function runCheckAlerts() {
                 } else {
                     remaining.push(rule);
                 }
-                debugData.push(debugRule);
+                debugData.push({ ...debugRule, invId: docSnap.id });
             }
 
             if (remaining.length === 0) {
@@ -238,14 +238,20 @@ async function runCheckAlerts() {
                 investmentAlerts[docSnap.id] = remaining;
                 hasAlertsToRemove = true;
             }
+        } else {
+            // Fix 5: Ensure debugData has entries for assets without alerts
+            debugData.push({
+                coin: inv.coin,
+                invId: docSnap.id,
+                type: 'none',
+                current: currentPrice,
+                target: 0,
+                triggered: false
+            });
         }
 
-        if (inv.invested && inv.invested > 0) {
-            const roiPercent = (pnl / inv.invested) * 100;
-            individualAssets.push({ coin: inv.coin, pnl, roi: roiPercent });
-        } else {
-            individualAssets.push({ coin: inv.coin, pnl, roi: 0 });
-        }
+        // Fix 3: Remove duplicate ROI calculation and reuse existing variable
+        individualAssets.push({ coin: inv.coin, pnl, roi: roiPercent || 0 });
     });
 
     individualAssets.sort((a, b) => b.pnl - a.pnl);
@@ -295,6 +301,12 @@ async function runCheckAlerts() {
     const updates: any = {};
     if (hasAlertsToRemove) updates.investmentAlerts = investmentAlerts;
     if (hasGlobalAlertsToRemove) updates.globalAlerts = remainingGlobalAlerts;
+    
+    // Fix 4: Clean legacy assetAlerts from Firestore if present
+    if (configSnap.exists && configSnap.data()?.assetAlerts !== undefined) {
+        updates.assetAlerts = admin.firestore.FieldValue.delete();
+    }
+
     if (Object.keys(updates).length > 0) {
         await db.collection("config").doc("alerts").update(updates);
     }
@@ -303,7 +315,17 @@ async function runCheckAlerts() {
         let message = `⚠️ *ALERTA PNL v2.1 — Crypto Command*\n${DIVIDER}\n`;
         if (triggeredGlobalMessages.length > 0) message += `*🚨 Alertas Globales:*\n${triggeredGlobalMessages.join("\n")}\n\n`;
         if (triggeredIndividualMessages.length > 0) message += `*🎯 Alertas Individuales:*\n${triggeredIndividualMessages.join("\n")}\n`;
-        message += `${DIVIDER}\n*PNL Total:* ${pnlSign(globalPNL)}$${fmt(globalPNL)}\n*Invertido:* $${fmt(totalInvested)}\n*Valor Actual:* $${fmt(totalCurrentValue)}\n${DIVIDER}\n*📊 Detalle del Portafolio:*\n${assetDetails.join("\n")}`;
+        message += `${DIVIDER}\n*PNL Total:* ${pnlSign(globalPNL)}$${fmt(globalPNL)}\n*Invertido:* $${fmt(totalInvested)}\n*Valor Actual:* $${fmt(totalCurrentValue)}\n${DIVIDER}\n*📊 Detalle del Portafolio:*\n`;
+
+        // Fix 1: Message truncation to prevent Telegram 4096 char limit errors
+        for (let i = 0; i < assetDetails.length; i++) {
+            const line = assetDetails[i] + "\n";
+            if (message.length + line.length > 3900) {
+                message += `... y ${assetDetails.length - i} activos más.`;
+                break;
+            }
+            message += line;
+        }
 
         const sent = await sendTelegram(message);
         if (sent) {
@@ -355,6 +377,35 @@ export const debugLogs = functions.https.onRequest(async (req, res) => {
         const data: any[] = [];
         snap.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
         res.json(data);
+    } catch (e: any) {
+        res.status(500).send(e.message);
+    }
+});
+
+export const setupTestAlerts = functions.https.onRequest(async (req, res) => {
+    try {
+        const docRef = db.collection("config").doc("alerts");
+        const doc = await docRef.get();
+        const data = doc.data() || {};
+        const investmentAlerts = data.investmentAlerts || {};
+        
+        investmentAlerts["6swnUV9ynXBDJCtzK5Sa"] = [
+            {
+                type: 'pnl',
+                targetPercent: -2,
+                direction: 'down',
+                isPersistent: true
+            },
+            {
+                type: 'price',
+                targetValue: 0.27,
+                direction: 'down',
+                isPersistent: true
+            }
+        ];
+        
+        await docRef.update({ investmentAlerts });
+        res.json({ status: "ok", message: "ADA test alerts configured" });
     } catch (e: any) {
         res.status(500).send(e.message);
     }

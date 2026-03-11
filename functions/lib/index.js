@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.checkPNLAlerts = exports.testAlerts = exports.debugLogs = exports.debugInversiones = exports.debugAlerts = void 0;
+exports.checkPNLAlerts = exports.testAlerts = exports.setupTestAlerts = exports.debugLogs = exports.debugInversiones = exports.debugAlerts = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const axios_1 = require("axios");
@@ -88,6 +88,7 @@ function normalizeGlobalAlerts(rawArray) {
 }
 // ─── Core Logic ───────────────────────────────────────────────────────────────
 async function runCheckAlerts() {
+    var _a;
     console.log("[v2.1] Iniciando comprobación de alertas...");
     const { data: tickerData } = await axios_1.default.get("https://api.mexc.com/api/v3/ticker/price");
     const prices = {};
@@ -184,7 +185,7 @@ async function runCheckAlerts() {
                 else {
                     remaining.push(rule);
                 }
-                debugData.push(debugRule);
+                debugData.push(Object.assign(Object.assign({}, debugRule), { invId: docSnap.id }));
             }
             if (remaining.length === 0) {
                 delete investmentAlerts[docSnap.id];
@@ -194,13 +195,19 @@ async function runCheckAlerts() {
                 hasAlertsToRemove = true;
             }
         }
-        if (inv.invested && inv.invested > 0) {
-            const roiPercent = (pnl / inv.invested) * 100;
-            individualAssets.push({ coin: inv.coin, pnl, roi: roiPercent });
-        }
         else {
-            individualAssets.push({ coin: inv.coin, pnl, roi: 0 });
+            // Fix 5: Ensure debugData has entries for assets without alerts
+            debugData.push({
+                coin: inv.coin,
+                invId: docSnap.id,
+                type: 'none',
+                current: currentPrice,
+                target: 0,
+                triggered: false
+            });
         }
+        // Fix 3: Remove duplicate ROI calculation and reuse existing variable
+        individualAssets.push({ coin: inv.coin, pnl, roi: roiPercent || 0 });
     });
     individualAssets.sort((a, b) => b.pnl - a.pnl);
     const assetDetails = individualAssets.map(({ coin, pnl, roi }) => `${pnlEmoji(pnl)} *${coin}:* ${pnlSign(pnl)}$${fmt(pnl)} (${pnlSign(roi)}${roi.toFixed(1)}%)`);
@@ -245,6 +252,10 @@ async function runCheckAlerts() {
         updates.investmentAlerts = investmentAlerts;
     if (hasGlobalAlertsToRemove)
         updates.globalAlerts = remainingGlobalAlerts;
+    // Fix 4: Clean legacy assetAlerts from Firestore if present
+    if (configSnap.exists && ((_a = configSnap.data()) === null || _a === void 0 ? void 0 : _a.assetAlerts) !== undefined) {
+        updates.assetAlerts = admin.firestore.FieldValue.delete();
+    }
     if (Object.keys(updates).length > 0) {
         await db.collection("config").doc("alerts").update(updates);
     }
@@ -254,7 +265,16 @@ async function runCheckAlerts() {
             message += `*🚨 Alertas Globales:*\n${triggeredGlobalMessages.join("\n")}\n\n`;
         if (triggeredIndividualMessages.length > 0)
             message += `*🎯 Alertas Individuales:*\n${triggeredIndividualMessages.join("\n")}\n`;
-        message += `${DIVIDER}\n*PNL Total:* ${pnlSign(globalPNL)}$${fmt(globalPNL)}\n*Invertido:* $${fmt(totalInvested)}\n*Valor Actual:* $${fmt(totalCurrentValue)}\n${DIVIDER}\n*📊 Detalle del Portafolio:*\n${assetDetails.join("\n")}`;
+        message += `${DIVIDER}\n*PNL Total:* ${pnlSign(globalPNL)}$${fmt(globalPNL)}\n*Invertido:* $${fmt(totalInvested)}\n*Valor Actual:* $${fmt(totalCurrentValue)}\n${DIVIDER}\n*📊 Detalle del Portafolio:*\n`;
+        // Fix 1: Message truncation to prevent Telegram 4096 char limit errors
+        for (let i = 0; i < assetDetails.length; i++) {
+            const line = assetDetails[i] + "\n";
+            if (message.length + line.length > 3900) {
+                message += `... y ${assetDetails.length - i} activos más.`;
+                break;
+            }
+            message += line;
+        }
         const sent = await sendTelegram(message);
         if (sent) {
             console.log(`✅ Alerta enviada.`);
@@ -305,6 +325,33 @@ exports.debugLogs = functions.https.onRequest(async (req, res) => {
         const data = [];
         snap.forEach(doc => data.push(Object.assign({ id: doc.id }, doc.data())));
         res.json(data);
+    }
+    catch (e) {
+        res.status(500).send(e.message);
+    }
+});
+exports.setupTestAlerts = functions.https.onRequest(async (req, res) => {
+    try {
+        const docRef = db.collection("config").doc("alerts");
+        const doc = await docRef.get();
+        const data = doc.data() || {};
+        const investmentAlerts = data.investmentAlerts || {};
+        investmentAlerts["6swnUV9ynXBDJCtzK5Sa"] = [
+            {
+                type: 'pnl',
+                targetPercent: -2,
+                direction: 'down',
+                isPersistent: true
+            },
+            {
+                type: 'price',
+                targetValue: 0.27,
+                direction: 'down',
+                isPersistent: true
+            }
+        ];
+        await docRef.update({ investmentAlerts });
+        res.json({ status: "ok", message: "ADA test alerts configured" });
     }
     catch (e) {
         res.status(500).send(e.message);
