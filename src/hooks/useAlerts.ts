@@ -1,6 +1,11 @@
 import { useState, useEffect } from "react";
-import { doc, onSnapshot, setDoc } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
+
+// NOTE: setDoc with { merge: true } is used instead of plain setDoc to avoid
+// overwriting fields managed by the Cloud Function (e.g. triggered one-shot alerts
+// that were already removed). This prevents race conditions where a stale frontend
+// state could restore a deleted alert.
 
 export interface InvestmentAlert {
     type?: 'pnl' | 'price';
@@ -92,10 +97,22 @@ export function useAlerts() {
 
     const saveConfig = async (newConfig: AlertConfig) => {
         try {
-            // El onSnapshot actualizará el estado local automáticamente, pero podemos aplicarlo
-            // de inmediato en la UI para mayor fluidez.
+            // Update local state immediately for snappy UI
             setConfig(newConfig);
-            await setDoc(doc(db, "config", "alerts"), newConfig);
+
+            // Firestore rejects any write containing `undefined`. Some nested fields like
+            // `targetValue` in 'pnl' alerts are literally undefined in the frontend state.
+            // JSON stringification is the most robust way to strip all undefined properties.
+            const cleanConfig = JSON.parse(JSON.stringify(newConfig));
+
+            // We use updateDoc (acting on specific fields) instead of setDoc to prevent
+            // overwriting the entire document and recreating any legacy nested fields that
+            // might be floating around, while also respecting Cloud Function deletions.
+            // But since newConfig has all fields (globalAlerts, investmentAlerts, minPNL, maxPNL),
+            // updateDoc will effectively merge these top-level fields safely.
+            const docRef = doc(db, "config", "alerts");
+            await updateDoc(docRef, cleanConfig);
+            
             return true;
         } catch (e) {
             console.error("Error saving alerts", e);

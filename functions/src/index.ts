@@ -307,17 +307,12 @@ async function runCheckAlerts() {
 
     const shouldAlert = isLegacyGlobalAlertTriggered || triggeredGlobalMessages.length > 0 || triggeredIndividualMessages.length > 0;
 
-    const updates: any = {};
-    if (hasAlertsToRemove) updates.investmentAlerts = investmentAlerts;
-    if (hasGlobalAlertsToRemove) updates.globalAlerts = remainingGlobalAlerts;
-    
-    // Fix 4: Clean legacy assetAlerts from Firestore if present
+    // ── Always clean legacy assetAlerts field if present (no Telegram needed) ──
+    const legacyCleanup: any = {};
     if (configSnap.exists && configSnap.data()?.assetAlerts !== undefined) {
-        updates.assetAlerts = admin.firestore.FieldValue.delete();
-    }
-
-    if (Object.keys(updates).length > 0) {
-        await db.collection("config").doc("alerts").update(updates);
+        legacyCleanup.assetAlerts = admin.firestore.FieldValue.delete();
+        await db.collection("config").doc("alerts").update(legacyCleanup);
+        console.log("[CLEANUP] Campo legacy assetAlerts eliminado.");
     }
 
     if (shouldAlert) {
@@ -339,6 +334,18 @@ async function runCheckAlerts() {
         const sent = await sendTelegram(message);
         if (sent) {
             console.log(`✅ Alerta enviada.`);
+
+            // CRITICAL FIX: Only remove ONE-SHOT alerts from Firestore AFTER
+            // Telegram confirms delivery. If we delete first and Telegram fails,
+            // the alert is permanently lost with no notification sent.
+            const updates: any = {};
+            if (hasAlertsToRemove) updates.investmentAlerts = investmentAlerts;
+            if (hasGlobalAlertsToRemove) updates.globalAlerts = remainingGlobalAlerts;
+            if (Object.keys(updates).length > 0) {
+                await db.collection("config").doc("alerts").update(updates);
+                console.log("[CLEANUP] Alertas UNA VEZ eliminadas de Firestore post-envío.");
+            }
+
             await db.collection("notificationLogs").add({
                 sentAt: new Date(),
                 globalAlertTriggered: triggeredGlobalMessages.length > 0 || isLegacyGlobalAlertTriggered,
@@ -350,9 +357,18 @@ async function runCheckAlerts() {
             });
             return { sent: true, summary: "Alerta enviada", debug: debugData };
         } else {
+            console.error("[ERROR] Telegram falló. Las alertas UNA VEZ NO se eliminan para reintentarlo en la próxima ejecución.");
             return { sent: false, summary: "Fallo envío Telegram", debug: debugData };
         }
     } else {
+        // No alerts triggered — still need to remove PERSISTENT alerts that were
+        // cleaned up (orphans) even though no notification was sent.
+        const cleanupUpdates: any = {};
+        if (hasAlertsToRemove) cleanupUpdates.investmentAlerts = investmentAlerts;
+        if (hasGlobalAlertsToRemove) cleanupUpdates.globalAlerts = remainingGlobalAlerts;
+        if (Object.keys(cleanupUpdates).length > 0) {
+            await db.collection("config").doc("alerts").update(cleanupUpdates);
+        }
         console.log("Todo dentro de los límites.");
         return { sent: false, summary: "Sin alertas", debug: debugData };
     }
