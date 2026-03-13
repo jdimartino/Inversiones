@@ -150,8 +150,8 @@ async function runCheckAlerts() {
     let totalInvested = 0;
     let totalCurrentValue = 0;
     const triggeredIndividualMessages: string[] = [];
-    let hasAlertsToRemove = false;
     let hasGlobalAlertsToRemove = false;
+    const dbUpdates: any = {};
     const individualAssets: { coin: string, pnl: number, roi: number }[] = [];
 
     const debugData: any[] = [];
@@ -223,7 +223,6 @@ async function runCheckAlerts() {
                     if (rule.isPersistent) {
                         remaining.push(rule);
                     } else {
-                        hasAlertsToRemove = true;
                         console.log(`[ONE-SHOT] Alerta ${inv.coin} (${targetVal}) eliminada.`);
                     }
                 } else {
@@ -234,9 +233,10 @@ async function runCheckAlerts() {
 
             if (remaining.length === 0) {
                 delete investmentAlerts[docSnap.id];
+                dbUpdates[`investmentAlerts.${docSnap.id}`] = admin.firestore.FieldValue.delete();
             } else if (remaining.length !== alertRules.length) {
                 investmentAlerts[docSnap.id] = remaining;
-                hasAlertsToRemove = true;
+                dbUpdates[`investmentAlerts.${docSnap.id}`] = remaining;
             }
         } else {
             // Fix 5: Ensure debugData has entries for assets without alerts
@@ -259,7 +259,7 @@ async function runCheckAlerts() {
         if (!activeInvIds.has(invId)) {
             console.log(`[CLEANUP] Alerta huérfana detectada para inversion ID: ${invId}. Eliminando...`);
             delete investmentAlerts[invId];
-            hasAlertsToRemove = true;
+            dbUpdates[`investmentAlerts.${invId}`] = admin.firestore.FieldValue.delete();
         }
     }
 
@@ -338,11 +338,9 @@ async function runCheckAlerts() {
             // CRITICAL FIX: Only remove ONE-SHOT alerts from Firestore AFTER
             // Telegram confirms delivery. If we delete first and Telegram fails,
             // the alert is permanently lost with no notification sent.
-            const updates: any = {};
-            if (hasAlertsToRemove) updates.investmentAlerts = investmentAlerts;
-            if (hasGlobalAlertsToRemove) updates.globalAlerts = remainingGlobalAlerts;
-            if (Object.keys(updates).length > 0) {
-                await db.collection("config").doc("alerts").update(updates);
+            if (hasGlobalAlertsToRemove) dbUpdates.globalAlerts = remainingGlobalAlerts;
+            if (Object.keys(dbUpdates).length > 0) {
+                await db.collection("config").doc("alerts").update(dbUpdates);
                 console.log("[CLEANUP] Alertas UNA VEZ eliminadas de Firestore post-envío.");
             }
 
@@ -363,11 +361,9 @@ async function runCheckAlerts() {
     } else {
         // No alerts triggered — still need to remove PERSISTENT alerts that were
         // cleaned up (orphans) even though no notification was sent.
-        const cleanupUpdates: any = {};
-        if (hasAlertsToRemove) cleanupUpdates.investmentAlerts = investmentAlerts;
-        if (hasGlobalAlertsToRemove) cleanupUpdates.globalAlerts = remainingGlobalAlerts;
-        if (Object.keys(cleanupUpdates).length > 0) {
-            await db.collection("config").doc("alerts").update(cleanupUpdates);
+        if (hasGlobalAlertsToRemove) dbUpdates.globalAlerts = remainingGlobalAlerts;
+        if (Object.keys(dbUpdates).length > 0) {
+            await db.collection("config").doc("alerts").update(dbUpdates);
         }
         console.log("Todo dentro de los límites.");
         return { sent: false, summary: "Sin alertas", debug: debugData };
