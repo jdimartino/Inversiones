@@ -103,3 +103,8 @@ export const COIN_COLORS: Record<string, string> = {
 
 export const getCoinStyle = (coin: string): string =>
     COIN_COLORS[coin] || COIN_COLORS.DEFAULT;
+
+export const getCoinTextColor = (coin: string): string => {
+    const style = COIN_COLORS[coin] || COIN_COLORS.DEFAULT;
+    return style.split(' ').find((c) => c.startsWith('text-')) ?? 'text-slate-400';
+};

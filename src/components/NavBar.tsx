@@ -30,9 +30,9 @@ interface NavBarProps {
 
 const NavBar: React.FC<NavBarProps> = ({ active, onChange }) => {
     return (
-        <nav className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800 mb-8">
+        <nav className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800 mb-4 sm:mb-8">
             <div className="max-w-6xl mx-auto px-3 md:px-8">
-                <div className="flex overflow-x-auto no-scrollbar gap-1 py-2">
+                <div className="flex overflow-x-auto no-scrollbar gap-0.5 sm:gap-1 py-1.5 sm:py-2">
                     {TABS.map((tab) => {
                         const isActive = tab.id === active;
                         return (
@@ -40,7 +40,7 @@ const NavBar: React.FC<NavBarProps> = ({ active, onChange }) => {
                                 key={tab.id}
                                 onClick={() => onChange(tab.id)}
                                 className={`
-                  flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap
+                  flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap
                   transition-all duration-200 flex-shrink-0
                   ${isActive
                                         ? "bg-yellow-500 text-slate-900 shadow-lg shadow-yellow-500/20 scale-105"
@@ -50,7 +50,7 @@ const NavBar: React.FC<NavBarProps> = ({ active, onChange }) => {
                             >
                                 {tab.icon}
                                 <span className="hidden sm:block">{tab.label}</span>
-                                <span className="sm:hidden text-xs">{tab.label}</span>
+                                <span className="sm:hidden">{tab.label}</span>
                             </button>
                         );
                     })}

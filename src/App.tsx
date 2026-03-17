@@ -198,7 +198,7 @@ const App: React.FC = () => {
       </header>
 
       {/* ── Tab Content ───────────────────────────────────────── */}
-      <main className="max-w-6xl mx-auto px-3 md:px-8 py-6 pb-40">
+      <main className="max-w-6xl mx-auto px-3 md:px-8 py-3 sm:py-6 pb-28 sm:pb-40">
 
         {/* ── DASHBOARD ─────────────────────────────────────────────── */}
         {activeTab === "dashboard" && (

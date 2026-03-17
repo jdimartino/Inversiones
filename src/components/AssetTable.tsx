@@ -1,6 +1,6 @@
 import React from "react";
 import { Activity, Pencil, Bell } from "lucide-react";
-import { getCoinStyle, ProcessedInvestment } from "../lib/constants";
+import { getCoinStyle, getCoinTextColor, ProcessedInvestment } from "../lib/constants";
 import { fmt, fmtUSD, fmtPrice } from "../lib/format";
 import DeleteButton from "./DeleteButton";
 
@@ -26,7 +26,7 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
         if (items.length === 0) return null;
 
         return (
-            <div className="mb-10">
+            <div className="mb-6 sm:mb-10">
                 <h2 className="text-xs font-bold text-slate-500 mb-4 uppercase tracking-widest flex items-center gap-2 border-b border-slate-800 pb-2">
                     <Activity className="w-4 h-4 text-emerald-500" /> Detalle de Activos
                 </h2>
@@ -34,69 +34,69 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                     {/* Mobile */}
                     <div className="md:hidden divide-y divide-slate-700">
                         {items.map((item) => (
-                            <div key={item.id} className="p-4 relative hover:bg-slate-700/10 transition-colors">
+                            <div key={item.id} className="p-3 relative hover:bg-slate-700/10 transition-colors">
                                 {/* Action buttons top-right */}
-                                <div className="absolute top-4 right-4 flex items-center gap-1">
+                                <div className="absolute top-3 right-3 flex items-center gap-0.5">
                                     <button
                                         onClick={() => onAlert(item)}
                                         className={`p-1 transition-colors ${activeAlertIds.includes(item.id) ? "text-yellow-400 hover:text-yellow-300" : "text-slate-500 hover:text-yellow-400"}`}
                                         title="Configurar Alerta"
                                     >
-                                        <Bell className="w-4 h-4" />
+                                        <Bell className="w-3.5 h-3.5" />
                                     </button>
                                     <button
                                         onClick={() => onEdit(item)}
                                         className="text-slate-500 hover:text-yellow-400 p-1 transition-colors"
                                         title="Modificar"
                                     >
-                                        <Pencil className="w-4 h-4" />
+                                        <Pencil className="w-3.5 h-3.5" />
                                     </button>
                                     <DeleteButton onDelete={() => onDelete(item.id)} />
                                 </div>
 
-                                <div className="flex items-center gap-3 mb-4">
+                                <div className="flex items-center gap-2 mb-2">
                                     <div
-                                        className={`w-10 h-10 border rounded-full flex items-center justify-center font-bold text-[11px] shadow-sm ${getCoinStyle(
+                                        className={`w-8 h-8 border rounded-full flex items-center justify-center font-bold text-[10px] shadow-sm flex-shrink-0 ${getCoinStyle(
                                             item.coin
                                         )}`}
                                     >
                                         {item.coin}
                                     </div>
-                                    <div>
-                                        <p className="font-bold text-white text-base">{item.coin}</p>
-                                        <p className="text-xs text-slate-400 font-mono font-bold tracking-tight">
+                                    <div className="flex-1 text-center">
+                                        <p className={`font-bold text-sm ${getCoinTextColor(item.coin)}`}>{item.coin}</p>
+                                        <p className={`text-[13px] font-mono font-bold tracking-tight ${getCoinTextColor(item.coin)}`}>
                                             {fmt(item.quantity)} u.
                                         </p>
-                                        <p className="text-xs text-slate-500 mt-0.5">
+                                        <p className="text-[10px] text-slate-500 mt-0.5">
                                             📅 {fmtDate(item.date)}
                                         </p>
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-x-2 gap-y-3 text-sm">
-                                    <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50">
+                                <div className="grid grid-cols-2 gap-1.5 text-sm">
+                                    <div className="bg-slate-900/40 p-1.5 rounded-lg border border-slate-700/50 text-center">
                                         <p className="text-[9px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Precio Compra</p>
-                                        <p className="text-slate-400 font-mono text-xs italic">{fmtPrice(item.buyPrice)}</p>
+                                        <p className="text-slate-400 font-mono text-[11px] italic">{fmtPrice(item.buyPrice)}</p>
                                     </div>
-                                    <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50 text-right">
+                                    <div className="bg-slate-900/40 p-1.5 rounded-lg border border-slate-700/50 text-center">
                                         <p className="text-[9px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Precio Actual</p>
-                                        <p className="text-yellow-300 font-mono text-xs font-bold">{fmtPrice(item.currentPrice)}</p>
+                                        <p className="text-yellow-300 font-mono text-[11px] font-bold">{fmtPrice(item.currentPrice)}</p>
                                     </div>
-                                    <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50">
+                                    <div className="bg-slate-900/40 p-1.5 rounded-lg border border-slate-700/50 text-center">
                                         <p className="text-[9px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Valor Total</p>
-                                        <p className="text-emerald-300 font-mono text-xs font-bold">{fmtUSD(item.currentValue)}</p>
+                                        <p className="text-emerald-300 font-mono text-[11px] font-bold">{fmtUSD(item.currentValue)}</p>
                                     </div>
-                                    <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50 text-right">
+                                    <div className="bg-slate-900/40 p-1.5 rounded-lg border border-slate-700/50 text-center">
                                         <p className="text-[9px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">PNL Neto</p>
                                         <div
-                                            className={`font-bold text-xs ${item.profit >= 0 ? "text-green-400" : "text-red-400"
+                                            className={`font-bold text-sm ${item.profit >= 0 ? "text-green-400" : "text-red-400"
                                                 }`}
                                         >
                                             {item.profit >= 0 ? "+" : ""}
                                             {fmtUSD(item.profit)}
                                         </div>
                                         <div
-                                            className={`text-[9px] font-bold tracking-tight ${item.profit >= 0 ? "text-green-600" : "text-red-600"
+                                            className={`text-[11px] font-bold tracking-tight ${item.profit >= 0 ? "text-green-600" : "text-red-600"
                                                 }`}
                                         >
                                             {item.profit >= 0 ? "+" : ""}
