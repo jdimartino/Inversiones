@@ -6,6 +6,8 @@ import {
     updateDoc,
     deleteDoc,
     doc,
+    setDoc,
+    getDoc,
     onSnapshot,
     query,
     Firestore,
@@ -25,5 +27,5 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db: Firestore = getFirestore(app);
 
-export { db, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query };
+export { db, collection, addDoc, updateDoc, deleteDoc, doc, setDoc, getDoc, onSnapshot, query };
 export type { DocumentData };

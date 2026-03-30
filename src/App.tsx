@@ -16,9 +16,8 @@ import SummaryCards from "./components/SummaryCards";
 import AssetTable from "./components/AssetTable";
 import AggregatedTable from "./components/AggregatedTable";
 import AnalyticsSection from "./components/AnalyticsSection";
-import { LoanSection } from "./components/LoanCard";
 import InvestmentForm from "./components/InvestmentForm";
-import LoanForm from "./components/LoanForm";
+import LiquidationDashboard from "./components/LiquidationDashboard";
 import EditLoanModal from "./components/EditLoanModal";
 import AlertSettings from "./components/AlertSettings";
 import EditInvestmentModal from "./components/EditInvestmentModal";
@@ -237,20 +236,15 @@ const App: React.FC = () => {
         {/* ── PRÉSTAMOS ─────────────────────────────────────────────── */}
         {activeTab === "prestamos" && (
           <div key="prestamos" className={tabClass}>
-            <LoanSection
-              loans={processedLoans}
-              onEdit={handleEditLoan}
-              onDelete={removeLoan}
-            />
+            <LiquidationDashboard />
           </div>
         )}
 
         {/* ── OPERACIONES ───────────────────────────────────────────── */}
         {activeTab === "operaciones" && (
           <div key="operaciones" className={tabClass}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="max-w-xl mx-auto">
               <InvestmentForm onSubmit={addInvestment} />
-              <LoanForm onSubmit={addLoan} />
             </div>
           </div>
         )}
