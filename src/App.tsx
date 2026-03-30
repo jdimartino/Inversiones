@@ -18,6 +18,7 @@ import AggregatedTable from "./components/AggregatedTable";
 import AnalyticsSection from "./components/AnalyticsSection";
 import InvestmentForm from "./components/InvestmentForm";
 import LiquidationDashboard from "./components/LiquidationDashboard";
+import SellSuite from "./components/SellSuite";
 import EditLoanModal from "./components/EditLoanModal";
 import AlertSettings from "./components/AlertSettings";
 import EditInvestmentModal from "./components/EditInvestmentModal";
@@ -33,6 +34,7 @@ const App: React.FC = () => {
   const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
   const [editingInvestment, setEditingInvestment] = useState<ProcessedInvestment | null>(null);
   const [alertingInvestment, setAlertingInvestment] = useState<ProcessedInvestment | null>(null);
+  const [sellPreload, setSellPreload] = useState<ProcessedInvestment | null>(null);
   const [isGlobalAlertModalOpen, setIsGlobalAlertModalOpen] = useState(false);
   const [globalEditIndex, setGlobalEditIndex] = useState<number | null>(null);
   const [investmentEditIndex, setInvestmentEditIndex] = useState<number | null>(null);
@@ -115,6 +117,10 @@ const App: React.FC = () => {
   const handleEditInvestment = useCallback((item: ProcessedInvestment) => setEditingInvestment(item), []);
   const handleCloseInvestmentModal = useCallback(() => setEditingInvestment(null), []);
   const handleAlertInvestment = useCallback((item: ProcessedInvestment) => setAlertingInvestment(item), []);
+  const handleSellEvaluate = useCallback((item: ProcessedInvestment) => {
+    setSellPreload(item);
+    setActiveTab("venta");
+  }, []);
   const handleCloseAlertModal = useCallback(() => {
     setAlertingInvestment(null);
     setInvestmentEditIndex(null);
@@ -216,6 +222,7 @@ const App: React.FC = () => {
               onDelete={removeInvestment}
               onEdit={handleEditInvestment}
               onAlert={handleAlertInvestment}
+              onSellEvaluate={handleSellEvaluate}
             />
             <AggregatedTable items={aggregatedList} />
           </div>
@@ -237,6 +244,13 @@ const App: React.FC = () => {
         {activeTab === "prestamos" && (
           <div key="prestamos" className={tabClass}>
             <LiquidationDashboard />
+          </div>
+        )}
+
+        {/* ── VENTA ─────────────────────────────────────────────────── */}
+        {activeTab === "venta" && (
+          <div key="venta" className={tabClass}>
+            <SellSuite preload={sellPreload} />
           </div>
         )}
 

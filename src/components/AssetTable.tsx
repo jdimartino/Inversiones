@@ -1,5 +1,5 @@
 import React from "react";
-import { Activity, Pencil, Bell } from "lucide-react";
+import { Activity, Pencil, Bell, TrendingUp } from "lucide-react";
 import { getCoinStyle, getCoinTextColor, ProcessedInvestment } from "../lib/constants";
 import { fmt, fmtUSD, fmtPrice } from "../lib/format";
 import DeleteButton from "./DeleteButton";
@@ -10,6 +10,7 @@ interface AssetTableProps {
     onDelete: (id: string) => void;
     onEdit: (item: ProcessedInvestment) => void;
     onAlert: (item: ProcessedInvestment) => void;
+    onSellEvaluate: (item: ProcessedInvestment) => void;
 }
 
 function fmtDate(ts: number): string {
@@ -22,7 +23,7 @@ function fmtDate(ts: number): string {
 }
 
 const AssetTable: React.FC<AssetTableProps> = React.memo(
-    ({ items, activeAlertIds, onDelete, onEdit, onAlert }) => {
+    ({ items, activeAlertIds, onDelete, onEdit, onAlert, onSellEvaluate }) => {
         if (items.length === 0) return null;
 
         return (
@@ -37,6 +38,13 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                             <div key={item.id} className="p-3 relative hover:bg-slate-700/10 transition-colors">
                                 {/* Action buttons top-right */}
                                 <div className="absolute top-3 right-3 flex items-center gap-0.5">
+                                    <button
+                                        onClick={() => onSellEvaluate(item)}
+                                        className="text-slate-500 hover:text-red-400 p-1 transition-colors"
+                                        title="Evaluar Venta"
+                                    >
+                                        <TrendingUp className="w-3.5 h-3.5" />
+                                    </button>
                                     <button
                                         onClick={() => onAlert(item)}
                                         className={`p-1 transition-colors ${activeAlertIds.includes(item.id) ? "text-yellow-400 hover:text-yellow-300" : "text-slate-500 hover:text-yellow-400"}`}
@@ -170,6 +178,13 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                                     </td>
                                     <td className="p-5 text-center">
                                         <div className="flex items-center justify-center gap-1">
+                                            <button
+                                                onClick={() => onSellEvaluate(item)}
+                                                className="text-slate-500 hover:text-red-400 p-1 transition-colors"
+                                                title="Evaluar Venta"
+                                            >
+                                                <TrendingUp className="w-4 h-4" />
+                                            </button>
                                             <button
                                                 onClick={() => onAlert(item)}
                                                 className={`p-1 transition-colors ${activeAlertIds.includes(item.id) ? "text-yellow-400 hover:text-yellow-300" : "text-slate-500 hover:text-yellow-400"}`}
