@@ -203,6 +203,9 @@ const App: React.FC = () => {
             <h1 className="text-xl font-bold flex items-center gap-2 text-yellow-400">
               <Activity className="w-6 h-6" /> Crypto Command
             </h1>
+            <p className="text-[10px] text-yellow-500/70 font-semibold mt-[-2px] ml-8 mb-1">
+              By #JDMRules
+            </p>
             <p className="text-slate-500 text-[10px] uppercase tracking-widest font-bold hidden sm:block">
               LTV Flex: Binance 91% · Bybit 92%
             </p>
