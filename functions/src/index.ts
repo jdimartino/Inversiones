@@ -119,11 +119,26 @@ function normalizeGlobalAlerts(rawArray: any[]): GlobalAlertRule[] {
 
 // ─── Core Logic ───────────────────────────────────────────────────────────────
 async function runCheckAlerts() {
-    console.log("[v2.1] Iniciando comprobación de alertas...");
-    const { data: tickerData } = await axios.get("https://api.mexc.com/api/v3/ticker/price");
+    console.log("[v2.2] Iniciando comprobación de alertas...");
+    // Use the same Binance API as the frontend to ensure price consistency
+    const SYMBOL_MAP: Record<string, string> = {
+        BTC: "BTCUSDT", ETH: "ETHUSDT", ADA: "ADAUSDT", DOGE: "DOGEUSDT",
+        LTC: "LTCUSDT", BNB: "BNBUSDT", SOL: "SOLUSDT", XRP: "XRPUSDT",
+        DOT: "DOTUSDT", MATIC: "MATICUSDT", SHIB: "SHIBUSDT", AVAX: "AVAXUSDT",
+        LINK: "LINKUSDT",
+    };
+    const symbols = Object.values(SYMBOL_MAP);
+    const param = JSON.stringify(symbols);
+    const { data: tickerData } = await axios.get(
+        `https://api.binance.com/api/v3/ticker/price?symbols=${encodeURIComponent(param)}`
+    );
     const prices: Record<string, number> = {};
+    const reverseMap = Object.fromEntries(Object.entries(SYMBOL_MAP).map(([k, v]) => [v, k]));
     for (const item of tickerData) {
+        // Store both formats: "BTC" and "BTCUSDT" for compatibility
         prices[item.symbol] = parseFloat(item.price);
+        const coin = reverseMap[item.symbol];
+        if (coin) prices[`${coin}USDT`] = parseFloat(item.price);
     }
 
     const configSnap = await db.collection("config").doc("alerts").get();
@@ -446,5 +461,196 @@ export const checkPNLAlerts = functions.pubsub.schedule("every 15 minutes").onRu
         await runCheckAlerts();
     } catch (e) {
         console.error("Error en checkPNLAlerts:", e);
+    }
+});
+
+// ─── Trading Signals ──────────────────────────────────────────────────────────
+
+// Indicator math (duplicated from frontend — pure functions, no browser deps)
+function _calcEMASeries(closes: number[], period: number): number[] {
+    if (closes.length < period) return [];
+    const m = 2 / (period + 1);
+    const sma = closes.slice(0, period).reduce((s, v) => s + v, 0) / period;
+    const emas = [sma];
+    for (let i = period; i < closes.length; i++) {
+        emas.push((closes[i] - emas[emas.length - 1]) * m + emas[emas.length - 1]);
+    }
+    return emas;
+}
+
+function _calcRSI(closes: number[], period = 14): number {
+    if (closes.length < period + 1) return 50;
+    const changes = [];
+    for (let i = 1; i < closes.length; i++) changes.push(closes[i] - closes[i - 1]);
+    let avgGain = 0, avgLoss = 0;
+    for (let i = 0; i < period; i++) {
+        if (changes[i] >= 0) avgGain += changes[i]; else avgLoss += Math.abs(changes[i]);
+    }
+    avgGain /= period; avgLoss /= period;
+    for (let i = period; i < changes.length; i++) {
+        const c = changes[i];
+        avgGain = (avgGain * (period - 1) + (c >= 0 ? c : 0)) / period;
+        avgLoss = (avgLoss * (period - 1) + (c < 0 ? Math.abs(c) : 0)) / period;
+    }
+    if (avgLoss === 0) return 100;
+    return 100 - 100 / (1 + avgGain / avgLoss);
+}
+
+function _calcMACD(closes: number[]) {
+    if (closes.length < 26) return { line: 0, signal: 0, histogram: 0 };
+    const e12 = _calcEMASeries(closes, 12);
+    const e26 = _calcEMASeries(closes, 26);
+    const offset = 14;
+    const macdVals: number[] = [];
+    for (let i = 0; i < e26.length; i++) {
+        if (e12[i + offset] !== undefined) macdVals.push(e12[i + offset] - e26[i]);
+    }
+    if (!macdVals.length) return { line: 0, signal: 0, histogram: 0 };
+    const line = macdVals[macdVals.length - 1];
+    const sigSeries = _calcEMASeries(macdVals, 9);
+    const sig = sigSeries.length ? sigSeries[sigSeries.length - 1] : 0;
+    return { line, signal: sig, histogram: line - sig };
+}
+
+type TSignalStrength = 'strong_buy' | 'buy' | 'hold' | 'sell' | 'strong_sell';
+const SIGNAL_EMOJI: Record<TSignalStrength, string> = {
+    strong_buy: '🟢', buy: '🔵', hold: '⚪', sell: '🟠', strong_sell: '🔴',
+};
+const SIGNAL_LABEL_ES: Record<TSignalStrength, string> = {
+    strong_buy: 'COMPRA FUERTE', buy: 'COMPRA', hold: 'MANTENER', sell: 'VENTA', strong_sell: 'VENTA FUERTE',
+};
+
+interface CoinAnalysis {
+    coin: string;
+    signal: TSignalStrength;
+    confidence: number;
+    rsi: number;
+    macdHist: number;
+    smaLabel: string;
+}
+
+function _analyzeCoin(coin: string, closes: number[], fgValue?: number): CoinAnalysis {
+    const price = closes[closes.length - 1];
+    const rsi = _calcRSI(closes);
+    const sma20 = closes.length >= 20 ? closes.slice(-20).reduce((s, v) => s + v, 0) / 20 : 0;
+    const sma50 = closes.length >= 50 ? closes.slice(-50).reduce((s, v) => s + v, 0) / 50 : 0;
+    const macd = _calcMACD(closes);
+
+    // Scoring
+    let rsiScore = 0;
+    if (rsi < 20) rsiScore = 2; else if (rsi < 30) rsiScore = 1;
+    else if (rsi > 80) rsiScore = -2; else if (rsi > 70) rsiScore = -1;
+
+    let smaScore = 0;
+    let smaLabel = 'Neutral';
+    if (sma20 > 0 && sma50 > 0) {
+        if (price > sma20 && sma20 > sma50) { smaScore = 2; smaLabel = 'Alcista fuerte'; }
+        else if (price > sma20) { smaScore = 1; smaLabel = 'Alcista'; }
+        else if (price < sma20 && sma20 < sma50) { smaScore = -2; smaLabel = 'Bajista fuerte'; }
+        else if (price < sma20) { smaScore = -1; smaLabel = 'Bajista'; }
+    }
+
+    let macdScore = macd.histogram > 0 ? 1 : macd.histogram < 0 ? -1 : 0;
+
+    let fgScore = 0;
+    let totalWeight = 0.80;
+    if (fgValue !== undefined) {
+        if (fgValue <= 20) fgScore = 1; else if (fgValue <= 40) fgScore = 0.5;
+        else if (fgValue >= 80) fgScore = -1; else if (fgValue >= 60) fgScore = -0.5;
+        totalWeight = 1.0;
+    }
+
+    const score = (rsiScore * 0.25 + smaScore * 0.25 + macdScore * 0.30 + fgScore * 0.20) / totalWeight;
+
+    let signal: TSignalStrength;
+    if (score >= 1.2) signal = 'strong_buy';
+    else if (score >= 0.4) signal = 'buy';
+    else if (score > -0.4) signal = 'hold';
+    else if (score > -1.2) signal = 'sell';
+    else signal = 'strong_sell';
+
+    const confidence = Math.min(Math.round(Math.abs(score) / 2 * 100), 100);
+
+    return { coin, signal, confidence, rsi, macdHist: macd.histogram, smaLabel };
+}
+
+async function runTradingSignals() {
+    console.log("[Trading Signals] Analyzing markets...");
+
+    const COINS: Record<string, string> = {
+        BTC: "BTCUSDT", ETH: "ETHUSDT", ADA: "ADAUSDT", DOGE: "DOGEUSDT",
+        LTC: "LTCUSDT", BNB: "BNBUSDT", SOL: "SOLUSDT", XRP: "XRPUSDT",
+        DOT: "DOTUSDT", MATIC: "MATICUSDT", SHIB: "SHIBUSDT", AVAX: "AVAXUSDT",
+        LINK: "LINKUSDT",
+    };
+
+    // Fetch Fear & Greed
+    let fgValue: number | undefined;
+    try {
+        const fgRes = await axios.get("https://api.alternative.me/fng/?limit=1");
+        fgValue = parseInt(fgRes.data.data?.[0]?.value, 10);
+        if (isNaN(fgValue)) fgValue = undefined;
+    } catch { fgValue = undefined; }
+
+    // Fetch klines for all coins
+    const analyses: CoinAnalysis[] = [];
+    for (const [coin, symbol] of Object.entries(COINS)) {
+        try {
+            const { data } = await axios.get(`https://api.binance.com/api/v3/klines`, {
+                params: { symbol, interval: "1h", limit: 100 },
+            });
+            const closes = data.map((k: any) => parseFloat(k[4]));
+            if (closes.length >= 50) {
+                analyses.push(_analyzeCoin(coin, closes, fgValue));
+            }
+        } catch (e: any) {
+            console.error(`[Trading Signals] Error fetching ${coin}:`, e.message);
+        }
+    }
+
+    // Filter strong signals only
+    const strongSignals = analyses.filter(
+        (a) => a.signal === "strong_buy" || a.signal === "strong_sell"
+    );
+
+    if (strongSignals.length === 0) {
+        console.log("[Trading Signals] No strong signals detected.");
+        return { sent: false, summary: "No strong signals", analyses };
+    }
+
+    // Build Telegram message
+    let message = `🤖 *SEÑALES DE TRADING — Crypto Command*\n${DIVIDER}\n`;
+
+    for (const a of strongSignals) {
+        message += `${SIGNAL_EMOJI[a.signal]} *${a.coin}:* ${SIGNAL_LABEL_ES[a.signal]} (Confianza: ${a.confidence}%)\n`;
+        message += `  RSI: ${a.rsi.toFixed(0)} | SMA: ${a.smaLabel} | MACD: ${a.macdHist >= 0 ? '+' : ''}${a.macdHist.toFixed(4)}\n`;
+    }
+
+    message += DIVIDER + "\n";
+    if (fgValue !== undefined) {
+        const fgLabel = fgValue <= 20 ? "Miedo Extremo" : fgValue <= 40 ? "Miedo" : fgValue <= 60 ? "Neutral" : fgValue <= 80 ? "Codicia" : "Codicia Extrema";
+        message += `📊 Miedo y Codicia: *${fgValue}* (${fgLabel})\n`;
+    }
+    message += `\n_Señales automáticas basadas en RSI, SMA, MACD_`;
+
+    const sent = await sendTelegram(message);
+    if (sent) console.log("[Trading Signals] Alert sent.");
+    return { sent, summary: `${strongSignals.length} strong signal(s)`, analyses };
+}
+
+export const testTradingSignals = functions.https.onRequest(async (req, res) => {
+    try {
+        const result = await runTradingSignals();
+        res.json(result);
+    } catch (e: any) {
+        res.status(500).send(e.message);
+    }
+});
+
+export const checkTradingSignals = functions.pubsub.schedule("every 15 minutes").onRun(async (_context) => {
+    try {
+        await runTradingSignals();
+    } catch (e) {
+        console.error("Error en checkTradingSignals:", e);
     }
 });

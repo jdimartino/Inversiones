@@ -41,7 +41,7 @@ const DEFAULT_LIQ_DATA: MultiExchangeLiqData = {
   bybit: {
     name: 'Bybit',
     themeKey: 'bybit',
-    liquidationLTV: 85,
+    liquidationLTV: 92,
     debts: [
       { _id: generateId(), id: 'USDT', amount: 55037.0553, price: 1.0, rate: 3.08 },
       { _id: generateId(), id: 'USDC', amount: 35031.523928, price: 1.0, rate: 2.94 }

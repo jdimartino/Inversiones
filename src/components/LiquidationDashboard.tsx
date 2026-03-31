@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ShieldAlert, TrendingDown, AlertTriangle, Trash2, Plus, Download, Clock, RefreshCw, CheckCircle, XCircle, FlaskConical } from 'lucide-react';
 import { useLiquidationData, DebtItem, CollateralItem } from '../hooks/useLiquidationData';
-import { usePrices } from '../hooks/usePrices';
 
 const generateId = () => {
   const _crypto = typeof window !== 'undefined' ? (window.crypto as any) : null;
@@ -33,36 +32,35 @@ const THEMES = {
   }
 } as const;
 
-export default function LiquidationDashboard() {
+interface LiquidationDashboardProps {
+  prices: Record<string, number>;
+  pricesLoading: boolean;
+  refreshPrices: () => void;
+}
+
+export default function LiquidationDashboard({ prices, pricesLoading, refreshPrices }: LiquidationDashboardProps) {
   const [activeTab, setActiveTab] = useState<'bybit' | 'binance'>('bybit');
   const [toast, setToast] = useState<{message: string; type: 'success' | 'error'} | null>(null);
   const [showSimulator, setShowSimulator] = useState(false);
   const [simulationDrop, setSimulationDrop] = useState(20);
 
-  // Nuevo estado persistido en Firebase
+  // Estado persistido en Firebase (cantidades y config, NO precios live)
   const { exchangeData, saveExchangeData, loading: dataLoading } = useLiquidationData();
-  
-  // Precios en vivo globales de la aplicacion
-  const { prices, loading: pricesLoading, refresh: fetchLivePrices } = usePrices();
 
-  // Actualizar los precios manuales con los precios globales de Binance
-  useEffect(() => {
-    if (Object.keys(prices).length > 0) {
-      saveExchangeData((prev) => {
-        const updatePrices = (items: CollateralItem[]) => items.map(item => {
-          const coinToken = item.id.toUpperCase();
-          const currentMarketPrice = prices[coinToken];
-          return currentMarketPrice ? { ...item, price: currentMarketPrice } : item;
-        });
-        
-        return {
-          ...prev,
-          bybit: { ...prev.bybit, collateral: updatePrices(prev.bybit.collateral) },
-          binance: { ...prev.binance, collateral: updatePrices(prev.binance.collateral) }
-        };
-      });
-    }
-  }, [prices, saveExchangeData]);
+  // Apply live prices to collateral at render-time (no Firebase writes)
+  const liveExchangeData = useMemo(() => {
+    if (Object.keys(prices).length === 0) return exchangeData;
+    const updatePrices = (items: CollateralItem[]) => items.map(item => {
+      const coinToken = item.id.toUpperCase();
+      const currentMarketPrice = prices[coinToken];
+      return currentMarketPrice ? { ...item, price: currentMarketPrice } : item;
+    });
+    return {
+      ...exchangeData,
+      bybit: { ...exchangeData.bybit, collateral: updatePrices(exchangeData.bybit.collateral) },
+      binance: { ...exchangeData.binance, collateral: updatePrices(exchangeData.binance.collateral) }
+    };
+  }, [exchangeData, prices]);
 
   useEffect(() => {
     if (toast) {
@@ -75,11 +73,11 @@ export default function LiquidationDashboard() {
     return <div className="text-center py-10 text-gray-500 animate-pulse">Cargando simulador...</div>;
   }
 
-  const currentData = exchangeData[activeTab];
+  const currentData = liveExchangeData[activeTab];
   const theme = THEMES[currentData.themeKey];
 
   const exportData = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exchangeData, null, 2));
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(liveExchangeData, null, 2));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
     downloadAnchorNode.setAttribute("download", "simulador_prestamos_backup.json");
@@ -213,7 +211,7 @@ export default function LiquidationDashboard() {
           
           <div className="flex flex-wrap gap-3">
             <button 
-              onClick={() => { fetchLivePrices(); setToast({message: 'Sincronizando con mercado...', type: 'success'}); }}
+              onClick={() => { refreshPrices(); setToast({message: 'Sincronizando con mercado...', type: 'success'}); }}
               disabled={pricesLoading}
               className="px-3 py-2 rounded-md bg-[#181A20] border border-blue-900/50 hover:border-blue-700 hover:bg-gray-800 text-blue-400 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
             >

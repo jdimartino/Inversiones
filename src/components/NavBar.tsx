@@ -6,9 +6,10 @@ import {
     PlusCircle,
     Send,
     TrendingUp,
+    Zap,
 } from "lucide-react";
 
-export type TabId = "dashboard" | "graficos" | "prestamos" | "operaciones" | "venta" | "configuracion";
+export type TabId = "dashboard" | "graficos" | "prestamos" | "operaciones" | "venta" | "configuracion" | "senales";
 
 interface Tab {
     id: TabId;
@@ -18,8 +19,9 @@ interface Tab {
 
 const TABS: Tab[] = [
     { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
-    { id: "configuracion", label: "Telegram", icon: <Send className="w-4 h-4" /> },
     { id: "graficos", label: "Gráficos", icon: <BarChart3 className="w-4 h-4" /> },
+    { id: "senales", label: "Señales", icon: <Zap className="w-4 h-4" /> },
+    { id: "configuracion", label: "Telegram", icon: <Send className="w-4 h-4" /> },
     { id: "prestamos", label: "Préstamos", icon: <CreditCard className="w-4 h-4" /> },
     { id: "venta", label: "Venta", icon: <TrendingUp className="w-4 h-4" /> },
     { id: "operaciones", label: "Operaciones", icon: <PlusCircle className="w-4 h-4" /> },

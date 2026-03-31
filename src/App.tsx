@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { Activity, RefreshCw } from "lucide-react";
 import {
   RISK_PARAMS,
@@ -11,6 +11,8 @@ import { usePortfolio } from "./hooks/usePortfolio";
 import { useLoans } from "./hooks/useLoans";
 import { usePrices } from "./hooks/usePrices";
 import { useAlerts, InvestmentAlert, GlobalAlert } from "./hooks/useAlerts";
+import { useSignals } from "./hooks/useSignals";
+import { useFearGreed } from "./hooks/useFearGreed";
 import NavBar, { TabId } from "./components/NavBar";
 import SummaryCards from "./components/SummaryCards";
 import AssetTable from "./components/AssetTable";
@@ -19,6 +21,7 @@ import AnalyticsSection from "./components/AnalyticsSection";
 import InvestmentForm from "./components/InvestmentForm";
 import LiquidationDashboard from "./components/LiquidationDashboard";
 import SellSuite from "./components/SellSuite";
+import SignalsTab from "./components/SignalsTab";
 import EditLoanModal from "./components/EditLoanModal";
 import AlertSettings from "./components/AlertSettings";
 import EditInvestmentModal from "./components/EditInvestmentModal";
@@ -30,6 +33,8 @@ const App: React.FC = () => {
   const { loans, addLoan, updateLoan, removeLoan } = useLoans();
   const { config, saveConfig } = useAlerts();
   const { prices, loading, refresh } = usePrices();
+  const { signals, klinesMap, loading: signalsLoading, error: signalsError, lastUpdated: signalsLastUpdated, fetchSignals, forceRefresh: forceRefreshSignals } = useSignals();
+  const { data: fearGreed, loading: fgLoading } = useFearGreed();
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
   const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
   const [editingInvestment, setEditingInvestment] = useState<ProcessedInvestment | null>(null);
@@ -39,7 +44,20 @@ const App: React.FC = () => {
   const [globalEditIndex, setGlobalEditIndex] = useState<number | null>(null);
   const [investmentEditIndex, setInvestmentEditIndex] = useState<number | null>(null);
 
+  // ── Computed: unique coins in portfolio ──────────────────────────
+  const portfolioCoins = useMemo(() => {
+    return Array.from(new Set(portfolio.map(item => item.coin)));
+  }, [portfolio]);
+
+  // ── Fetch signals when Fear & Greed data and portfolio coins are ready ──
+  const portfolioSet = useMemo(() => new Set(portfolioCoins), [portfolioCoins]);
+  useEffect(() => {
+    fetchSignals(fearGreed ?? undefined, portfolioSet);
+  }, [fearGreed, fetchSignals, portfolioSet]);
+
   // ── Computed: portfolio with live prices ──────────────────────────
+  const hasPrices = Object.keys(prices).length > 0;
+
   const sortedPortfolio = useMemo<ProcessedInvestment[]>(() => {
     return portfolio
       .map((item) => {
@@ -205,6 +223,13 @@ const App: React.FC = () => {
       {/* ── Tab Content ───────────────────────────────────────── */}
       <main className="max-w-6xl mx-auto px-3 md:px-8 py-3 sm:py-6 pb-28 sm:pb-40">
 
+        {!hasPrices && !loading && (
+          <div className="bg-yellow-900/20 border border-yellow-700/50 rounded-lg px-4 py-3 mb-4 flex items-center gap-2 text-yellow-300 text-sm">
+            <RefreshCw className="w-4 h-4" />
+            <span>Precios no disponibles — los valores mostrados pueden no ser actuales.</span>
+          </div>
+        )}
+
         {/* ── DASHBOARD ─────────────────────────────────────────────── */}
         {activeTab === "dashboard" && (
           <div key="dashboard" className={tabClass}>
@@ -236,6 +261,11 @@ const App: React.FC = () => {
               items={sortedPortfolio}
               loans={processedLoans}
               totalValue={totalValue}
+              totalInvested={totalInvested}
+              signals={signals}
+              klinesMap={klinesMap}
+              fearGreed={fearGreed}
+              fearGreedLoading={fgLoading}
             />
           </div>
         )}
@@ -243,7 +273,7 @@ const App: React.FC = () => {
         {/* ── PRÉSTAMOS ─────────────────────────────────────────────── */}
         {activeTab === "prestamos" && (
           <div key="prestamos" className={tabClass}>
-            <LiquidationDashboard />
+            <LiquidationDashboard prices={prices} pricesLoading={loading} refreshPrices={refresh} />
           </div>
         )}
 
@@ -251,6 +281,22 @@ const App: React.FC = () => {
         {activeTab === "venta" && (
           <div key="venta" className={tabClass}>
             <SellSuite preload={sellPreload} />
+          </div>
+        )}
+
+        {/* ── SEÑALES DE TRADING ────────────────────────────────────── */}
+        {activeTab === "senales" && (
+          <div key="senales" className={tabClass}>
+            <SignalsTab
+              portfolioCoins={portfolioCoins}
+              signals={signals}
+              signalsLoading={signalsLoading}
+              signalsError={signalsError}
+              signalsLastUpdated={signalsLastUpdated}
+              fearGreed={fearGreed}
+              fgLoading={fgLoading}
+              onRefresh={() => forceRefreshSignals(fearGreed ?? undefined, portfolioSet)}
+            />
           </div>
         )}
 

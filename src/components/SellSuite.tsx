@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Calculator, AlertCircle, ShieldCheck, Settings,
   ArrowLeft, TrendingUp, AlertTriangle,
@@ -256,53 +256,54 @@ const SellCalculator = ({
   const tpLimit = entryPrice * (1 + tpPercent / 100);
   const secureLimit = entryPrice * (1 + securePercent / 100);
   const secureTrigger = secureLimit * 1.001;
-  const breakEvenTrigger = entryPrice * 1.002;
-  const breakEvenLimit = entryPrice;
+  // Break-even must cover round-trip fees (~0.1% buy + 0.1% sell = 0.2%)
+  const breakEvenLimit = entryPrice * 1.002;
+  const breakEvenTrigger = breakEvenLimit * 1.001;
   const slTrigger = entryPrice * (1 - slPercent / 100);
   const slLimit = slTrigger * 0.999;
 
-  const analyzeMarket = (): {
-    status: AnalysisStatus;
-    title: string;
-    color: string;
-    bgColor: string;
-    bestTool: 'oco' | 'trailing';
-    ocoConfig: { slTrig: number; slLim: number };
-    recommendation: string;
-  } => {
+  const analysis = useMemo(() => {
     if (currentPrice === 0) {
       return {
-        status: 'idle', title: 'Esperando Precio...', color: 'text-slate-400', bgColor: 'bg-slate-800/50 border-slate-700',
-        bestTool: 'oco', ocoConfig: { slTrig: slTrigger, slLim: slLimit },
+        status: 'idle' as AnalysisStatus, title: 'Esperando Precio...', color: 'text-slate-400', bgColor: 'bg-slate-800/50 border-slate-700',
+        bestTool: 'oco' as const, ocoConfig: { slTrig: slTrigger, slLim: slLimit },
         recommendation: 'Cargando datos de mercado para analizar tu posición...'
       };
     }
     if (currentPrice < entryPrice) {
       return {
-        status: 'danger', title: 'Posición en Negativo', color: 'text-red-400', bgColor: 'bg-red-900/20 border-red-800',
-        bestTool: 'oco', ocoConfig: { slTrig: slTrigger, slLim: slLimit },
+        status: 'danger' as AnalysisStatus, title: 'Posición en Negativo', color: 'text-red-400', bgColor: 'bg-red-900/20 border-red-800',
+        bestTool: 'oco' as const, ocoConfig: { slTrig: slTrigger, slLim: slLimit },
         recommendation: `El precio está cayendo (${currentStatus.toFixed(2)}%). Usa OCO para mantener tu meta arriba, pero con un Stop Loss estricto abajo para cortar pérdidas.`
       };
     } else if (currentPrice >= entryPrice && currentPrice < secureTrigger) {
       return {
-        status: 'warning', title: 'Ganancia Leve (Fase 1)', color: 'text-yellow-400', bgColor: 'bg-yellow-900/20 border-yellow-800',
-        bestTool: 'oco', ocoConfig: { slTrig: breakEvenTrigger, slLim: breakEvenLimit },
+        status: 'warning' as AnalysisStatus, title: 'Ganancia Leve (Fase 1)', color: 'text-yellow-400', bgColor: 'bg-yellow-900/20 border-yellow-800',
+        bestTool: 'oco' as const, ocoConfig: { slTrig: breakEvenTrigger, slLim: breakEvenLimit },
         recommendation: `Estás en ganancias leves. Usa OCO para buscar el ${tpPercent}% de ganancia y colocar una red de seguridad en tu precio de entrada (Break-even).`
       };
     } else {
       return {
-        status: 'success', title: '¡Ganancia Asegurable! (Fase 2)', color: 'text-green-400', bgColor: 'bg-green-900/20 border-green-800',
-        bestTool: 'trailing', ocoConfig: { slTrig: secureTrigger, slLim: secureLimit },
+        status: 'success' as AnalysisStatus, title: '¡Ganancia Asegurable! (Fase 2)', color: 'text-green-400', bgColor: 'bg-green-900/20 border-green-800',
+        bestTool: 'trailing' as const, ocoConfig: { slTrig: secureTrigger, slLim: secureLimit },
         recommendation: `¡Ya superaste los ${securePercent}%! El precio es ideal para usar Trailing Stop, o actualizar tu OCO asegurando la ganancia mínima.`
       };
     }
-  };
+  }, [currentPrice, entryPrice, currentStatus, secureTrigger, secureLimit, slTrigger, slLimit, breakEvenTrigger, breakEvenLimit, tpPercent, securePercent]);
 
-  const analysis = analyzeMarket();
-
+  // Only auto-set tab on initial load or when user changes coin/entry, not on every price tick
+  const hasAutoSetTab = useRef(false);
   useEffect(() => {
-    setActiveTab(analysis.bestTool);
+    if (!hasAutoSetTab.current && analysis.status !== 'idle') {
+      setActiveTab(analysis.bestTool);
+      hasAutoSetTab.current = true;
+    }
   }, [analysis.status, analysis.bestTool]);
+
+  // Reset auto-tab when user changes coin or entry price
+  useEffect(() => {
+    hasAutoSetTab.current = false;
+  }, [coin, entryPrice]);
 
   const handleSave = (name: string) => {
     onSaveStrategy(name, { coin, quantity, entryPrice, tpPercent, securePercent, slPercent });
