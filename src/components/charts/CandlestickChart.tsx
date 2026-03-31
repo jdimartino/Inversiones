@@ -49,7 +49,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({ aggregated, klinesM
     const coins = aggregated.filter((a) => a.currentValue > 0).map((a) => a.coin);
 
     const [selectedCoin, setSelectedCoin] = useState<string>(coins[0] || "");
-    const [selectedInterval, setSelectedInterval] = useState<Interval>("1h");
+    const [selectedInterval, setSelectedInterval] = useState<Interval>("4h");
     const [extraKlines, setExtraKlines] = useState<
         Record<string, Partial<Record<Interval, Kline[]>>>
     >({});
@@ -212,6 +212,19 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({ aggregated, klinesM
                 lineStyle: LineStyle.Dashed,
                 axisLabelVisible: true,
                 title: "Promedio",
+            });
+            priceLinesRef.current.push(pl);
+        }
+
+        // Current real-time price line (cyan) — matches Dashboard ticker price
+        if (asset?.currentPrice) {
+            const pl = candleSeriesRef.current!.createPriceLine({
+                price: asset.currentPrice,
+                color: "#22d3ee",
+                lineWidth: 1,
+                lineStyle: LineStyle.Solid,
+                axisLabelVisible: true,
+                title: "Actual",
             });
             priceLinesRef.current.push(pl);
         }
