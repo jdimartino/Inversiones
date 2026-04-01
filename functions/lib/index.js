@@ -114,6 +114,7 @@ async function runCheckAlerts() {
     let maxAlert = 10000;
     let investmentAlerts = {};
     let globalAlerts = [];
+    let watchlistAlerts = {};
     let hasMigratedToGlobalAlertsArray = false;
     if (configSnap.exists) {
         const conf = configSnap.data();
@@ -127,6 +128,12 @@ async function runCheckAlerts() {
         }
         if (conf.investmentAlerts) {
             investmentAlerts = normalizeAlerts(conf.investmentAlerts);
+        }
+        if (conf.watchlistAlerts) {
+            for (const [coin, arr] of Object.entries(conf.watchlistAlerts)) {
+                if (Array.isArray(arr))
+                    watchlistAlerts[coin] = arr;
+            }
         }
     }
     const snap = await db.collection("inversiones").get();
@@ -268,7 +275,42 @@ async function runCheckAlerts() {
             remainingGlobalAlerts.push(rule);
         }
     }
-    const shouldAlert = isLegacyGlobalAlertTriggered || triggeredGlobalMessages.length > 0 || triggeredIndividualMessages.length > 0;
+    // ── Watchlist alerts ──────────────────────────────────────────────────────
+    const triggeredWatchlistMessages = [];
+    const watchlistDbUpdates = {};
+    for (const [coin, rules] of Object.entries(watchlistAlerts)) {
+        const symbol = `${coin}USDT`;
+        const currentPrice = prices[symbol] || 0;
+        if (currentPrice === 0)
+            continue;
+        const remaining = [];
+        for (const rule of rules) {
+            let isTriggered = false;
+            if (rule.direction === 'up' && currentPrice >= rule.targetValue) {
+                isTriggered = true;
+                triggeredWatchlistMessages.push(`👁 *${coin}* alcanzó *${fmtPrice(currentPrice)}* (Watchlist: 🔼 >= ${fmtPrice(rule.targetValue)})`);
+            }
+            else if (rule.direction === 'down' && currentPrice <= rule.targetValue) {
+                isTriggered = true;
+                triggeredWatchlistMessages.push(`👁 *${coin}* bajó a *${fmtPrice(currentPrice)}* (Watchlist: 🔽 <= ${fmtPrice(rule.targetValue)})`);
+            }
+            if (isTriggered) {
+                console.log(`[WATCHLIST] ${coin}: ${currentPrice} — Target: ${rule.direction === 'up' ? '>=' : '<='} ${rule.targetValue} — Tipo: ${rule.isPersistent ? 'PERMANENTE' : 'UNA VEZ'}`);
+                if (rule.isPersistent)
+                    remaining.push(rule);
+            }
+            else {
+                remaining.push(rule);
+            }
+        }
+        if (remaining.length === 0) {
+            watchlistDbUpdates[`watchlistAlerts.${coin}`] = admin.firestore.FieldValue.delete();
+        }
+        else if (remaining.length !== rules.length) {
+            watchlistDbUpdates[`watchlistAlerts.${coin}`] = remaining;
+        }
+    }
+    const shouldAlert = isLegacyGlobalAlertTriggered || triggeredGlobalMessages.length > 0 || triggeredIndividualMessages.length > 0 || triggeredWatchlistMessages.length > 0;
     // ── Always clean legacy assetAlerts field if present (no Telegram needed) ──
     const legacyCleanup = {};
     if (configSnap.exists && ((_a = configSnap.data()) === null || _a === void 0 ? void 0 : _a.assetAlerts) !== undefined) {
@@ -282,6 +324,8 @@ async function runCheckAlerts() {
             message += `*🚨 Alertas Globales:*\n${triggeredGlobalMessages.join("\n")}\n\n`;
         if (triggeredIndividualMessages.length > 0)
             message += `*🎯 Alertas Individuales:*\n${triggeredIndividualMessages.join("\n")}\n`;
+        if (triggeredWatchlistMessages.length > 0)
+            message += `*👁 Watchlist:*\n${triggeredWatchlistMessages.join("\n")}\n`;
         message += `${DIVIDER}\n*PNL Total:* ${pnlSign(globalPNL)}$${fmt(globalPNL)}\n*Invertido:* $${fmt(totalInvested)}\n*Valor Actual:* $${fmt(totalCurrentValue)}\n${DIVIDER}\n*📊 Detalle del Portafolio:*\n`;
         // Fix 1: Message truncation to prevent Telegram 4096 char limit errors
         for (let i = 0; i < assetDetails.length; i++) {
@@ -300,8 +344,9 @@ async function runCheckAlerts() {
             // the alert is permanently lost with no notification sent.
             if (hasGlobalAlertsToRemove)
                 dbUpdates.globalAlerts = remainingGlobalAlerts;
-            if (Object.keys(dbUpdates).length > 0) {
-                await db.collection("config").doc("alerts").update(dbUpdates);
+            const allUpdates = Object.assign(Object.assign({}, dbUpdates), watchlistDbUpdates);
+            if (Object.keys(allUpdates).length > 0) {
+                await db.collection("config").doc("alerts").update(allUpdates);
                 console.log("[CLEANUP] Alertas UNA VEZ eliminadas de Firestore post-envío.");
             }
             await db.collection("notificationLogs").add({
@@ -325,8 +370,9 @@ async function runCheckAlerts() {
         // cleaned up (orphans) even though no notification was sent.
         if (hasGlobalAlertsToRemove)
             dbUpdates.globalAlerts = remainingGlobalAlerts;
-        if (Object.keys(dbUpdates).length > 0) {
-            await db.collection("config").doc("alerts").update(dbUpdates);
+        const allUpdatesNoAlert = Object.assign(Object.assign({}, dbUpdates), watchlistDbUpdates);
+        if (Object.keys(allUpdatesNoAlert).length > 0) {
+            await db.collection("config").doc("alerts").update(allUpdatesNoAlert);
         }
         console.log("Todo dentro de los límites.");
         return { sent: false, summary: "Sin alertas", debug: debugData };

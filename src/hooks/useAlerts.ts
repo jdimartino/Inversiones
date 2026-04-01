@@ -21,11 +21,18 @@ export interface GlobalAlert {
     direction?: 'up' | 'down';
 }
 
+export interface WatchlistAlert {
+    targetValue: number;
+    direction: 'up' | 'down';
+    isPersistent?: boolean;
+}
+
 export interface AlertConfig {
     minPNL?: number; // Legacy
     maxPNL?: number; // Legacy
     globalAlerts?: GlobalAlert[];
     investmentAlerts?: Record<string, InvestmentAlert[]>;
+    watchlistAlerts?: Record<string, WatchlistAlert[]>;
 }
 
 export function useAlerts() {
@@ -74,15 +81,25 @@ export function useAlerts() {
                         }));
                     }
 
+                    // ── Normalize watchlist alerts ─────────────────────────
+                    const rawWatchlist = data.watchlistAlerts ?? {};
+                    const normalizedWatchlist: Record<string, WatchlistAlert[]> = {};
+                    for (const [coin, value] of Object.entries(rawWatchlist)) {
+                        if (Array.isArray(value)) {
+                            normalizedWatchlist[coin] = value as WatchlistAlert[];
+                        }
+                    }
+
                     setConfig({
                         minPNL: data.minPNL ?? -40000,
                         maxPNL: data.maxPNL ?? 10000,
                         investmentAlerts: normalizedAlerts,
                         globalAlerts: normalizedGlobalAlerts,
+                        watchlistAlerts: normalizedWatchlist,
                     });
                 } else {
                     // Si no existe, inicializamos con defecto o limpiamos
-                    setConfig({ minPNL: -40000, maxPNL: 10000, investmentAlerts: {}, globalAlerts: [] });
+                    setConfig({ minPNL: -40000, maxPNL: 10000, investmentAlerts: {}, globalAlerts: [], watchlistAlerts: {} });
                 }
                 setLoading(false);
             },

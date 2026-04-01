@@ -1,12 +1,11 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
     createChart,
-    CandlestickSeries,
-    HistogramSeries,
     ColorType,
     LineStyle,
     CrosshairMode,
     IChartApi,
+    ISeriesApi,
 } from "lightweight-charts";
 import { AggregatedAsset, ProcessedInvestment } from "../../lib/constants";
 import type { Kline } from "../../lib/types/signals";
@@ -57,11 +56,9 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({ aggregated, klinesM
 
     const chartContainerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<IChartApi | null>(null);
-    const priceLinesRef = useRef<ReturnType<
-        ReturnType<IChartApi["addSeries"]>["createPriceLine"]
-    >[]>([]);
-    const candleSeriesRef = useRef<ReturnType<IChartApi["addSeries"]> | null>(null);
-    const volumeSeriesRef = useRef<ReturnType<IChartApi["addSeries"]> | null>(null);
+    const priceLinesRef = useRef<ReturnType<ISeriesApi<"Candlestick">["createPriceLine"]>[]>([]);
+    const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+    const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
 
     const getCurrentKlines = useCallback((): Kline[] => {
         if (selectedInterval === "1h") return klinesMap[selectedCoin] || [];
@@ -114,7 +111,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({ aggregated, klinesM
             height: 320,
         });
 
-        const candleSeries = chart.addSeries(CandlestickSeries, {
+        const candleSeries = (chart as any).addCandlestickSeries({
             upColor: "#4ade80",
             downColor: "#f87171",
             borderUpColor: "#4ade80",
@@ -123,7 +120,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({ aggregated, klinesM
             wickDownColor: "#f87171",
         });
 
-        const volumeSeries = chart.addSeries(HistogramSeries, {
+        const volumeSeries = (chart as any).addHistogramSeries({
             color: "#26a69a",
             priceFormat: { type: "volume" },
             priceScaleId: "vol",
@@ -230,7 +227,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({ aggregated, klinesM
         }
 
         chartRef.current?.timeScale().fitContent();
-        candleSeriesRef.current?.priceScale().setAutoScale(true);
+        candleSeriesRef.current?.priceScale().applyOptions({ autoScale: true });
     }, [selectedCoin, selectedInterval, extraKlines, klinesMap, aggregated, items]);
 
     if (coins.length === 0) return null;

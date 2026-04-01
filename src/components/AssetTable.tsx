@@ -70,45 +70,39 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                                     >
                                         {item.coin}
                                     </div>
-                                    <div className="flex-1 text-center">
-                                        <p className={`font-bold text-sm ${getCoinTextColor(item.coin)}`}>{item.coin}</p>
-                                        <p className={`text-[13px] font-mono font-bold tracking-tight ${getCoinTextColor(item.coin)}`}>
+                                    <div className="flex-1 flex items-center gap-1.5 flex-wrap">
+                                        <span className={`font-bold text-sm ${getCoinTextColor(item.coin)}`}>{item.coin}</span>
+                                        <span className={`text-[13px] font-mono font-bold tracking-tight ${getCoinTextColor(item.coin)}`}>
                                             {fmt(item.quantity)} u.
-                                        </p>
-                                        <p className="text-[10px] text-slate-500 mt-0.5">
-                                            📅 {fmtDate(item.date)}
-                                        </p>
+                                        </span>
+                                        <span className="text-[10px] text-slate-500">
+                                            · {fmtDate(item.date)}
+                                        </span>
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-1.5 text-sm">
-                                    <div className="bg-slate-900/40 p-1.5 rounded-lg border border-slate-700/50 text-center">
-                                        <p className="text-[9px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Precio Compra</p>
-                                        <p className="text-slate-400 font-mono text-[11px] italic">{fmtPrice(item.buyPrice)}</p>
+                                <div className="grid grid-cols-2 gap-2 text-sm">
+                                    <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50 text-center">
+                                        <p className="text-[10px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Precio Compra</p>
+                                        <p className="text-slate-400 font-mono text-[13px] italic">{fmtPrice(item.buyPrice)}</p>
                                     </div>
-                                    <div className="bg-slate-900/40 p-1.5 rounded-lg border border-slate-700/50 text-center">
-                                        <p className="text-[9px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Precio Actual</p>
-                                        <p className="text-yellow-300 font-mono text-[11px] font-bold">{fmtPrice(item.currentPrice)}</p>
+                                    <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50 text-center">
+                                        <p className="text-[10px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Precio Actual</p>
+                                        <p className="text-yellow-300 font-mono text-[13px] font-bold">{fmtPrice(item.currentPrice)}</p>
                                     </div>
-                                    <div className="bg-slate-900/40 p-1.5 rounded-lg border border-slate-700/50 text-center">
-                                        <p className="text-[9px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Valor Total</p>
-                                        <p className="text-emerald-300 font-mono text-[11px] font-bold">{fmtUSD(item.currentValue)}</p>
+                                    <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50 text-center">
+                                        <p className="text-[10px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Valor Total</p>
+                                        <p className="text-emerald-300 font-mono text-[13px] font-bold">{fmtUSD(item.currentValue)}</p>
                                     </div>
-                                    <div className="bg-slate-900/40 p-1.5 rounded-lg border border-slate-700/50 text-center">
-                                        <p className="text-[9px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">PNL Neto</p>
-                                        <div
-                                            className={`font-bold text-sm ${item.profit >= 0 ? "text-green-400" : "text-red-400"
-                                                }`}
-                                        >
-                                            {item.profit >= 0 ? "+" : ""}
-                                            {fmtUSD(item.profit)}
-                                        </div>
-                                        <div
-                                            className={`text-[11px] font-bold tracking-tight ${item.profit >= 0 ? "text-green-600" : "text-red-600"
-                                                }`}
-                                        >
-                                            {item.profit >= 0 ? "+" : ""}
-                                            {item.roi.toFixed(2)}%
+                                    <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50 text-center">
+                                        <p className="text-[10px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">PNL Neto</p>
+                                        <div className="flex items-baseline justify-center gap-1.5">
+                                            <span className={`font-bold text-sm ${item.profit >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                                {item.profit >= 0 ? "+" : ""}{fmtUSD(item.profit)}
+                                            </span>
+                                            <span className={`text-[13px] font-bold ${item.profit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                                {item.profit >= 0 ? "+" : ""}{item.roi.toFixed(2)}%
+                                            </span>
                                         </div>
                                     </div>
                                 </div>

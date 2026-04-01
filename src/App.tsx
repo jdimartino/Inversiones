@@ -10,7 +10,7 @@ import {
 import { usePortfolio } from "./hooks/usePortfolio";
 import { useLoans } from "./hooks/useLoans";
 import { usePrices } from "./hooks/usePrices";
-import { useAlerts, InvestmentAlert, GlobalAlert } from "./hooks/useAlerts";
+import { useAlerts, InvestmentAlert, GlobalAlert, WatchlistAlert } from "./hooks/useAlerts";
 import { useSignals } from "./hooks/useSignals";
 import { useFearGreed } from "./hooks/useFearGreed";
 import NavBar, { TabId } from "./components/NavBar";
@@ -27,6 +27,7 @@ import AlertSettings from "./components/AlertSettings";
 import EditInvestmentModal from "./components/EditInvestmentModal";
 import InvestmentAlertModal from "./components/InvestmentAlertModal";
 import GlobalAlertModal from "./components/GlobalAlertModal";
+import WatchlistAlertModal from "./components/WatchlistAlertModal";
 
 const App: React.FC = () => {
   const { portfolio, addInvestment, removeInvestment, updateInvestment } = usePortfolio();
@@ -41,6 +42,7 @@ const App: React.FC = () => {
   const [alertingInvestment, setAlertingInvestment] = useState<ProcessedInvestment | null>(null);
   const [sellPreload, setSellPreload] = useState<ProcessedInvestment | null>(null);
   const [isGlobalAlertModalOpen, setIsGlobalAlertModalOpen] = useState(false);
+  const [isWatchlistModalOpen, setIsWatchlistModalOpen] = useState(false);
   const [globalEditIndex, setGlobalEditIndex] = useState<number | null>(null);
   const [investmentEditIndex, setInvestmentEditIndex] = useState<number | null>(null);
 
@@ -167,6 +169,10 @@ const App: React.FC = () => {
 
   const handleSaveGlobalAlerts = useCallback(async (alerts: GlobalAlert[]) => {
     await saveConfig({ ...config, globalAlerts: alerts });
+  }, [config, saveConfig]);
+
+  const handleSaveWatchlistAlerts = useCallback(async (alerts: Record<string, WatchlistAlert[]>) => {
+    await saveConfig({ ...config, watchlistAlerts: alerts });
   }, [config, saveConfig]);
 
   // Save ALL alerts for a single asset at once (from the modal)
@@ -320,6 +326,7 @@ const App: React.FC = () => {
               saveConfig={saveConfig}
               onEditGlobal={handleEditGlobalAlert}
               onEditInvestment={handleEditInvestmentAlert}
+              onOpenWatchlist={() => setIsWatchlistModalOpen(true)}
             />
           </div>
         )}
@@ -339,6 +346,13 @@ const App: React.FC = () => {
           onSaveAlerts={handleSaveAllAlertsForAsset}
           onClose={handleCloseAlertModal}
           initialEditIndex={investmentEditIndex}
+        />
+      )}
+      {isWatchlistModalOpen && (
+        <WatchlistAlertModal
+          currentAlerts={config.watchlistAlerts || {}}
+          onSaveAlerts={handleSaveWatchlistAlerts}
+          onClose={() => setIsWatchlistModalOpen(false)}
         />
       )}
       {isGlobalAlertModalOpen && (

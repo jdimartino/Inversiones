@@ -18,26 +18,26 @@ const SummaryCards: React.FC<SummaryCardsProps> = React.memo(
                 <Wallet className="w-4 h-4 text-blue-400" /> Resumen Spot
             </h2>
             <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-3 sm:mb-6">
-                <div className="bg-slate-800 p-2.5 sm:p-5 rounded-lg sm:rounded-xl border border-slate-700 relative shadow-lg overflow-hidden">
-                    <p className="text-[9px] sm:text-[10px] text-slate-500 uppercase font-bold relative z-10 text-center sm:text-left">
+                <div className="bg-slate-800 p-3 sm:p-5 rounded-lg sm:rounded-xl border border-slate-700 relative shadow-lg overflow-hidden">
+                    <p className="text-[10px] sm:text-[10px] text-slate-500 uppercase font-bold relative z-10 text-center sm:text-left">
                         Invertido
                     </p>
-                    <p className="text-[13px] sm:text-2xl font-bold text-white relative z-10 leading-tight text-center sm:text-left">
+                    <p className="text-sm sm:text-2xl font-bold text-white relative z-10 leading-tight text-center sm:text-left">
                         {fmtUSD(totalInvested)}
                     </p>
                     <DollarSign className="hidden sm:block absolute right-4 top-4 text-slate-700 w-10 h-10 opacity-20 pointer-events-none" />
                 </div>
-                <div className="bg-slate-800 p-2.5 sm:p-5 rounded-lg sm:rounded-xl border border-slate-700 relative shadow-lg overflow-hidden">
-                    <p className="text-[9px] sm:text-[10px] text-slate-500 uppercase font-bold relative z-10 text-center sm:text-left">
+                <div className="bg-slate-800 p-3 sm:p-5 rounded-lg sm:rounded-xl border border-slate-700 relative shadow-lg overflow-hidden">
+                    <p className="text-[10px] sm:text-[10px] text-slate-500 uppercase font-bold relative z-10 text-center sm:text-left">
                         Valor
                     </p>
-                    <p className="text-[13px] sm:text-2xl font-bold text-blue-300 relative z-10 leading-tight text-center sm:text-left">
+                    <p className="text-sm sm:text-2xl font-bold text-blue-300 relative z-10 leading-tight text-center sm:text-left">
                         {fmtUSD(totalValue)}
                     </p>
                     <PieChart className="hidden sm:block absolute right-4 top-4 text-slate-700 w-10 h-10 opacity-20 pointer-events-none" />
                 </div>
                 <div
-                    className={`p-2.5 sm:p-5 rounded-lg sm:rounded-xl border shadow-lg relative overflow-hidden ${totalPnl >= 0
+                    className={`p-3 sm:p-5 rounded-lg sm:rounded-xl border shadow-lg relative overflow-hidden ${totalPnl >= 0
                         ? "bg-green-900/10 border-green-900/50"
                         : "bg-red-900/10 border-red-900/50"
                         }`}
@@ -66,18 +66,18 @@ const SummaryCards: React.FC<SummaryCardsProps> = React.memo(
                             </svg>
                         </button>
                     )}
-                    <p className="text-[9px] sm:text-[10px] text-slate-500 uppercase font-bold relative z-10 text-center sm:text-left">
+                    <p className="text-[10px] sm:text-[10px] text-slate-500 uppercase font-bold relative z-10 text-center sm:text-left">
                         PNL
                     </p>
                     <p
-                        className={`text-[13px] sm:text-2xl font-bold relative z-10 leading-tight text-center sm:text-left ${totalPnl >= 0 ? "text-green-400" : "text-red-400"
+                        className={`text-sm sm:text-2xl font-bold relative z-10 leading-tight text-center sm:text-left ${totalPnl >= 0 ? "text-green-400" : "text-red-400"
                             }`}
                     >
                         {totalPnl >= 0 ? "+" : ""}
                         {fmtUSD(totalPnl)}
                     </p>
                     <p
-                        className={`text-[9px] sm:text-sm font-bold mt-0.5 sm:mt-1 relative z-10 text-center sm:text-left ${totalPnl >= 0 ? "text-green-500" : "text-red-500"
+                        className={`text-[10px] sm:text-sm font-bold mt-0.5 sm:mt-1 relative z-10 text-center sm:text-left ${totalPnl >= 0 ? "text-green-500" : "text-red-500"
                             }`}
                     >
                         {totalRoi.toFixed(2)}%

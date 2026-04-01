@@ -10,6 +10,10 @@
             "es2015"
         ],
         "jsx": "react-jsx",
-        "downlevelIteration": true
+        "downlevelIteration": true,
+        "baseUrl": ".",
+        "paths": {
+            "lightweight-charts": ["node_modules/lightweight-charts/dist/typings.d.ts"]
+        }
     }
 }

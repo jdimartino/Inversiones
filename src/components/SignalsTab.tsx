@@ -86,9 +86,6 @@ export default function SignalsTab({
         </p>
       </div>
 
-      {/* Market Sentiment */}
-      <MarketSentiment data={fearGreed} loading={fgLoading} />
-
       {/* Summary bar */}
       {signals.length > 0 && (
         <div className="flex items-center gap-3 bg-slate-800/50 rounded-lg px-4 py-2.5 border border-slate-700/50">
@@ -166,6 +163,9 @@ export default function SignalsTab({
           </div>
         </div>
       )}
+
+      {/* Market Sentiment */}
+      <MarketSentiment data={fearGreed} loading={fgLoading} />
 
       {/* News */}
       <CryptoNews news={news} loading={newsLoading} />
