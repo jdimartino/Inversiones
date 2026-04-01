@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { doc, onSnapshot, updateDoc } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc, deleteField } from "firebase/firestore";
 import { db } from "../lib/firebase";
 
 // NOTE: setDoc with { merge: true } is used instead of plain setDoc to avoid
@@ -122,14 +122,26 @@ export function useAlerts() {
             // JSON stringification is the most robust way to strip all undefined properties.
             const cleanConfig = JSON.parse(JSON.stringify(newConfig));
 
-            // We use updateDoc (acting on specific fields) instead of setDoc to prevent
-            // overwriting the entire document and recreating any legacy nested fields that
-            // might be floating around, while also respecting Cloud Function deletions.
-            // But since newConfig has all fields (globalAlerts, investmentAlerts, minPNL, maxPNL),
-            // updateDoc will effectively merge these top-level fields safely.
+            // Use dotted-path notation for watchlistAlerts so we update individual coin
+            // sub-keys rather than replacing the entire map. This prevents a race condition
+            // where stale frontend state could restore a "1 vez" alert that the Cloud
+            // Function already deleted from Firestore.
             const docRef = doc(db, "config", "alerts");
-            await updateDoc(docRef, cleanConfig);
-            
+            const { watchlistAlerts, ...restConfig } = cleanConfig;
+            const updates: Record<string, unknown> = { ...restConfig };
+            if (watchlistAlerts && typeof watchlistAlerts === "object") {
+                for (const [coin, rules] of Object.entries(watchlistAlerts)) {
+                    updates[`watchlistAlerts.${coin}`] = rules;
+                }
+                // If a coin was removed entirely (not present in newConfig), delete its key.
+                for (const coin of Object.keys(config.watchlistAlerts ?? {})) {
+                    if (!(coin in watchlistAlerts)) {
+                        updates[`watchlistAlerts.${coin}`] = deleteField();
+                    }
+                }
+            }
+            await updateDoc(docRef, updates as any);
+
             return true;
         } catch (e) {
             console.error("Error saving alerts", e);

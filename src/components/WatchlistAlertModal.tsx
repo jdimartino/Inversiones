@@ -290,11 +290,17 @@ export default function WatchlistAlertModal({ currentAlerts, onSaveAlerts, onClo
                             </button>
                         </div>
 
-                        <p className={`text-center text-[11px] font-bold mb-3 ${direction === 'up' ? "text-green-400" : "text-red-400"}`}>
-                            {selectedCoin
-                                ? `Notificar cuando ${selectedCoin} ${direction === 'up' ? "suba a" : "baje a"} ${fmtPrice(targetValue)}`
-                                : "Seleccioná una moneda para continuar"}
-                        </p>
+                        {selectedPrice > 0 && ((direction === 'up' && selectedPrice >= targetValue) || (direction === 'down' && selectedPrice <= targetValue)) ? (
+                            <p className="text-center text-[11px] font-bold mb-3 text-yellow-400">
+                                ⚠️ El precio actual ya {direction === 'up' ? 'supera' : 'está por debajo de'} {fmtPrice(targetValue)} — se disparará en el próximo ciclo
+                            </p>
+                        ) : (
+                            <p className={`text-center text-[11px] font-bold mb-3 ${direction === 'up' ? "text-green-400" : "text-red-400"}`}>
+                                {selectedCoin
+                                    ? `Notificar cuando ${selectedCoin} ${direction === 'up' ? "suba a" : "baje a"} ${fmtPrice(targetValue)}`
+                                    : "Seleccioná una moneda para continuar"}
+                            </p>
+                        )}
 
                         {/* Persistence */}
                         <div className="grid grid-cols-2 gap-2 mb-3">
@@ -315,7 +321,11 @@ export default function WatchlistAlertModal({ currentAlerts, onSaveAlerts, onClo
                         <button
                             onClick={handleAdd}
                             disabled={!selectedCoin || targetValue <= 0}
-                            className="w-full flex items-center justify-center gap-1.5 bg-blue-500 text-white font-bold py-2.5 rounded-lg hover:bg-blue-400 transition-all shadow-md shadow-blue-500/20 active:scale-[0.98] disabled:opacity-50 text-xs"
+                            className={`w-full flex items-center justify-center gap-1.5 font-bold py-2.5 rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 text-xs ${
+                                selectedPrice > 0 && ((direction === 'up' && selectedPrice >= targetValue) || (direction === 'down' && selectedPrice <= targetValue))
+                                    ? "bg-yellow-500 text-slate-900 hover:bg-yellow-400 shadow-md shadow-yellow-500/20"
+                                    : "bg-blue-500 text-white hover:bg-blue-400 shadow-md shadow-blue-500/20"
+                            }`}
                         >
                             <Plus className="w-3.5 h-3.5" />
                             Agregar Alerta

@@ -355,6 +355,7 @@ async function runCheckAlerts() {
                 globalPNL: Math.round(globalPNL),
                 triggeredAssets: triggeredIndividualMessages,
                 triggeredGlobalAlerts: triggeredGlobalMessages,
+                triggeredWatchlistAlerts: triggeredWatchlistMessages,
                 totalInvested: Math.round(totalInvested),
                 totalCurrentValue: Math.round(totalCurrentValue),
             });
@@ -379,7 +380,7 @@ async function runCheckAlerts() {
     }
 }
 // ─── Cloud Functions ───────────────────────────────────────────────────────────
-exports.debugAlerts = functions.https.onRequest(async (req, res) => {
+exports.debugAlerts = functions.region('europe-west1').https.onRequest(async (req, res) => {
     try {
         const doc = await db.collection("config").doc("alerts").get();
         res.json(doc.data());
@@ -388,7 +389,7 @@ exports.debugAlerts = functions.https.onRequest(async (req, res) => {
         res.status(500).send(e.message);
     }
 });
-exports.debugInversiones = functions.https.onRequest(async (req, res) => {
+exports.debugInversiones = functions.region('europe-west1').https.onRequest(async (req, res) => {
     try {
         const snap = await db.collection("inversiones").get();
         const data = [];
@@ -399,7 +400,7 @@ exports.debugInversiones = functions.https.onRequest(async (req, res) => {
         res.status(500).send(e.message);
     }
 });
-exports.debugLogs = functions.https.onRequest(async (req, res) => {
+exports.debugLogs = functions.region('europe-west1').https.onRequest(async (req, res) => {
     try {
         const snap = await db.collection("notificationLogs").orderBy("sentAt", "desc").limit(10).get();
         const data = [];
@@ -410,7 +411,7 @@ exports.debugLogs = functions.https.onRequest(async (req, res) => {
         res.status(500).send(e.message);
     }
 });
-exports.setupTestAlerts = functions.https.onRequest(async (req, res) => {
+exports.setupTestAlerts = functions.region('europe-west1').https.onRequest(async (req, res) => {
     try {
         const docRef = db.collection("config").doc("alerts");
         const doc = await docRef.get();
@@ -437,7 +438,7 @@ exports.setupTestAlerts = functions.https.onRequest(async (req, res) => {
         res.status(500).send(e.message);
     }
 });
-exports.testAlerts = functions.https.onRequest(async (req, res) => {
+exports.testAlerts = functions.region('europe-west1').https.onRequest(async (req, res) => {
     try {
         const result = await runCheckAlerts();
         res.json(result);
@@ -446,7 +447,7 @@ exports.testAlerts = functions.https.onRequest(async (req, res) => {
         res.status(500).send(e.message);
     }
 });
-exports.checkPNLAlerts = functions.pubsub.schedule("every 15 minutes").onRun(async (_context) => {
+exports.checkPNLAlerts = functions.region('europe-west1').pubsub.schedule("every 15 minutes").onRun(async (_context) => {
     try {
         await runCheckAlerts();
     }
@@ -639,7 +640,7 @@ async function runTradingSignals() {
         console.log("[Trading Signals] Alert sent.");
     return { sent, summary: `${strongSignals.length} strong signal(s)`, analyses };
 }
-exports.testTradingSignals = functions.https.onRequest(async (req, res) => {
+exports.testTradingSignals = functions.region('europe-west1').https.onRequest(async (req, res) => {
     try {
         const result = await runTradingSignals();
         res.json(result);
@@ -648,7 +649,7 @@ exports.testTradingSignals = functions.https.onRequest(async (req, res) => {
         res.status(500).send(e.message);
     }
 });
-exports.checkTradingSignals = functions.pubsub.schedule("every 15 minutes").onRun(async (_context) => {
+exports.checkTradingSignals = functions.region('europe-west1').pubsub.schedule("every 15 minutes").onRun(async (_context) => {
     try {
         await runTradingSignals();
     }

@@ -28,6 +28,185 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
     return (
         <div className="space-y-3 md:space-y-4">
 
+            {/* ── Watchlist Alerts ──────────────────── */}
+            <div className="bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 md:p-4">
+                <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-bold text-slate-200 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                        <Eye className="w-3.5 h-3.5 text-blue-400" /> Watchlist
+                    </h3>
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-slate-500 bg-slate-900/80 px-2 py-0.5 rounded-full border border-slate-700/50 font-bold">
+                            {Object.values(config.watchlistAlerts || {}).reduce((sum, a) => sum + a.length, 0)}
+                        </span>
+                        {onOpenWatchlist && (
+                            <button
+                                onClick={onOpenWatchlist}
+                                className="flex items-center gap-1 text-[10px] font-bold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-1 rounded-lg hover:bg-blue-500/20 transition-colors"
+                            >
+                                <Plus className="w-3 h-3" /> Nueva
+                            </button>
+                        )}
+                    </div>
+                </div>
+                {config.watchlistAlerts && Object.keys(config.watchlistAlerts).length > 0 ? (
+                    <div className="space-y-2">
+                        {Object.entries(config.watchlistAlerts).map(([coin, alerts]) => {
+                            if (!Array.isArray(alerts) || alerts.length === 0) return null;
+                            return (
+                                <div key={coin} className="bg-slate-900/60 border border-slate-700/40 rounded-lg p-2.5">
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-bold text-blue-400 text-sm">{coin}</span>
+                                            {prices[coin] > 0 && (
+                                                <span className="text-base font-bold text-white font-mono">
+                                                    {fmtPrice(prices[coin])}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <span className="text-[9px] text-slate-500 font-bold">{alerts.length} alerta{alerts.length !== 1 ? "s" : ""}</span>
+                                    </div>
+                                    <div className="space-y-1">
+                                        {(alerts as WatchlistAlert[]).map((alert, index) => (
+                                            <div key={index} className="flex items-center justify-between bg-slate-800/60 px-2.5 py-1.5 rounded-md">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className={`text-[11px] font-bold flex items-center gap-1 ${alert.direction === 'up' ? 'text-green-400' : 'text-red-400'}`}>
+                                                        {alert.direction === 'up' ? <TrendingUp className="w-3 h-3 shrink-0" /> : <TrendingDown className="w-3 h-3 shrink-0" />}
+                                                        {fmtPrice(alert.targetValue)}
+                                                    </span>
+                                                    {alert.isPersistent ? (
+                                                        <span className="flex items-center gap-0.5 text-[8px] bg-yellow-500/10 text-yellow-400 px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap">
+                                                            <Repeat className="w-2 h-2" /> Perm.
+                                                        </span>
+                                                    ) : (
+                                                        <span className="flex items-center gap-0.5 text-[8px] bg-slate-700/50 text-slate-500 px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap">
+                                                            <Clock className="w-2 h-2" /> 1 vez
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <button
+                                                    onClick={async () => {
+                                                        if (savingId) return;
+                                                        setSavingId(`watch-${coin}-${index}`);
+                                                        const newWatchlist = { ...(config.watchlistAlerts || {}) };
+                                                        const updated = (newWatchlist[coin] || []).filter((_, i) => i !== index);
+                                                        if (updated.length === 0) delete newWatchlist[coin];
+                                                        else newWatchlist[coin] = updated;
+                                                        await saveConfig({ ...config, watchlistAlerts: newWatchlist });
+                                                        setSavingId(null);
+                                                    }}
+                                                    disabled={savingId === `watch-${coin}-${index}`}
+                                                    className="text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors p-1 rounded-md disabled:opacity-50"
+                                                >
+                                                    {savingId === `watch-${coin}-${index}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <p className="text-[11px] text-slate-600 italic text-center py-3 bg-slate-900/40 rounded-lg border border-slate-700/30">
+                        Sin alertas watchlist. Usa "+ Nueva" para monitorear precios.
+                    </p>
+                )}
+            </div>
+
+            {/* ── Individual Alerts ─────────────────── */}
+            <div className="bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 md:p-4">
+                <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-bold text-slate-200 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                        🔔 Alertas Individuales
+                    </h3>
+                    <span className="text-[10px] text-slate-500 bg-slate-900/80 px-2 py-0.5 rounded-full border border-slate-700/50 font-bold">
+                        {individualCount}
+                    </span>
+                </div>
+                {config.investmentAlerts && Object.keys(config.investmentAlerts).length > 0 ? (
+                    <div className="space-y-2">
+                        {Object.entries(config.investmentAlerts).map(([id, alerts]) => {
+                            const inv = portfolio.find((i) => i.id === id);
+                            const coinName = inv ? inv.coin : "Desconocido";
+                            const currentPrice = inv ? (prices[inv.coin] || inv.buyPrice) : 0;
+                            if (!Array.isArray(alerts) || alerts.length === 0) return null;
+
+                            return (
+                                <div key={id} className="bg-slate-900/60 border border-slate-700/40 rounded-lg p-2.5">
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-bold text-yellow-400 text-sm">{coinName}</span>
+                                            {currentPrice > 0 && (
+                                                <span className="text-base font-bold text-white font-mono">
+                                                    {fmtPrice(currentPrice)}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <span className="text-[9px] text-slate-500 font-bold">
+                                            {alerts.length} alerta{alerts.length !== 1 ? "s" : ""}
+                                        </span>
+                                    </div>
+                                    <div className="space-y-1">
+                                        {alerts.map((alert: InvestmentAlert, index: number) => (
+                                            <div key={index} className="flex items-center justify-between bg-slate-800/60 px-2.5 py-1.5 rounded-md">
+                                                <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                                                    <span className={`text-[11px] font-bold flex items-center gap-1 whitespace-nowrap ${alert.type === 'price' ? 'text-yellow-400' : (alert.targetPercent >= 0 ? "text-green-400" : "text-red-400")}`}>
+                                                        {alert.direction === 'up' ? <TrendingUp className="w-3 h-3 shrink-0" /> : <TrendingDown className="w-3 h-3 shrink-0" />}
+                                                        {alert.type === 'price' ? fmtPrice(alert.targetValue || 0) : `${alert.targetPercent >= 0 ? "+" : ""}${alert.targetPercent}%`}
+                                                    </span>
+                                                    <span className="text-[8px] text-slate-500 uppercase font-bold tracking-wide bg-slate-900/60 px-1 py-0.5 rounded border border-slate-700/50">
+                                                        {alert.type === 'price' ? 'Precio' : 'ROI'}
+                                                    </span>
+                                                    {alert.isPersistent ? (
+                                                        <span className="flex items-center gap-0.5 text-[8px] bg-yellow-500/10 text-yellow-400 px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap">
+                                                            <Repeat className="w-2 h-2" /> Perm.
+                                                        </span>
+                                                    ) : (
+                                                        <span className="flex items-center gap-0.5 text-[8px] bg-slate-700/50 text-slate-500 px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap">
+                                                            <Clock className="w-2 h-2" /> 1 vez
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center shrink-0">
+                                                    <button
+                                                        onClick={() => onEditInvestment && onEditInvestment(id, index)}
+                                                        className="text-slate-500 hover:bg-blue-500/10 hover:text-blue-400 transition-colors p-1 rounded-md"
+                                                        title="Editar alerta"
+                                                    >
+                                                        <Edit2 className="w-3 h-3" />
+                                                    </button>
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (savingId) return;
+                                                            setSavingId(`inv-${id}-${index}`);
+                                                            const newAlerts = { ...config.investmentAlerts };
+                                                            const updated = (newAlerts[id] || []).filter((_, i) => i !== index);
+                                                            if (updated.length === 0) delete newAlerts[id];
+                                                            else newAlerts[id] = updated;
+                                                            await saveConfig({ ...config, investmentAlerts: newAlerts });
+                                                            setSavingId(null);
+                                                        }}
+                                                        disabled={savingId === `inv-${id}-${index}`}
+                                                        className="text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors p-1 rounded-md disabled:opacity-50"
+                                                        title="Eliminar esta alerta"
+                                                    >
+                                                        {savingId === `inv-${id}-${index}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <p className="text-[11px] text-slate-600 italic text-center py-3 bg-slate-900/40 rounded-lg border border-slate-700/30">
+                        Sin alertas individuales. Usa 🔔 en la tabla de activos.
+                    </p>
+                )}
+            </div>
+
             {/* ── Global Alerts ─────────────────────── */}
             <div className="bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 md:p-4">
                 <div className="flex items-center justify-between mb-3">
@@ -91,178 +270,6 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                 )}
             </div>
 
-            {/* ── Individual Alerts ─────────────────── */}
-            <div className="bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 md:p-4">
-                <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-bold text-slate-200 text-xs uppercase tracking-wider flex items-center gap-1.5">
-                        🔔 Alertas Individuales
-                    </h3>
-                    <span className="text-[10px] text-slate-500 bg-slate-900/80 px-2 py-0.5 rounded-full border border-slate-700/50 font-bold">
-                        {individualCount}
-                    </span>
-                </div>
-                {config.investmentAlerts && Object.keys(config.investmentAlerts).length > 0 ? (
-                    <div className="space-y-2">
-                        {Object.entries(config.investmentAlerts).map(([id, alerts]) => {
-                            const inv = portfolio.find((i) => i.id === id);
-                            const coinName = inv ? inv.coin : "Desconocido";
-                            const currentPrice = inv ? (prices[inv.coin] || inv.buyPrice) : 0;
-                            if (!Array.isArray(alerts) || alerts.length === 0) return null;
-
-                            return (
-                                <div key={id} className="bg-slate-900/60 border border-slate-700/40 rounded-lg p-2.5">
-                                    <div className="flex items-center justify-between mb-1.5">
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="font-bold text-yellow-400 text-xs">{coinName}</span>
-                                            {currentPrice > 0 && (
-                                                <span className="text-[10px] text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700/50 font-mono">
-                                                    {fmtPrice(currentPrice)}
-                                                </span>
-                                            )}
-                                        </div>
-                                        <span className="text-[9px] text-slate-500 font-bold">
-                                            {alerts.length} alerta{alerts.length !== 1 ? "s" : ""}
-                                        </span>
-                                    </div>
-                                    <div className="space-y-1">
-                                        {alerts.map((alert: InvestmentAlert, index: number) => (
-                                            <div key={index} className="flex items-center justify-between bg-slate-800/60 px-2.5 py-1.5 rounded-md">
-                                                <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-                                                    <span className={`text-xs font-bold flex items-center gap-1 whitespace-nowrap ${alert.type === 'price' ? 'text-yellow-400' : (alert.targetPercent >= 0 ? "text-green-400" : "text-red-400")}`}>
-                                                        {alert.direction === 'up' ? <TrendingUp className="w-3 h-3 shrink-0" /> : <TrendingDown className="w-3 h-3 shrink-0" />}
-                                                        {alert.type === 'price' ? fmtPrice(alert.targetValue || 0) : `${alert.targetPercent >= 0 ? "+" : ""}${alert.targetPercent}%`}
-                                                    </span>
-                                                    <span className="text-[8px] text-slate-500 uppercase font-bold tracking-wide bg-slate-900/60 px-1 py-0.5 rounded border border-slate-700/50">
-                                                        {alert.type === 'price' ? 'Precio' : 'ROI'}
-                                                    </span>
-                                                    {alert.isPersistent ? (
-                                                        <span className="flex items-center gap-0.5 text-[8px] bg-yellow-500/10 text-yellow-400 px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap">
-                                                            <Repeat className="w-2 h-2" /> Perm.
-                                                        </span>
-                                                    ) : (
-                                                        <span className="flex items-center gap-0.5 text-[8px] bg-slate-700/50 text-slate-500 px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap">
-                                                            <Clock className="w-2 h-2" /> 1 vez
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="flex items-center shrink-0">
-                                                    <button
-                                                        onClick={() => onEditInvestment && onEditInvestment(id, index)}
-                                                        className="text-slate-500 hover:bg-blue-500/10 hover:text-blue-400 transition-colors p-1 rounded-md"
-                                                        title="Editar alerta"
-                                                    >
-                                                        <Edit2 className="w-3 h-3" />
-                                                    </button>
-                                                    <button
-                                                        onClick={async () => {
-                                                            if (savingId) return;
-                                                            setSavingId(`inv-${id}-${index}`);
-                                                            const newAlerts = { ...config.investmentAlerts };
-                                                            const updated = (newAlerts[id] || []).filter((_, i) => i !== index);
-                                                            if (updated.length === 0) delete newAlerts[id];
-                                                            else newAlerts[id] = updated;
-                                                            await saveConfig({ ...config, investmentAlerts: newAlerts });
-                                                            setSavingId(null);
-                                                        }}
-                                                        disabled={savingId === `inv-${id}-${index}`}
-                                                        className="text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors p-1 rounded-md disabled:opacity-50"
-                                                        title="Eliminar esta alerta"
-                                                    >
-                                                        {savingId === `inv-${id}-${index}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                ) : (
-                    <p className="text-[11px] text-slate-600 italic text-center py-3 bg-slate-900/40 rounded-lg border border-slate-700/30">
-                        Sin alertas individuales. Usa 🔔 en la tabla de activos.
-                    </p>
-                )}
-            </div>
-
-            {/* ── Watchlist Alerts ──────────────────── */}
-            <div className="bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 md:p-4">
-                <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-bold text-slate-200 text-xs uppercase tracking-wider flex items-center gap-1.5">
-                        <Eye className="w-3.5 h-3.5 text-blue-400" /> Watchlist
-                    </h3>
-                    <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-slate-500 bg-slate-900/80 px-2 py-0.5 rounded-full border border-slate-700/50 font-bold">
-                            {Object.values(config.watchlistAlerts || {}).reduce((sum, a) => sum + a.length, 0)}
-                        </span>
-                        {onOpenWatchlist && (
-                            <button
-                                onClick={onOpenWatchlist}
-                                className="flex items-center gap-1 text-[10px] font-bold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-1 rounded-lg hover:bg-blue-500/20 transition-colors"
-                            >
-                                <Plus className="w-3 h-3" /> Nueva
-                            </button>
-                        )}
-                    </div>
-                </div>
-                {config.watchlistAlerts && Object.keys(config.watchlistAlerts).length > 0 ? (
-                    <div className="space-y-2">
-                        {Object.entries(config.watchlistAlerts).map(([coin, alerts]) => {
-                            if (!Array.isArray(alerts) || alerts.length === 0) return null;
-                            return (
-                                <div key={coin} className="bg-slate-900/60 border border-slate-700/40 rounded-lg p-2.5">
-                                    <div className="flex items-center justify-between mb-1.5">
-                                        <span className="font-bold text-blue-400 text-xs">{coin}</span>
-                                        <span className="text-[9px] text-slate-500 font-bold">{alerts.length} alerta{alerts.length !== 1 ? "s" : ""}</span>
-                                    </div>
-                                    <div className="space-y-1">
-                                        {(alerts as WatchlistAlert[]).map((alert, index) => (
-                                            <div key={index} className="flex items-center justify-between bg-slate-800/60 px-2.5 py-1.5 rounded-md">
-                                                <div className="flex items-center gap-1.5">
-                                                    <span className={`text-xs font-bold flex items-center gap-1 ${alert.direction === 'up' ? 'text-green-400' : 'text-red-400'}`}>
-                                                        {alert.direction === 'up' ? <TrendingUp className="w-3 h-3 shrink-0" /> : <TrendingDown className="w-3 h-3 shrink-0" />}
-                                                        ${alert.targetValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
-                                                    </span>
-                                                    {alert.isPersistent ? (
-                                                        <span className="flex items-center gap-0.5 text-[8px] bg-yellow-500/10 text-yellow-400 px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap">
-                                                            <Repeat className="w-2 h-2" /> Perm.
-                                                        </span>
-                                                    ) : (
-                                                        <span className="flex items-center gap-0.5 text-[8px] bg-slate-700/50 text-slate-500 px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap">
-                                                            <Clock className="w-2 h-2" /> 1 vez
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <button
-                                                    onClick={async () => {
-                                                        if (savingId) return;
-                                                        setSavingId(`watch-${coin}-${index}`);
-                                                        const newWatchlist = { ...(config.watchlistAlerts || {}) };
-                                                        const updated = (newWatchlist[coin] || []).filter((_, i) => i !== index);
-                                                        if (updated.length === 0) delete newWatchlist[coin];
-                                                        else newWatchlist[coin] = updated;
-                                                        await saveConfig({ ...config, watchlistAlerts: newWatchlist });
-                                                        setSavingId(null);
-                                                    }}
-                                                    disabled={savingId === `watch-${coin}-${index}`}
-                                                    className="text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors p-1 rounded-md disabled:opacity-50"
-                                                >
-                                                    {savingId === `watch-${coin}-${index}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                ) : (
-                    <p className="text-[11px] text-slate-600 italic text-center py-3 bg-slate-900/40 rounded-lg border border-slate-700/30">
-                        Sin alertas watchlist. Usa "+ Nueva" para monitorear precios.
-                    </p>
-                )}
-            </div>
-
             {/* ── Notification History ──────────────── */}
             <div className="bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 md:p-4">
                 <div className="flex items-center justify-between mb-3">
@@ -285,7 +292,6 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                 ) : (
                     <div className="space-y-1.5 max-h-60 md:max-h-72 overflow-y-auto pr-0.5">
                         {logs.map((log) => {
-                            const pnlColor = log.globalPNL >= 0 ? "text-green-400" : "text-red-400";
                             const dateStr = log.sentAt
                                 ? log.sentAt.toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" })
                                 : "—";
@@ -294,10 +300,11 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                                 : "";
                             return (
                                 <div key={log.id} className="bg-slate-900/60 border border-slate-700/40 rounded-lg p-2.5">
-                                    <div className="flex justify-between items-center gap-2 mb-1.5">
+                                    {/* Date/time + badge */}
+                                    <div className="flex justify-between items-center gap-2 mb-2">
                                         <div className="flex items-center gap-1.5">
-                                            <CheckCircle className="w-3 h-3 text-green-500 shrink-0" />
-                                            <span className="text-[11px] font-bold text-white">{dateStr} · {timeStr}</span>
+                                            <CheckCircle className="w-3.5 h-3.5 text-green-500 shrink-0" />
+                                            <span className="text-sm font-bold text-white">{dateStr} · {timeStr}</span>
                                         </div>
                                         {log.globalAlertTriggered && (
                                             <span className="flex items-center gap-0.5 text-[9px] bg-red-500/10 text-red-400 border border-red-500/20 px-1.5 py-0.5 rounded-full font-bold">
@@ -305,14 +312,18 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                                             </span>
                                         )}
                                     </div>
-                                    <div className="flex gap-3 text-[10px] text-slate-400 mb-1">
-                                        <span>PNL: <span className={`font-bold ${pnlColor}`}>{log.globalPNL >= 0 ? "+" : ""}${log.globalPNL.toLocaleString()}</span></span>
-                                        <span>Inv: <span className="text-slate-300">${log.totalInvested.toLocaleString()}</span></span>
-                                    </div>
+                                    {/* Triggered alerts — prominent */}
                                     {log.triggeredAssets.length > 0 && (
-                                        <div className="space-y-0.5">
+                                        <div className="space-y-1">
                                             {log.triggeredAssets.map((msg, i) => (
-                                                <p key={i} className="text-[9px] text-slate-500 bg-slate-800/60 px-2 py-0.5 rounded">{msg}</p>
+                                                <p key={i} className="text-[11px] font-bold text-slate-200 bg-slate-800 px-2.5 py-1.5 rounded-lg">{msg}</p>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {log.triggeredWatchlistAlerts?.length > 0 && (
+                                        <div className="space-y-1 mt-1">
+                                            {log.triggeredWatchlistAlerts.map((msg, i) => (
+                                                <p key={i} className="text-[11px] font-bold text-blue-300 bg-blue-900/30 px-2.5 py-1.5 rounded-lg">{msg}</p>
                                             ))}
                                         </div>
                                     )}

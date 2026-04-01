@@ -8,6 +8,7 @@ export interface NotificationLog {
     globalAlertTriggered: boolean;
     globalPNL: number;
     triggeredAssets: string[];
+    triggeredWatchlistAlerts: string[];
     totalInvested: number;
     totalCurrentValue: number;
 }
@@ -32,6 +33,7 @@ export function useNotificationLogs(maxEntries = 20) {
                     globalAlertTriggered: d.globalAlertTriggered ?? false,
                     globalPNL: d.globalPNL ?? 0,
                     triggeredAssets: d.triggeredAssets ?? [],
+                    triggeredWatchlistAlerts: d.triggeredWatchlistAlerts ?? [],
                     totalInvested: d.totalInvested ?? 0,
                     totalCurrentValue: d.totalCurrentValue ?? 0,
                 };

@@ -271,9 +271,20 @@ export default function InvestmentAlertModal({
                             </button>
                         </div>
 
-                        <p className={`text-center text-[11px] font-bold mb-3 ${alertType === 'price' ? 'text-yellow-400' : (targetPercent >= 0 ? "text-green-400" : "text-red-400")}`}>
-                            Notificar cuando {alertType === 'price' ? 'precio' : 'ROI'} {direction === 'up' ? "suba a" : "caiga a"} {alertType === 'price' ? fmtPrice(targetValue) : `${targetPercent >= 0 ? "+" : ""}${targetPercent}%`}
-                        </p>
+                        {(() => {
+                            const isAlreadyTriggered = alertType === 'pnl'
+                                ? (direction === 'up' && investment.roi >= targetPercent) || (direction === 'down' && investment.roi <= targetPercent)
+                                : (direction === 'up' && investment.currentPrice >= targetValue) || (direction === 'down' && investment.currentPrice <= targetValue);
+                            return isAlreadyTriggered ? (
+                                <p className="text-center text-[11px] font-bold mb-3 text-yellow-400">
+                                    ⚠️ El {alertType === 'price' ? 'precio' : 'ROI'} actual ya {direction === 'up' ? 'supera' : 'está por debajo de'} {alertType === 'price' ? fmtPrice(targetValue) : `${targetPercent >= 0 ? "+" : ""}${targetPercent}%`} — se disparará en el próximo ciclo
+                                </p>
+                            ) : (
+                                <p className={`text-center text-[11px] font-bold mb-3 ${alertType === 'price' ? 'text-yellow-400' : (targetPercent >= 0 ? "text-green-400" : "text-red-400")}`}>
+                                    Notificar cuando {alertType === 'price' ? 'precio' : 'ROI'} {direction === 'up' ? "suba a" : "caiga a"} {alertType === 'price' ? fmtPrice(targetValue) : `${targetPercent >= 0 ? "+" : ""}${targetPercent}%`}
+                                </p>
+                            );
+                        })()}
 
                         {/* Persistence selection */}
                         <div className="grid grid-cols-2 gap-2 mb-3">
@@ -299,7 +310,13 @@ export default function InvestmentAlertModal({
 
                         <button
                             onClick={handleAdd}
-                            className="w-full flex items-center justify-center gap-1.5 bg-yellow-500 text-slate-900 font-bold py-2.5 rounded-lg hover:bg-yellow-400 transition-all shadow-md shadow-yellow-500/20 active:scale-[0.98] disabled:opacity-50 text-xs"
+                            className={`w-full flex items-center justify-center gap-1.5 font-bold py-2.5 rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 text-xs ${
+                                (alertType === 'pnl'
+                                    ? (direction === 'up' && investment.roi >= targetPercent) || (direction === 'down' && investment.roi <= targetPercent)
+                                    : (direction === 'up' && investment.currentPrice >= targetValue) || (direction === 'down' && investment.currentPrice <= targetValue))
+                                    ? "bg-orange-500 text-white hover:bg-orange-400 shadow-md shadow-orange-500/20"
+                                    : "bg-yellow-500 text-slate-900 hover:bg-yellow-400 shadow-md shadow-yellow-500/20"
+                            }`}
                         >
                             <Plus className="w-3.5 h-3.5" />
                             Agregar Alerta
