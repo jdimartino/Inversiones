@@ -2,13 +2,21 @@ import React from "react";
 import { Calculator } from "lucide-react";
 import { getCoinStyle, getCoinTextColor, AggregatedAsset } from "../lib/constants";
 import { fmtUSD, fmtPrice } from "../lib/format";
+import type { PriceDirection } from "../hooks/usePrices";
 
 interface AggregatedTableProps {
     items: AggregatedAsset[];
+    priceDirections?: Record<string, PriceDirection>;
+}
+
+function priceColor(dir?: PriceDirection): string {
+    if (dir === "up") return "text-green-400";
+    if (dir === "down") return "text-red-400";
+    return "text-yellow-300";
 }
 
 const AggregatedTable: React.FC<AggregatedTableProps> = React.memo(
-    ({ items }) => {
+    ({ items, priceDirections = {} }) => {
         if (items.length === 0) return null;
 
         return (
@@ -19,7 +27,7 @@ const AggregatedTable: React.FC<AggregatedTableProps> = React.memo(
                 </h2>
                 <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-xl">
                     {/* Mobile */}
-                    <div className="md:hidden divide-y divide-slate-700">
+                    <div className="md:hidden divide-y-2 divide-slate-600">
                         {items.map((asset) => (
                             <div key={asset.coin} className="p-3 relative hover:bg-slate-700/10 transition-colors">
                                 <div className="flex items-center gap-2 mb-2">
@@ -45,7 +53,7 @@ const AggregatedTable: React.FC<AggregatedTableProps> = React.memo(
                                     </div>
                                     <div className="bg-slate-900/40 p-1.5 rounded-lg border border-slate-700/50 text-center">
                                         <p className="text-[9px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Precio Actual</p>
-                                        <p className="text-yellow-300 font-mono text-[11px] font-bold">{fmtPrice(asset.currentPrice)}</p>
+                                        <p className={`font-mono text-[11px] font-bold ${priceColor(priceDirections[asset.coin])}`}>{fmtPrice(asset.currentPrice)}</p>
                                     </div>
                                     <div className="col-span-2 bg-slate-900/40 p-2 rounded-lg border border-slate-700/50 flex flex-col items-center text-center">
                                         <p className="text-[9px] uppercase text-slate-500 font-bold tracking-wider mb-0.5">PNL Neto Promedio</p>
@@ -103,7 +111,7 @@ const AggregatedTable: React.FC<AggregatedTableProps> = React.memo(
                                     <td className="p-5 text-right text-blue-400 font-mono font-bold">
                                         {fmtPrice(asset.avgBuyPrice)}
                                     </td>
-                                    <td className="p-5 text-right text-yellow-300 font-mono font-bold">
+                                    <td className={`p-5 text-right font-mono font-bold ${priceColor(priceDirections[asset.coin])}`}>
                                         {fmtPrice(asset.currentPrice)}
                                     </td>
                                     <td className="p-5 text-right">

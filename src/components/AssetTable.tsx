@@ -3,6 +3,7 @@ import { Activity, Pencil, Bell, TrendingUp } from "lucide-react";
 import { getCoinStyle, getCoinTextColor, ProcessedInvestment } from "../lib/constants";
 import { fmt, fmtUSD, fmtPrice } from "../lib/format";
 import DeleteButton from "./DeleteButton";
+import type { PriceDirection } from "../hooks/usePrices";
 
 interface AssetTableProps {
     items: ProcessedInvestment[];
@@ -11,6 +12,13 @@ interface AssetTableProps {
     onEdit: (item: ProcessedInvestment) => void;
     onAlert: (item: ProcessedInvestment) => void;
     onSellEvaluate: (item: ProcessedInvestment) => void;
+    priceDirections?: Record<string, PriceDirection>;
+}
+
+function priceColor(dir?: PriceDirection): string {
+    if (dir === "up") return "text-green-400";
+    if (dir === "down") return "text-red-400";
+    return "text-yellow-300";
 }
 
 function fmtDate(ts: number): string {
@@ -23,7 +31,7 @@ function fmtDate(ts: number): string {
 }
 
 const AssetTable: React.FC<AssetTableProps> = React.memo(
-    ({ items, activeAlertIds, onDelete, onEdit, onAlert, onSellEvaluate }) => {
+    ({ items, activeAlertIds, onDelete, onEdit, onAlert, onSellEvaluate, priceDirections = {} }) => {
         if (items.length === 0) return null;
 
         return (
@@ -33,7 +41,7 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                 </h2>
                 <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-xl">
                     {/* Mobile */}
-                    <div className="md:hidden divide-y divide-slate-700">
+                    <div className="md:hidden divide-y-2 divide-slate-600">
                         {items.map((item) => (
                             <div key={item.id} className="p-3 relative hover:bg-slate-700/10 transition-colors">
                                 {/* Action buttons top-right */}
@@ -84,11 +92,11 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                                 <div className="grid grid-cols-2 gap-2 text-sm">
                                     <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50 text-center">
                                         <p className="text-[10px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Precio Compra</p>
-                                        <p className="text-slate-400 font-mono text-[13px] italic">{fmtPrice(item.buyPrice)}</p>
+                                        <p className="text-sky-400 font-mono text-[13px]">{fmtPrice(item.buyPrice)}</p>
                                     </div>
                                     <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50 text-center">
                                         <p className="text-[10px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Precio Actual</p>
-                                        <p className="text-yellow-300 font-mono text-[13px] font-bold">{fmtPrice(item.currentPrice)}</p>
+                                        <p className={`font-mono text-[13px] font-bold ${priceColor(priceDirections[item.coin])}`}>{fmtPrice(item.currentPrice)}</p>
                                     </div>
                                     <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50 text-center">
                                         <p className="text-[10px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Valor Total</p>
@@ -142,10 +150,10 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                                     <td className="p-5 text-right text-slate-400 font-mono text-xs font-bold">
                                         {fmt(item.quantity)}
                                     </td>
-                                    <td className="p-5 text-right text-slate-500 font-mono italic">
+                                    <td className="p-5 text-right text-sky-400 font-mono">
                                         {fmtPrice(item.buyPrice)}
                                     </td>
-                                    <td className="p-5 text-right text-yellow-300 font-mono font-bold">
+                                    <td className={`p-5 text-right font-mono font-bold ${priceColor(priceDirections[item.coin])}`}>
                                         {fmtPrice(item.currentPrice)}
                                     </td>
                                     <td className="p-5 text-right text-emerald-300 font-mono font-bold">

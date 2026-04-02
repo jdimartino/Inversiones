@@ -137,6 +137,12 @@ async function runCheckAlerts() {
         }
     }
     const snap = await db.collection("inversiones").get();
+    // Fetch previous notification snapshot to compute P&L delta per position
+    const prevLogSnap = await db.collection("notificationLogs")
+        .orderBy("sentAt", "desc")
+        .limit(1)
+        .get();
+    const prevSnapshot = prevLogSnap.empty ? {} : (prevLogSnap.docs[0].data().positionSnapshot || {});
     let totalInvested = 0;
     let totalCurrentValue = 0;
     const triggeredIndividualMessages = [];
@@ -227,7 +233,7 @@ async function runCheckAlerts() {
                 triggered: false
             });
         }
-        individualAssets.push({ coin: inv.coin, pnl, roi: roiPercent || 0 });
+        individualAssets.push({ id: docSnap.id, coin: inv.coin, pnl, roi: roiPercent || 0 });
     });
     // Cleanup orphaned alerts (IDs that no longer exist in 'inversiones')
     const activeInvIds = new Set(snap.docs.map(d => d.id));
@@ -239,7 +245,21 @@ async function runCheckAlerts() {
         }
     }
     individualAssets.sort((a, b) => b.pnl - a.pnl);
-    const assetDetails = individualAssets.map(({ coin, pnl, roi }) => `${pnlEmoji(pnl)} *${coin}:* ${pnlSign(pnl)}$${fmt(pnl)} (${pnlSign(roi)}${roi.toFixed(1)}%)`);
+    const assetDetails = individualAssets.map(({ id, coin, pnl, roi }) => {
+        const prev = prevSnapshot[id];
+        let deltaStr = "";
+        if (prev !== undefined) {
+            const delta = pnl - prev.pnl;
+            if (Math.abs(delta) >= 1) {
+                const arrow = delta > 0 ? "▲" : "▼";
+                deltaStr = ` ${arrow} ${pnlSign(delta)}$${fmt(Math.abs(delta))}`;
+            }
+            else {
+                deltaStr = " ═";
+            }
+        }
+        return `${pnlEmoji(pnl)} *${coin}:* ${pnlSign(pnl)}$${fmt(pnl)} (${pnlSign(roi)}${roi.toFixed(1)}%)${deltaStr}`;
+    });
     const globalPNL = totalCurrentValue - totalInvested;
     const triggeredGlobalMessages = [];
     let remainingGlobalAlerts = [];
@@ -319,14 +339,14 @@ async function runCheckAlerts() {
         console.log("[CLEANUP] Campo legacy assetAlerts eliminado.");
     }
     if (shouldAlert) {
-        let message = `⚠️ *ALERTA PNL v2.1 — Crypto Command*\n${DIVIDER}\n`;
+        let message = ``;
         if (triggeredGlobalMessages.length > 0)
             message += `*🚨 Alertas Globales:*\n${triggeredGlobalMessages.join("\n")}\n\n`;
         if (triggeredIndividualMessages.length > 0)
-            message += `*🎯 Alertas Individuales:*\n${triggeredIndividualMessages.join("\n")}\n`;
+            message += `${triggeredIndividualMessages.join("\n")}\n`;
         if (triggeredWatchlistMessages.length > 0)
-            message += `*👁 Watchlist:*\n${triggeredWatchlistMessages.join("\n")}\n`;
-        message += `${DIVIDER}\n*PNL Total:* ${pnlSign(globalPNL)}$${fmt(globalPNL)}\n*Invertido:* $${fmt(totalInvested)}\n*Valor Actual:* $${fmt(totalCurrentValue)}\n${DIVIDER}\n*📊 Detalle del Portafolio:*\n`;
+            message += `${triggeredWatchlistMessages.join("\n")}\n`;
+        message += `${DIVIDER}\n*📊 Detalle del Portafolio:*\n`;
         // Fix 1: Message truncation to prevent Telegram 4096 char limit errors
         for (let i = 0; i < assetDetails.length; i++) {
             const line = assetDetails[i] + "\n";
@@ -336,6 +356,7 @@ async function runCheckAlerts() {
             }
             message += line;
         }
+        message += `${DIVIDER}\n*PNL Total:* ${pnlSign(globalPNL)}$${fmt(globalPNL)}\n*Invertido:* $${fmt(totalInvested)}\n*Valor Actual:* $${fmt(totalCurrentValue)}`;
         const sent = await sendTelegram(message);
         if (sent) {
             console.log(`✅ Alerta enviada.`);
@@ -358,6 +379,7 @@ async function runCheckAlerts() {
                 triggeredWatchlistAlerts: triggeredWatchlistMessages,
                 totalInvested: Math.round(totalInvested),
                 totalCurrentValue: Math.round(totalCurrentValue),
+                positionSnapshot: Object.fromEntries(individualAssets.map(a => [a.id, { coin: a.coin, pnl: a.pnl, roi: a.roi }])),
             });
             return { sent: true, summary: "Alerta enviada", debug: debugData };
         }

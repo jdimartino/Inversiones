@@ -33,7 +33,7 @@ const App: React.FC = () => {
   const { portfolio, addInvestment, removeInvestment, updateInvestment } = usePortfolio();
   const { loans, addLoan, updateLoan, removeLoan } = useLoans();
   const { config, saveConfig } = useAlerts();
-  const { prices, loading, refresh } = usePrices();
+  const { prices, priceDirections, loading, refresh } = usePrices();
   const { signals, klinesMap, loading: signalsLoading, error: signalsError, lastUpdated: signalsLastUpdated, fetchSignals, forceRefresh: forceRefreshSignals } = useSignals();
   const { data: fearGreed, loading: fgLoading } = useFearGreed();
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
@@ -257,8 +257,9 @@ const App: React.FC = () => {
               onEdit={handleEditInvestment}
               onAlert={handleAlertInvestment}
               onSellEvaluate={handleSellEvaluate}
+              priceDirections={priceDirections}
             />
-            <AggregatedTable items={aggregatedList} />
+            <AggregatedTable items={aggregatedList} priceDirections={priceDirections} />
           </div>
         )}
 
