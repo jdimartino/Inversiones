@@ -17,18 +17,21 @@ interface AlertRule {
     targetValue?: number;
     isPersistent?: boolean;
     direction?: 'up' | 'down';
+    note?: string;
 }
 
 interface GlobalAlertRule {
     targetAmount: number;
     isPersistent?: boolean;
     direction?: 'up' | 'down';
+    note?: string;
 }
 
 interface WatchlistAlertRule {
     targetValue: number;
     direction: 'up' | 'down';
     isPersistent?: boolean;
+    note?: string;
 }
 
 // ─── Utils ────────────────────────────────────────────────────────────────────
@@ -228,11 +231,13 @@ async function runCheckAlerts() {
                         isTriggered = true;
                         triggeredIndividualMessages.push(
                             `🚀 *${inv.coin}* subió a *${pnlSign(roiPercent)}${roiPercent.toFixed(1)}%* (Meta: 🔼 >= ${target}%)`
+                            + (rule.note ? `\n_📝 ${rule.note}_` : "")
                         );
                     } else if (direction === 'down' && roiPercent <= target) {
                         isTriggered = true;
                         triggeredIndividualMessages.push(
                             `📉 *${inv.coin}* cayó a *${roiPercent.toFixed(1)}%* (Límite: 🔽 <= ${target}%)`
+                            + (rule.note ? `\n_📝 ${rule.note}_` : "")
                         );
                     }
                 } else if (type === 'price') {
@@ -241,11 +246,13 @@ async function runCheckAlerts() {
                         isTriggered = true;
                         triggeredIndividualMessages.push(
                             `💰 *${inv.coin}* alcanzó *${fmtPrice(currentPrice)}* (Meta: 🔼 >= ${fmtPrice(target)})`
+                            + (rule.note ? `\n_📝 ${rule.note}_` : "")
                         );
                     } else if (direction === 'down' && currentPrice <= target) {
                         isTriggered = true;
                         triggeredIndividualMessages.push(
                             `📉 *${inv.coin}* bajó a *${fmtPrice(currentPrice)}* (Límite: 🔽 <= ${fmtPrice(target)})`
+                            + (rule.note ? `\n_📝 ${rule.note}_` : "")
                         );
                     }
                 }
@@ -332,10 +339,16 @@ async function runCheckAlerts() {
 
         if (direction === 'up' && globalPNL >= target) {
             isTriggered = true;
-            triggeredGlobalMessages.push(`🚀 *PNL Global* alcanzó *${pnlSign(globalPNL)}$${fmt(globalPNL)}* (Meta: 🔼 >= ${pnlSign(target)}$${fmt(target)})`);
+            triggeredGlobalMessages.push(
+                `🚀 *PNL Global* alcanzó *${pnlSign(globalPNL)}$${fmt(globalPNL)}* (Meta: 🔼 >= ${pnlSign(target)}$${fmt(target)})`
+                + (rule.note ? `\n_📝 ${rule.note}_` : "")
+            );
         } else if (direction === 'down' && globalPNL <= target) {
             isTriggered = true;
-            triggeredGlobalMessages.push(`📉 *PNL Global* cayó a *${pnlSign(globalPNL)}$${fmt(globalPNL)}* (Límite: 🔽 <= ${pnlSign(target)}$${fmt(target)})`);
+            triggeredGlobalMessages.push(
+                `📉 *PNL Global* cayó a *${pnlSign(globalPNL)}$${fmt(globalPNL)}* (Límite: 🔽 <= ${pnlSign(target)}$${fmt(target)})`
+                + (rule.note ? `\n_📝 ${rule.note}_` : "")
+            );
         }
 
         if (isTriggered) {
@@ -367,11 +380,13 @@ async function runCheckAlerts() {
                 isTriggered = true;
                 triggeredWatchlistMessages.push(
                     `👁 *${coin}* alcanzó *${fmtPrice(currentPrice)}* (Watchlist: 🔼 >= ${fmtPrice(rule.targetValue)})`
+                    + (rule.note ? `\n_📝 ${rule.note}_` : "")
                 );
             } else if (rule.direction === 'down' && currentPrice <= rule.targetValue) {
                 isTriggered = true;
                 triggeredWatchlistMessages.push(
                     `👁 *${coin}* bajó a *${fmtPrice(currentPrice)}* (Watchlist: 🔽 <= ${fmtPrice(rule.targetValue)})`
+                    + (rule.note ? `\n_📝 ${rule.note}_` : "")
                 );
             }
 
@@ -730,5 +745,103 @@ export const checkTradingSignals = functions.region('europe-west1').pubsub.sched
         await runTradingSignals();
     } catch (e) {
         console.error("Error en checkTradingSignals:", e);
+    }
+});
+
+// ─── Daily Portfolio Report ───────────────────────────────────────────────────
+
+async function runDailyReport() {
+    const configSnap = await db.collection("config").doc("alerts").get();
+    const conf = configSnap.exists ? configSnap.data()! : {};
+    if (!conf.dailyReportEnabled) {
+        console.log("[DailyReport] Desactivado, omitiendo.");
+        return;
+    }
+
+    const SYMBOL_MAP: Record<string, string> = {
+        BTC: "BTCUSDT", ETH: "ETHUSDT", ADA: "ADAUSDT", DOGE: "DOGEUSDT",
+        LTC: "LTCUSDT", BNB: "BNBUSDT", SOL: "SOLUSDT", XRP: "XRPUSDT",
+        DOT: "DOTUSDT", MATIC: "MATICUSDT", SHIB: "SHIBUSDT", AVAX: "AVAXUSDT",
+        LINK: "LINKUSDT",
+    };
+    const symbols = Object.values(SYMBOL_MAP);
+    const { data: tickerData } = await axios.get(
+        `https://api.binance.com/api/v3/ticker/price?symbols=${encodeURIComponent(JSON.stringify(symbols))}`
+    );
+    const prices: Record<string, number> = {};
+    for (const item of tickerData) {
+        prices[item.symbol] = parseFloat(item.price);
+    }
+
+    const snap = await db.collection("inversiones").get();
+
+    // Aggregate per coin
+    const coinMap: Record<string, { invested: number; currentValue: number; currentPrice: number }> = {};
+    snap.forEach((docSnap) => {
+        const inv = docSnap.data();
+        const symbol = SYMBOL_MAP[inv.coin] || `${inv.coin}USDT`;
+        const currentPrice = prices[symbol] || 0;
+        const currentValue = currentPrice * (inv.quantity || 0);
+        if (!coinMap[inv.coin]) coinMap[inv.coin] = { invested: 0, currentValue: 0, currentPrice };
+        coinMap[inv.coin].invested += inv.invested || 0;
+        coinMap[inv.coin].currentValue += currentValue;
+        coinMap[inv.coin].currentPrice = currentPrice;
+    });
+
+    if (Object.keys(coinMap).length === 0) {
+        console.log("[DailyReport] Sin posiciones en portafolio.");
+        return;
+    }
+
+    let totalInvested = 0;
+    let totalCurrentValue = 0;
+    const assetLines: { pnl: number; line: string }[] = [];
+
+    for (const [coin, data] of Object.entries(coinMap)) {
+        const pnl = data.currentValue - data.invested;
+        const roi = data.invested > 0 ? (pnl / data.invested) * 100 : 0;
+        totalInvested += data.invested;
+        totalCurrentValue += data.currentValue;
+        assetLines.push({
+            pnl,
+            line: `${pnlEmoji(pnl)} *${coin}:* ${pnlSign(pnl)}$${fmt(pnl)} (${pnlSign(roi)}${roi.toFixed(1)}%) · ${fmtPrice(data.currentPrice)}`,
+        });
+    }
+    assetLines.sort((a, b) => b.pnl - a.pnl);
+
+    const globalPNL = totalCurrentValue - totalInvested;
+    const now = new Date();
+    const dateStr = now.toLocaleDateString("es-ES", { weekday: "long", day: "2-digit", month: "short", year: "numeric" });
+    const timeStr = now.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+
+    let message = `🌅 *Resumen Diario del Portafolio*\n_${dateStr} — ${timeStr}_\n${DIVIDER}\n📊 *Detalle del Portafolio:*\n`;
+    for (const { line } of assetLines) {
+        if (message.length + line.length + 1 > 3900) break;
+        message += line + "\n";
+    }
+    message += `${DIVIDER}\n💰 *PNL Total:* ${pnlSign(globalPNL)}$${fmt(globalPNL)}\n📥 *Invertido:* $${fmt(totalInvested)}\n📈 *Valor Actual:* $${fmt(totalCurrentValue)}`;
+
+    await sendTelegram(message);
+    console.log("[DailyReport] Enviado correctamente.");
+}
+
+export const dailyPortfolioReport = functions
+    .region('europe-west1')
+    .pubsub.schedule("0 8 * * *")
+    .timeZone("Europe/Madrid")
+    .onRun(async (_context) => {
+        try {
+            await runDailyReport();
+        } catch (e) {
+            console.error("Error en dailyPortfolioReport:", e);
+        }
+    });
+
+export const testDailyReport = functions.region('europe-west1').https.onRequest(async (_req, res) => {
+    try {
+        await runDailyReport();
+        res.json({ ok: true });
+    } catch (e: any) {
+        res.status(500).send(e.message);
     }
 });

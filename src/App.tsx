@@ -37,6 +37,7 @@ const App: React.FC = () => {
   const { signals, klinesMap, loading: signalsLoading, error: signalsError, lastUpdated: signalsLastUpdated, fetchSignals, forceRefresh: forceRefreshSignals } = useSignals();
   const { data: fearGreed, loading: fgLoading } = useFearGreed();
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
+  const [graficoCoin, setGraficoCoin] = useState<string | undefined>(undefined);
   const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
   const [editingInvestment, setEditingInvestment] = useState<ProcessedInvestment | null>(null);
   const [alertingInvestment, setAlertingInvestment] = useState<ProcessedInvestment | null>(null);
@@ -140,6 +141,11 @@ const App: React.FC = () => {
   const handleSellEvaluate = useCallback((item: ProcessedInvestment) => {
     setSellPreload(item);
     setActiveTab("venta");
+  }, []);
+
+  const handleViewChart = useCallback((item: ProcessedInvestment) => {
+    setGraficoCoin(item.coin);
+    setActiveTab("graficos");
   }, []);
   const handleCloseAlertModal = useCallback(() => {
     setAlertingInvestment(null);
@@ -257,6 +263,7 @@ const App: React.FC = () => {
               onEdit={handleEditInvestment}
               onAlert={handleAlertInvestment}
               onSellEvaluate={handleSellEvaluate}
+              onViewChart={handleViewChart}
               priceDirections={priceDirections}
             />
             <AggregatedTable items={aggregatedList} priceDirections={priceDirections} />
@@ -276,6 +283,7 @@ const App: React.FC = () => {
               klinesMap={klinesMap}
               fearGreed={fearGreed}
               fearGreedLoading={fgLoading}
+              initialCoin={graficoCoin}
             />
           </div>
         )}

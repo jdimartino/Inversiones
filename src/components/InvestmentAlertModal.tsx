@@ -25,6 +25,7 @@ export default function InvestmentAlertModal({
     const [targetValue, setTargetValue] = useState<number>(investment.currentPrice);
     const [isPersistent, setIsPersistent] = useState(false);
     const [direction, setDirection] = useState<'up' | 'down'>('up');
+    const [note, setNote] = useState<string>("");
     const [saving, setSaving] = useState(false);
 
     // If an initial index is provided, immediately load it into the form for editing
@@ -36,6 +37,7 @@ export default function InvestmentAlertModal({
             setTargetValue(alertToEdit.targetValue || investment.currentPrice);
             setIsPersistent(alertToEdit.isPersistent ?? false);
             setDirection(alertToEdit.direction ?? 'up');
+            setNote(alertToEdit.note ?? "");
             // Remove it from draft alerts immediately
             setDraftAlerts(currentAlerts.filter((_, i) => i !== initialEditIndex));
         }
@@ -66,18 +68,20 @@ export default function InvestmentAlertModal({
         if (alertType === 'pnl' && isNaN(targetPercent)) return;
         if (alertType === 'price' && (isNaN(targetValue) || targetValue <= 0)) return;
 
-        setDraftAlerts([...draftAlerts, { 
-            type: alertType, 
-            targetPercent: alertType === 'pnl' ? targetPercent : 0, 
+        setDraftAlerts([...draftAlerts, {
+            type: alertType,
+            targetPercent: alertType === 'pnl' ? targetPercent : 0,
             targetValue: alertType === 'price' ? targetValue : undefined,
-            isPersistent, 
-            direction 
+            isPersistent,
+            direction,
+            ...(note.trim() ? { note: note.trim() } : {}),
         }]);
         // Reset form to defaults
         setTargetPercent(0);
         setTargetValue(investment.currentPrice);
         setIsPersistent(false);
         setDirection('up');
+        setNote("");
     };
 
     const handleEdit = (index: number) => {
@@ -87,6 +91,7 @@ export default function InvestmentAlertModal({
         setTargetValue(alertToEdit.targetValue || investment.currentPrice);
         setIsPersistent(alertToEdit.isPersistent ?? false);
         setDirection(alertToEdit.direction ?? 'up');
+        setNote(alertToEdit.note ?? "");
         handleRemove(index);
     };
 
@@ -163,6 +168,9 @@ export default function InvestmentAlertModal({
                                                 <span className="text-[9px] text-slate-500 uppercase font-bold tracking-tight">
                                                     {alert.type === 'price' ? 'Precio' : 'ROI'}
                                                 </span>
+                                                {alert.note && (
+                                                    <span className="text-[10px] text-slate-400 italic mt-0.5">📝 {alert.note}</span>
+                                                )}
                                             </div>
                                             {alert.isPersistent ? (
                                                 <span className="flex items-center gap-1 text-[9px] bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap">
@@ -307,6 +315,15 @@ export default function InvestmentAlertModal({
                                 <Repeat className="w-3 h-3 shrink-0" /> Permanente
                             </button>
                         </div>
+
+                        <input
+                            type="text"
+                            placeholder="Nota opcional (ej: comprar más si baja)"
+                            value={note}
+                            onChange={(e) => setNote(e.target.value)}
+                            maxLength={200}
+                            className="w-full h-9 bg-slate-900 border border-slate-700 rounded-lg px-3 text-xs text-white placeholder-slate-600 outline-none focus:ring-2 focus:ring-yellow-400/50 focus:border-yellow-400/50 mb-3"
+                        />
 
                         <button
                             onClick={handleAdd}

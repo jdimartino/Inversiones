@@ -24,6 +24,7 @@ export default function GlobalAlertModal({
     const [targetAmount, setTargetAmount] = useState<number>(defaultTarget);
     const [isPersistent, setIsPersistent] = useState(true);
     const [direction, setDirection] = useState<'up' | 'down'>('up');
+    const [note, setNote] = useState<string>("");
     const [saving, setSaving] = useState(false);
 
     // If an initial index is provided, immediately load it into the form for editing
@@ -33,6 +34,7 @@ export default function GlobalAlertModal({
             setTargetAmount(alertToEdit.targetAmount);
             setIsPersistent(alertToEdit.isPersistent ?? true);
             setDirection(alertToEdit.direction ?? 'up');
+            setNote(alertToEdit.note ?? "");
             // Remove it from draft alerts immediately
             setDraftAlerts(currentAlerts.filter((_, i) => i !== initialEditIndex));
         }
@@ -56,11 +58,17 @@ export default function GlobalAlertModal({
 
     const handleAdd = () => {
         if (isNaN(targetAmount)) return;
-        setDraftAlerts([...draftAlerts, { targetAmount, isPersistent, direction }]);
+        setDraftAlerts([...draftAlerts, {
+            targetAmount,
+            isPersistent,
+            direction,
+            ...(note.trim() ? { note: note.trim() } : {}),
+        }]);
         // Reset form to defaults
         setTargetAmount(defaultTarget);
         setIsPersistent(true);
         setDirection('up');
+        setNote("");
     };
 
     const handleEdit = (index: number) => {
@@ -68,6 +76,7 @@ export default function GlobalAlertModal({
         setTargetAmount(alertToEdit.targetAmount);
         setIsPersistent(alertToEdit.isPersistent ?? true);
         setDirection(alertToEdit.direction ?? 'up');
+        setNote(alertToEdit.note ?? "");
         handleRemove(index);
     };
 
@@ -131,10 +140,15 @@ export default function GlobalAlertModal({
                             {draftAlerts.map((alert, index) => (
                                 <div key={index} className="flex items-center justify-between bg-slate-800 border border-slate-700 rounded-xl px-4 py-3">
                                     <div className="flex items-center gap-3">
-                                        <span className={`flex items-center gap-1 text-base font-bold ${alert.targetAmount >= totalPnl ? "text-green-400" : "text-red-400"}`}>
-                                            {alert.direction === 'up' ? '🔼' : '🔽'}
-                                            {alert.targetAmount >= 0 ? "+" : "-"}{fmtUSD(Math.abs(alert.targetAmount))}
-                                        </span>
+                                        <div className="flex flex-col">
+                                            <span className={`flex items-center gap-1 text-base font-bold ${alert.targetAmount >= totalPnl ? "text-green-400" : "text-red-400"}`}>
+                                                {alert.direction === 'up' ? '🔼' : '🔽'}
+                                                {alert.targetAmount >= 0 ? "+" : "-"}{fmtUSD(Math.abs(alert.targetAmount))}
+                                            </span>
+                                            {alert.note && (
+                                                <span className="text-[10px] text-slate-400 italic mt-0.5">📝 {alert.note}</span>
+                                            )}
+                                        </div>
                                         {alert.isPersistent ? (
                                             <span className="flex items-center gap-1 text-[10px] bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-2 py-0.5 rounded-full font-bold">
                                                 <Repeat className="w-3 h-3" /> Permanente
@@ -249,6 +263,15 @@ export default function GlobalAlertModal({
                                 <Repeat className="w-3.5 h-3.5" /> Permanente
                             </button>
                         </div>
+
+                        <input
+                            type="text"
+                            placeholder="Nota opcional (ej: revisar posición)"
+                            value={note}
+                            onChange={(e) => setNote(e.target.value)}
+                            maxLength={200}
+                            className="w-full h-9 bg-slate-900 border border-slate-700 rounded-lg px-3 text-xs text-white placeholder-slate-600 outline-none focus:ring-2 focus:ring-yellow-400/50 focus:border-yellow-400/50 mb-4"
+                        />
 
                         <button
                             onClick={handleAdd}

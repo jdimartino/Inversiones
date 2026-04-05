@@ -13,18 +13,21 @@ export interface InvestmentAlert {
     targetValue?: number;   // for price type
     isPersistent?: boolean;
     direction?: 'up' | 'down';
+    note?: string;
 }
 
 export interface GlobalAlert {
     targetAmount: number;
     isPersistent?: boolean;
     direction?: 'up' | 'down';
+    note?: string;
 }
 
 export interface WatchlistAlert {
     targetValue: number;
     direction: 'up' | 'down';
     isPersistent?: boolean;
+    note?: string;
 }
 
 export interface AlertConfig {
@@ -33,6 +36,7 @@ export interface AlertConfig {
     globalAlerts?: GlobalAlert[];
     investmentAlerts?: Record<string, InvestmentAlert[]>;
     watchlistAlerts?: Record<string, WatchlistAlert[]>;
+    dailyReportEnabled?: boolean;
 }
 
 export function useAlerts() {
@@ -96,6 +100,7 @@ export function useAlerts() {
                         investmentAlerts: normalizedAlerts,
                         globalAlerts: normalizedGlobalAlerts,
                         watchlistAlerts: normalizedWatchlist,
+                        dailyReportEnabled: data.dailyReportEnabled ?? false,
                     });
                 } else {
                     // Si no existe, inicializamos con defecto o limpiamos

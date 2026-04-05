@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Trash2, Edit2, Repeat, Clock, History, CheckCircle, AlertTriangle, TrendingUp, TrendingDown, Loader2, Eye, Plus } from "lucide-react";
+import { Trash2, Edit2, Repeat, Clock, History, CheckCircle, AlertTriangle, TrendingUp, TrendingDown, Loader2, Eye, Plus, Sun } from "lucide-react";
 import { AlertConfig, GlobalAlert, InvestmentAlert, WatchlistAlert } from "../hooks/useAlerts";
 import { usePortfolio } from "../hooks/usePortfolio";
 import { usePrices } from "../hooks/usePrices";
@@ -69,10 +69,15 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                                         {(alerts as WatchlistAlert[]).map((alert, index) => (
                                             <div key={index} className="flex items-center justify-between bg-slate-800/60 px-2.5 py-1.5 rounded-md">
                                                 <div className="flex items-center gap-1.5">
-                                                    <span className={`text-[11px] font-bold flex items-center gap-1 ${alert.direction === 'up' ? 'text-green-400' : 'text-red-400'}`}>
-                                                        {alert.direction === 'up' ? <TrendingUp className="w-3 h-3 shrink-0" /> : <TrendingDown className="w-3 h-3 shrink-0" />}
-                                                        {fmtPrice(alert.targetValue)}
-                                                    </span>
+                                                    <div className="flex flex-col">
+                                                        <span className={`text-[11px] font-bold flex items-center gap-1 ${alert.direction === 'up' ? 'text-green-400' : 'text-red-400'}`}>
+                                                            {alert.direction === 'up' ? <TrendingUp className="w-3 h-3 shrink-0" /> : <TrendingDown className="w-3 h-3 shrink-0" />}
+                                                            {fmtPrice(alert.targetValue)}
+                                                        </span>
+                                                        {alert.note && (
+                                                            <span className="text-[10px] text-slate-400 italic mt-0.5">📝 {alert.note}</span>
+                                                        )}
+                                                    </div>
                                                     {alert.isPersistent ? (
                                                         <span className="flex items-center gap-0.5 text-[8px] bg-yellow-500/10 text-yellow-400 px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap">
                                                             <Repeat className="w-2 h-2" /> Perm.
@@ -150,10 +155,15 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                                         {alerts.map((alert: InvestmentAlert, index: number) => (
                                             <div key={index} className="flex items-center justify-between bg-slate-800/60 px-2.5 py-1.5 rounded-md">
                                                 <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-                                                    <span className={`text-[11px] font-bold flex items-center gap-1 whitespace-nowrap ${alert.type === 'price' ? 'text-yellow-400' : (alert.targetPercent >= 0 ? "text-green-400" : "text-red-400")}`}>
-                                                        {alert.direction === 'up' ? <TrendingUp className="w-3 h-3 shrink-0" /> : <TrendingDown className="w-3 h-3 shrink-0" />}
-                                                        {alert.type === 'price' ? fmtPrice(alert.targetValue || 0) : `${alert.targetPercent >= 0 ? "+" : ""}${alert.targetPercent}%`}
-                                                    </span>
+                                                    <div className="flex flex-col">
+                                                        <span className={`text-[11px] font-bold flex items-center gap-1 whitespace-nowrap ${alert.type === 'price' ? 'text-yellow-400' : (alert.targetPercent >= 0 ? "text-green-400" : "text-red-400")}`}>
+                                                            {alert.direction === 'up' ? <TrendingUp className="w-3 h-3 shrink-0" /> : <TrendingDown className="w-3 h-3 shrink-0" />}
+                                                            {alert.type === 'price' ? fmtPrice(alert.targetValue || 0) : `${alert.targetPercent >= 0 ? "+" : ""}${alert.targetPercent}%`}
+                                                        </span>
+                                                        {alert.note && (
+                                                            <span className="text-[10px] text-slate-400 italic mt-0.5">📝 {alert.note}</span>
+                                                        )}
+                                                    </div>
                                                     <span className="text-[8px] text-slate-500 uppercase font-bold tracking-wide bg-slate-900/60 px-1 py-0.5 rounded border border-slate-700/50">
                                                         {alert.type === 'price' ? 'Precio' : 'ROI'}
                                                     </span>
@@ -222,10 +232,15 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                         {config.globalAlerts.map((alertData: GlobalAlert, index: number) => (
                             <div key={`global-${index}`} className="flex items-center justify-between bg-slate-900/60 border border-slate-700/40 rounded-lg px-3 py-2">
                                 <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                                    <span className={`flex items-center gap-1 text-sm font-bold whitespace-nowrap ${alertData.targetAmount >= 0 ? "text-green-400" : "text-red-400"}`}>
-                                        {alertData.direction === 'up' ? '🔼' : '🔽'}
-                                        {alertData.targetAmount >= 0 ? "+" : "-"}{fmtUSD(Math.abs(alertData.targetAmount))}
-                                    </span>
+                                    <div className="flex flex-col">
+                                        <span className={`flex items-center gap-1 text-sm font-bold whitespace-nowrap ${alertData.targetAmount >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                            {alertData.direction === 'up' ? '🔼' : '🔽'}
+                                            {alertData.targetAmount >= 0 ? "+" : "-"}{fmtUSD(Math.abs(alertData.targetAmount))}
+                                        </span>
+                                        {alertData.note && (
+                                            <span className="text-[10px] text-slate-400 italic mt-0.5">📝 {alertData.note}</span>
+                                        )}
+                                    </div>
                                     {alertData.isPersistent ? (
                                         <span className="flex items-center gap-1 text-[9px] bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap">
                                             <Repeat className="w-2.5 h-2.5" /> Permanente
@@ -268,6 +283,38 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                         Sin alertas globales. Usa 🔔 en el Dashboard.
                     </p>
                 )}
+            </div>
+
+            {/* ── Daily Report ──────────────────────── */}
+            <div className="bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 md:p-4">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <Sun className="w-3.5 h-3.5 text-yellow-400" />
+                        <div>
+                            <h3 className="font-bold text-slate-200 text-xs uppercase tracking-wider">Resumen Diario</h3>
+                            <p className="text-[10px] text-slate-500 mt-0.5">Envía el portafolio completo a las 8:00 am</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={async () => {
+                            if (savingId) return;
+                            setSavingId("dailyReport");
+                            await saveConfig({ ...config, dailyReportEnabled: !config.dailyReportEnabled });
+                            setSavingId(null);
+                        }}
+                        disabled={savingId === "dailyReport"}
+                        className={`relative w-10 h-5.5 rounded-full transition-colors flex items-center px-0.5 ${
+                            config.dailyReportEnabled ? "bg-yellow-500" : "bg-slate-600"
+                        } disabled:opacity-50`}
+                        title={config.dailyReportEnabled ? "Desactivar resumen diario" : "Activar resumen diario"}
+                    >
+                        {savingId === "dailyReport" ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-white mx-auto" />
+                        ) : (
+                            <span className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${config.dailyReportEnabled ? "translate-x-4" : "translate-x-0"}`} />
+                        )}
+                    </button>
+                </div>
             </div>
 
             {/* ── Notification History ──────────────── */}

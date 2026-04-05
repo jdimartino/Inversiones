@@ -1,9 +1,8 @@
 import React from "react";
 import { Treemap, ResponsiveContainer, Tooltip } from "recharts";
-import { AggregatedAsset } from "../../lib/constants";
-import { fmtUSD } from "../../lib/format";
+import { ProcessedInvestment } from "../../lib/constants";
+import { fmtUSD, fmtPrice } from "../../lib/format";
 import ChartCard from "./ChartCard";
-import { coinColor } from "./chartColors";
 
 function roiColor(pct: number): string {
     if (pct >= 50) return "#16a34a";
@@ -15,7 +14,7 @@ function roiColor(pct: number): string {
     return "#ef4444";
 }
 
-interface TreemapContentProps {
+interface ContentProps {
     x: number;
     y: number;
     width: number;
@@ -23,7 +22,6 @@ interface TreemapContentProps {
     coin: string;
     roi: number;
     pnl: number;
-    value: number;
 }
 
 function fmtPnlCompact(n: number): string {
@@ -33,7 +31,7 @@ function fmtPnlCompact(n: number): string {
     return `${sign}$${abs.toFixed(0)}`;
 }
 
-const CustomContent: React.FC<TreemapContentProps> = ({ x, y, width, height, coin, roi, pnl }) => {
+const CustomContent: React.FC<ContentProps> = ({ x, y, width, height, coin, roi, pnl }) => {
     if (width < 30 || height < 25) return null;
 
     const fill = roiColor(roi);
@@ -65,39 +63,47 @@ const CustomContent: React.FC<TreemapContentProps> = ({ x, y, width, height, coi
     );
 };
 
-const PerformanceTreemap: React.FC<{ aggregated: AggregatedAsset[] }> = ({ aggregated }) => {
-    const data = aggregated
-        .filter((a) => a.currentValue > 0)
-        .map((a) => ({
-            name: a.coin,
-            coin: a.coin,
-            value: a.currentValue,
-            roi: a.totalInvested > 0 ? ((a.currentValue - a.totalInvested) / a.totalInvested) * 100 : 0,
-            invested: a.totalInvested,
-            pnl: a.pnl,
+const IndividualTreemap: React.FC<{ items: ProcessedInvestment[] }> = ({ items }) => {
+    const data = items
+        .filter((i) => i.currentValue > 0)
+        .map((i) => ({
+            name: `${i.coin}-${i.id}`,
+            coin: i.coin,
+            buyPrice: i.buyPrice,
+            currentPrice: i.currentPrice,
+            value: i.currentValue,
+            invested: i.invested,
+            pnl: i.profit,
+            roi: i.roi,
+            date: i.date,
         }));
 
     if (data.length === 0) return null;
 
     return (
         <ChartCard
-            title="Mapa de Rendimiento"
-            subtitle="Tamaño = valor de posición · Color = ROI% (verde ↑ rojo ↓)"
+            title="Posiciones Individuales"
+            subtitle="Tamaño = valor · Color = ROI% por entrada"
         >
             <ResponsiveContainer width="100%" height={220}>
                 <Treemap
                     data={data}
                     dataKey="value"
-                    nameKey="coin"
-                    content={<CustomContent x={0} y={0} width={0} height={0} coin="" roi={0} pnl={0} value={0} />}
+                    nameKey="name"
+                    content={<CustomContent x={0} y={0} width={0} height={0} coin="" roi={0} pnl={0} />}
                 >
                     <Tooltip
                         content={({ active, payload }: any) => {
                             if (!active || !payload?.length) return null;
                             const d = payload[0].payload;
+                            const date = d.date
+                                ? new Date(d.date).toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" })
+                                : "—";
                             return (
                                 <div className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs shadow-xl">
                                     <p className="font-bold text-white mb-1">{d.coin}</p>
+                                    <p className="text-slate-400">Compra: {fmtPrice(d.buyPrice)}</p>
+                                    <p className="text-slate-400">Actual: {fmtPrice(d.currentPrice)}</p>
                                     <p className="text-slate-400">Valor: {fmtUSD(d.value)}</p>
                                     <p className="text-slate-400">Invertido: {fmtUSD(d.invested)}</p>
                                     <p style={{ color: d.pnl >= 0 ? "#4ade80" : "#f87171" }}>
@@ -106,13 +112,13 @@ const PerformanceTreemap: React.FC<{ aggregated: AggregatedAsset[] }> = ({ aggre
                                     <p style={{ color: d.roi >= 0 ? "#4ade80" : "#f87171" }}>
                                         ROI: {d.roi >= 0 ? "+" : ""}{d.roi.toFixed(2)}%
                                     </p>
+                                    <p className="text-slate-500 mt-1">{date}</p>
                                 </div>
                             );
                         }}
                     />
                 </Treemap>
             </ResponsiveContainer>
-            {/* Color legend */}
             <div className="flex items-center justify-center gap-1 text-[9px] text-slate-500">
                 <span className="w-3 h-2 rounded-sm" style={{ background: "#ef4444" }} />
                 <span>-25%</span>
@@ -129,4 +135,4 @@ const PerformanceTreemap: React.FC<{ aggregated: AggregatedAsset[] }> = ({ aggre
     );
 };
 
-export default PerformanceTreemap;
+export default IndividualTreemap;

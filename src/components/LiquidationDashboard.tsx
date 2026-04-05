@@ -191,7 +191,7 @@ export default function LiquidationDashboard({ prices, pricesLoading, refreshPri
   const getInputClass = (val: number) => `w-full bg-transparent text-white outline-none rounded px-1 transition-all ${val <= 0 ? 'ring-1 ring-red-500 bg-red-500/10' : ''}`;
 
   return (
-    <div className="bg-[#0E1014] text-gray-100 p-4 sm:p-6 font-sans relative rounded-3xl border border-gray-800/80 shadow-2xl">
+    <div className="bg-[#0E1014] text-gray-100 p-3 sm:p-4 font-sans relative rounded-2xl border border-gray-800/80 shadow-2xl">
       {toast && (
         <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-[100] flex items-center gap-2 px-4 py-3 rounded-lg shadow-xl border transition-all duration-300 ${toast.type === 'success' ? 'bg-green-900/90 border-green-500 text-green-100' : 'bg-red-900/90 border-red-500 text-red-100'} backdrop-blur-md`}>
           {toast.type === 'success' ? <CheckCircle size={20} /> : <XCircle size={20} />}
@@ -199,21 +199,20 @@ export default function LiquidationDashboard({ prices, pricesLoading, refreshPri
         </div>
       )}
 
-      <div className="max-w-5xl mx-auto space-y-6">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-gray-800 pb-4">
+      <div className="max-w-5xl mx-auto space-y-3">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-2 border-b border-gray-800 pb-3">
           <div>
-            <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+            <h1 className="text-xl font-bold text-white flex items-center gap-2">
               <ShieldAlert className={theme.title} />
               Simulador LTV Multiexchange
             </h1>
-            <p className="text-gray-400 text-sm mt-1">Gestiona tus préstamos con simulación de riesgos.</p>
           </div>
-          
-          <div className="flex flex-wrap gap-3">
-            <button 
+
+          <div className="flex flex-wrap gap-2">
+            <button
               onClick={() => { refreshPrices(); setToast({message: 'Sincronizando con mercado...', type: 'success'}); }}
               disabled={pricesLoading}
-              className="px-3 py-2 rounded-md bg-[#181A20] border border-blue-900/50 hover:border-blue-700 hover:bg-gray-800 text-blue-400 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+              className="px-2.5 py-1.5 rounded-md bg-[#181A20] border border-blue-900/50 hover:border-blue-700 hover:bg-gray-800 text-blue-400 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
             >
               <RefreshCw size={16} className={pricesLoading ? "animate-spin" : ""} /> 
               <span className="hidden sm:inline text-sm font-medium">
@@ -222,7 +221,7 @@ export default function LiquidationDashboard({ prices, pricesLoading, refreshPri
             </button>
             <button
               onClick={() => setShowSimulator(s => !s)}
-              className={`px-3 py-2 rounded-md border flex items-center gap-2 transition-colors text-sm font-medium ${showSimulator ? 'bg-purple-700 border-purple-500 text-white' : 'bg-[#181A20] border-purple-900/50 hover:border-purple-700 hover:bg-gray-800 text-purple-400'}`}
+              className={`px-2.5 py-1.5 rounded-md border flex items-center gap-2 transition-colors text-sm font-medium ${showSimulator ? 'bg-purple-700 border-purple-500 text-white' : 'bg-[#181A20] border-purple-900/50 hover:border-purple-700 hover:bg-gray-800 text-purple-400'}`}
             >
               <FlaskConical size={16} />
               <span className="hidden sm:inline">{showSimulator ? 'Cerrar Simulación' : 'Simular Caída'}</span>
@@ -230,14 +229,14 @@ export default function LiquidationDashboard({ prices, pricesLoading, refreshPri
             <button
               onClick={exportData}
               title="Exportar copia de seguridad JSON"
-              className="px-3 py-2 rounded-md bg-[#181A20] border border-gray-700 hover:bg-gray-800 text-gray-300 flex items-center gap-2 transition-colors"
+              className="px-2.5 py-1.5 rounded-md bg-[#181A20] border border-gray-700 hover:bg-gray-800 text-gray-300 flex items-center gap-2 transition-colors"
             >
               <Download size={16} /> <span className="hidden sm:inline text-sm">Respaldo (JSON)</span>
             </button>
             <div className="flex bg-[#181A20] p-1 rounded-lg border border-gray-800">
               <button 
                 onClick={() => setActiveTab('bybit')}
-                className={`px-5 py-2 rounded-md font-semibold text-sm transition-all duration-200 ${
+                className={`px-4 py-1.5 rounded-md font-semibold text-sm transition-all duration-200 ${
                   activeTab === 'bybit' ? `bg-yellow-500 text-black shadow-lg` : 'text-gray-400 hover:text-white hover:bg-gray-800'
                 }`}
               >
@@ -245,7 +244,7 @@ export default function LiquidationDashboard({ prices, pricesLoading, refreshPri
               </button>
               <button 
                 onClick={() => setActiveTab('binance')}
-                className={`px-5 py-2 rounded-md font-semibold text-sm transition-all duration-200 ${
+                className={`px-4 py-1.5 rounded-md font-semibold text-sm transition-all duration-200 ${
                   activeTab === 'binance' ? `bg-[#FCD535] text-black shadow-lg` : 'text-gray-400 hover:text-white hover:bg-gray-800'
                 }`}
               >
@@ -329,26 +328,26 @@ export default function LiquidationDashboard({ prices, pricesLoading, refreshPri
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className={`bg-[#181A20] p-5 rounded-xl border-y border-r border-gray-800 ${theme.borderLeft} border-l-4`}>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className={`bg-[#181A20] p-3 rounded-xl border-y border-r border-gray-800 ${theme.borderLeft} border-l-4`}>
             <div className="text-gray-400 text-sm mb-1">Deuda Total</div>
-            <div className="text-2xl font-bold text-white">${totalDebt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+            <div className="text-xl font-bold text-white">${totalDebt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
             {totalDebt > 0 && (
               <div className="text-xs text-orange-400/80 mt-2 flex items-center gap-1" title="Interés compuesto estimado">
                 <Clock size={12}/> +${interest30d.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} est. en 30 días
               </div>
             )}
           </div>
-          <div className="bg-[#181A20] p-5 rounded-xl border border-gray-800">
+          <div className="bg-[#181A20] p-3 rounded-xl border border-gray-800">
             <div className="text-gray-400 text-sm mb-1">Valor del Colateral</div>
-            <div className="text-2xl font-bold text-white">${totalCollateralValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+            <div className="text-xl font-bold text-white">${totalCollateralValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
           </div>
-          <div className="bg-[#181A20] p-5 rounded-xl border border-gray-800 relative overflow-hidden">
+          <div className="bg-[#181A20] p-3 rounded-xl border border-gray-800 relative overflow-hidden">
             <div className="text-gray-400 text-sm mb-1">LTV Actual</div>
-            <div className={`text-2xl font-bold ${isLiquidated ? 'text-red-500' : currentLTV > (currentData.liquidationLTV - 10) ? 'text-yellow-500' : 'text-green-500'}`}>
+            <div className={`text-xl font-bold ${isLiquidated ? 'text-red-500' : currentLTV > (currentData.liquidationLTV - 10) ? 'text-yellow-500' : 'text-green-500'}`}>
               {currentLTV.toFixed(2)}%
             </div>
-            <div className="w-full bg-gray-700 h-1.5 mt-3 rounded-full overflow-hidden relative">
+            <div className="w-full bg-gray-700 h-1.5 mt-2 rounded-full overflow-hidden relative">
               <div 
                 className={`h-full transition-all duration-500 ${isLiquidated ? 'bg-red-500' : currentLTV > (currentData.liquidationLTV - 10) ? 'bg-yellow-500' : 'bg-green-500'}`} 
                 style={{ width: `${Math.min(currentLTV, 100)}%` }}
@@ -366,11 +365,11 @@ export default function LiquidationDashboard({ prices, pricesLoading, refreshPri
           </div>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          <div className="space-y-6">
-            <div className="bg-[#181A20] p-5 rounded-xl border border-gray-800 space-y-4 shadow-lg">
-              <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
-                <h2 className="text-lg font-semibold text-white">Préstamos ({currentData.name})</h2>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="space-y-4">
+            <div className="bg-[#181A20] p-4 rounded-xl border border-gray-800 space-y-3 shadow-lg">
+              <div className="flex justify-between items-center mb-2 border-b border-gray-700 pb-2">
+                <h2 className="text-base font-semibold text-white">Préstamos ({currentData.name})</h2>
                 <button onClick={addDebt} className="text-sm bg-blue-600 hover:bg-blue-500 transition-colors text-white px-3 py-1.5 rounded flex items-center gap-1">
                   <Plus size={16}/> Agregar
                 </button>
@@ -407,9 +406,9 @@ export default function LiquidationDashboard({ prices, pricesLoading, refreshPri
               ))}
             </div>
 
-            <div className="bg-[#181A20] p-5 rounded-xl border border-gray-800 space-y-4 shadow-lg">
-              <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
-                <h2 className="text-lg font-semibold text-white">Colateral ({currentData.name})</h2>
+            <div className="bg-[#181A20] p-4 rounded-xl border border-gray-800 space-y-3 shadow-lg">
+              <div className="flex justify-between items-center mb-2 border-b border-gray-700 pb-2">
+                <h2 className="text-base font-semibold text-white">Colateral ({currentData.name})</h2>
                 <button onClick={addCollateral} className={`text-sm ${theme.bgBtn} ${theme.textBtn} hover:opacity-80 transition-opacity font-medium px-3 py-1.5 rounded flex items-center gap-1`}>
                   <Plus size={16}/> Agregar
                 </button>
@@ -440,8 +439,8 @@ export default function LiquidationDashboard({ prices, pricesLoading, refreshPri
                 </div>
               ))}
 
-              <div className="pt-4 mt-2 border-t border-gray-800">
-                <label className="text-sm text-gray-400 flex items-center justify-between mb-2">
+              <div className="pt-3 mt-1 border-t border-gray-800">
+                <label className="text-sm text-gray-400 flex items-center justify-between mb-1">
                   <span>LTV de Liquidación ({currentData.name})</span>
                   <span className="text-white font-bold bg-gray-800 px-2 py-1 rounded">{currentData.liquidationLTV}%</span>
                 </label>
@@ -456,15 +455,15 @@ export default function LiquidationDashboard({ prices, pricesLoading, refreshPri
             </div>
           </div>
 
-          <div className="space-y-6">
-            <div className="bg-[#181A20] p-5 rounded-xl border border-gray-800 shadow-lg">
-              <h2 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-                <TrendingDown className="text-red-400" size={20} />
+          <div className="space-y-4">
+            <div className="bg-[#181A20] p-4 rounded-xl border border-gray-800 shadow-lg">
+              <h2 className="text-base font-semibold text-white mb-2 flex items-center gap-2">
+                <TrendingDown className="text-red-400" size={18} />
                 Caída Global - {currentData.name}
               </h2>
-              
+
               {isLiquidated ? (
-                <div className="bg-red-900/40 border border-red-500/50 p-4 rounded-lg flex items-start gap-3 mt-4">
+                <div className="bg-red-900/40 border border-red-500/50 p-3 rounded-lg flex items-start gap-3 mt-2">
                   <AlertTriangle className="text-red-500 shrink-0 mt-0.5" size={20} />
                   <div>
                     <strong className="text-red-400 block mb-1">⚠️ En Zona de Liquidación</strong>
@@ -475,10 +474,10 @@ export default function LiquidationDashboard({ prices, pricesLoading, refreshPri
                 </div>
               ) : (
                 <>
-                  <p className="text-sm text-gray-400 mb-4">
+                  <p className="text-sm text-gray-400 mb-2">
                     Si todos tus activos cayeran simultáneamente, serías liquidado cuando el valor total del colateral llegue a <strong className="text-white">${liquidationThresholdValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong>.
                   </p>
-                  <div className="bg-[#2A1C1C] border border-red-900/50 text-red-300 p-4 rounded-lg flex items-center justify-between">
+                  <div className="bg-[#2A1C1C] border border-red-900/50 text-red-300 p-3 rounded-lg flex items-center justify-between">
                     <span>Caída requerida:</span>
                     <span className="text-2xl font-bold">-{globalDropNeeded.toFixed(2)}%</span>
                   </div>
@@ -486,23 +485,23 @@ export default function LiquidationDashboard({ prices, pricesLoading, refreshPri
               )}
             </div>
 
-            <div className="bg-[#181A20] p-5 rounded-xl border border-gray-800 shadow-lg">
-              <h2 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-                <AlertTriangle className="text-orange-400" size={20} />
+            <div className="bg-[#181A20] p-4 rounded-xl border border-gray-800 shadow-lg">
+              <h2 className="text-base font-semibold text-white mb-2 flex items-center gap-2">
+                <AlertTriangle className="text-orange-400" size={18} />
                 Liquidación Individual - {currentData.name}
               </h2>
-              <p className="text-sm text-gray-400 mb-4">
+              <p className="text-sm text-gray-400 mb-2">
                 Precio exacto al que debe caer <strong>una sola moneda</strong> para liquidarte, asumiendo que el resto mantienen su valor.
               </p>
 
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {currentData.collateral.map((asset) => {
                   const liqPrice = calculateIndividualLiqPrice(asset);
                   const isSafe = liqPrice <= 0 || !asset.amount || !asset.price;
                   const priceDrop = isSafe ? 100 : ((asset.price - liqPrice) / asset.price) * 100;
 
                   return (
-                    <div key={`liq-${asset._id}`} className={`bg-[#0E1014] p-3 rounded-lg border border-gray-800 flex justify-between items-center border-l-2 border-l-transparent ${theme.borderHover} transition-all`}>
+                    <div key={`liq-${asset._id}`} className={`bg-[#0E1014] p-2 rounded-lg border border-gray-800 flex justify-between items-center border-l-2 border-l-transparent ${theme.borderHover} transition-all`}>
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-white uppercase">{asset.id || '---'}</span>
                       </div>

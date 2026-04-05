@@ -23,6 +23,7 @@ export default function WatchlistAlertModal({ currentAlerts, onSaveAlerts, onClo
     const [targetValue, setTargetValue] = useState<number>(0);
     const [direction, setDirection] = useState<'up' | 'down'>('up');
     const [isPersistent, setIsPersistent] = useState(false);
+    const [note, setNote] = useState<string>("");
     const [saving, setSaving] = useState(false);
 
     // Binance search state
@@ -103,10 +104,16 @@ export default function WatchlistAlertModal({ currentAlerts, onSaveAlerts, onClo
         const existing = draftAlerts[selectedCoin] || [];
         setDraftAlerts({
             ...draftAlerts,
-            [selectedCoin]: [...existing, { targetValue, direction, isPersistent }],
+            [selectedCoin]: [...existing, {
+                targetValue,
+                direction,
+                isPersistent,
+                ...(note.trim() ? { note: note.trim() } : {}),
+            }],
         });
         setTargetValue(selectedPrice);
         setIsPersistent(false);
+        setNote("");
     };
 
     const handleRemove = (coin: string, index: number) => {
@@ -125,6 +132,7 @@ export default function WatchlistAlertModal({ currentAlerts, onSaveAlerts, onClo
         setTargetValue(alert.targetValue);
         setDirection(alert.direction);
         setIsPersistent(alert.isPersistent ?? false);
+        setNote(alert.note ?? "");
         setSearch(coin);
         handleRemove(coin, index);
     };
@@ -173,9 +181,14 @@ export default function WatchlistAlertModal({ currentAlerts, onSaveAlerts, onClo
                                         <div key={`${coin}-${index}`} className="flex items-center justify-between bg-slate-800 border border-slate-700 rounded-lg px-3 py-2">
                                             <div className="flex items-center gap-2 min-w-0">
                                                 <span className="font-bold text-blue-400 text-xs shrink-0">{coin}</span>
-                                                <span className={`text-sm font-bold ${alert.direction === 'up' ? 'text-green-400' : 'text-red-400'}`}>
-                                                    {alert.direction === 'up' ? '🔼' : '🔽'} {fmtPrice(alert.targetValue)}
-                                                </span>
+                                                <div className="flex flex-col">
+                                                    <span className={`text-sm font-bold ${alert.direction === 'up' ? 'text-green-400' : 'text-red-400'}`}>
+                                                        {alert.direction === 'up' ? '🔼' : '🔽'} {fmtPrice(alert.targetValue)}
+                                                    </span>
+                                                    {alert.note && (
+                                                        <span className="text-[10px] text-slate-400 italic mt-0.5">📝 {alert.note}</span>
+                                                    )}
+                                                </div>
                                                 {alert.isPersistent ? (
                                                     <span className="flex items-center gap-1 text-[9px] bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap">
                                                         <Repeat className="w-2.5 h-2.5" /> Perm.
@@ -317,6 +330,15 @@ export default function WatchlistAlertModal({ currentAlerts, onSaveAlerts, onClo
                                 <Repeat className="w-3 h-3 shrink-0" /> Permanente
                             </button>
                         </div>
+
+                        <input
+                            type="text"
+                            placeholder="Nota opcional (ej: esperar confirmación)"
+                            value={note}
+                            onChange={(e) => setNote(e.target.value)}
+                            maxLength={200}
+                            className="w-full h-9 bg-slate-900 border border-slate-700 rounded-lg px-3 text-xs text-white placeholder-slate-600 outline-none focus:ring-2 focus:ring-yellow-400/50 focus:border-yellow-400/50 mb-3"
+                        />
 
                         <button
                             onClick={handleAdd}
