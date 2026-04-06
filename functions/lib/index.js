@@ -756,7 +756,7 @@ async function runDailyReport() {
 exports.dailyPortfolioReport = functions
     .region('europe-west1')
     .pubsub.schedule("0 8 * * *")
-    .timeZone("Europe/Madrid")
+    .timeZone("America/Caracas")
     .onRun(async (_context) => {
     try {
         await runDailyReport();

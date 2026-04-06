@@ -202,7 +202,7 @@ export default function LiquidationDashboard({ prices, pricesLoading, refreshPri
       <div className="max-w-5xl mx-auto space-y-3">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-2 border-b border-gray-800 pb-3">
           <div>
-            <h1 className="text-xl font-bold text-white flex items-center gap-2">
+            <h1 className="text-xl font-bold text-white hidden sm:flex items-center gap-2">
               <ShieldAlert className={theme.title} />
               Simulador LTV Multiexchange
             </h1>

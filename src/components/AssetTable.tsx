@@ -59,7 +59,7 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
 
         return (
             <div className="mb-6 sm:mb-10">
-                <h2 className="text-xs font-bold text-slate-500 mb-4 uppercase tracking-widest flex items-center gap-2 border-b border-slate-800 pb-2">
+                <h2 className="text-xs font-bold text-slate-500 mb-4 uppercase tracking-widest hidden sm:flex items-center gap-2 border-b border-slate-800 pb-2">
                     <Activity className="w-4 h-4 text-emerald-500" /> Detalle de Activos
                 </h2>
                 <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-xl">
@@ -99,14 +99,14 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                                     >
                                         {item.coin}
                                     </div>
-                                    <div className="flex-1 flex items-center gap-1.5 flex-wrap">
-                                        <span className={`font-bold text-sm ${getCoinTextColor(item.coin)}`}>{item.coin}</span>
-                                        <span className={`text-[13px] font-mono font-bold tracking-tight ${getCoinTextColor(item.coin)}`}>
-                                            {fmt(item.quantity)} u.
-                                        </span>
-                                        <span className="text-[10px] text-slate-500">
-                                            · {fmtDate(item.date)}
-                                        </span>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-1.5">
+                                            <span className={`font-bold text-sm ${getCoinTextColor(item.coin)}`}>{item.coin}</span>
+                                            <span className={`text-[13px] font-mono font-bold tracking-tight ${getCoinTextColor(item.coin)}`}>
+                                                {fmt(item.quantity)} u.
+                                            </span>
+                                        </div>
+                                        <span className="text-[10px] text-slate-500">{fmtDate(item.date)}</span>
                                     </div>
                                 </div>
 

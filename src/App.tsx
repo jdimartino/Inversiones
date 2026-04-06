@@ -216,34 +216,12 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-slate-900 text-slate-100 font-sans">
 
       {/* ── Sticky Header ─────────────────────────────────────── */}
-      <header className="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800">
-        <div className="max-w-6xl mx-auto px-3 md:px-8 py-3 flex justify-between items-center">
-          <div>
-            <h1 className="text-xl font-bold flex items-center gap-2 text-yellow-400">
-              <Activity className="w-6 h-6" /> Crypto Command
-            </h1>
-            <p className="text-[10px] text-yellow-500/70 font-semibold mt-[-2px] ml-8 mb-1">
-              By #JDMRules
-            </p>
-            <p className="text-slate-500 text-[10px] uppercase tracking-widest font-bold hidden sm:block">
-              LTV Flex: Binance 91% · Bybit 92%
-            </p>
-          </div>
-          <button
-            onClick={refresh}
-            disabled={loading}
-            className="bg-yellow-600 p-2 rounded-lg hover:bg-yellow-500 transition-colors shadow-lg active:scale-95"
-          >
-            <RefreshCw className={`w-5 h-5 ${loading ? "animate-spin" : ""}`} />
-          </button>
-        </div>
-
-        {/* ── Tab Bar ───────────────────────── */}
-        <NavBar active={activeTab} onChange={setActiveTab} />
+      <header className="sm:sticky sm:top-0 sm:z-50 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800">
+        <NavBar active={activeTab} onChange={setActiveTab} onRefresh={refresh} refreshing={loading} />
       </header>
 
       {/* ── Tab Content ───────────────────────────────────────── */}
-      <main className="max-w-6xl mx-auto px-3 md:px-8 py-3 sm:py-6 pb-28 sm:pb-40">
+      <main className="max-w-6xl mx-auto px-3 md:px-8 py-3 sm:py-6">
 
         {!hasPrices && !loading && (
           <div className="bg-yellow-900/20 border border-yellow-700/50 rounded-lg px-4 py-3 mb-4 flex items-center gap-2 text-yellow-300 text-sm">
@@ -349,6 +327,18 @@ const App: React.FC = () => {
             />
           </div>
         )}
+        {/* ── Footer ────────────────────────────────────────────── */}
+        <footer className="mt-8 border-t border-slate-800 py-3 flex justify-between items-center">
+          <div>
+            <h1 className="text-base font-bold flex items-center gap-2 text-yellow-400">
+              <Activity className="w-4 h-4" /> Crypto Command
+            </h1>
+            <p className="text-[10px] text-yellow-500/70 font-semibold mt-[-2px] ml-6">By #JDMRules</p>
+            <p className="text-slate-500 text-[10px] uppercase tracking-widest font-bold hidden sm:block ml-6">
+              LTV Flex: Binance 91% · Bybit 92%
+            </p>
+          </div>
+        </footer>
       </main>
 
       {/* ── Modals (always mounted regardless of active tab) ───────── */}

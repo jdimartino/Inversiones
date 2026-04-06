@@ -15,7 +15,7 @@ const SummaryCards: React.FC<SummaryCardsProps> = React.memo(
     ({ totalInvested, totalValue, totalPnl, totalRoi, hasActiveGlobalAlerts, onOpenGlobalAlerts }) => (
         <div className="mb-3">
             <div className="flex items-center gap-4 border-b border-slate-800 pb-2 mb-3">
-                <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2 shrink-0">
+                <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest hidden sm:flex items-center gap-2 shrink-0">
                     <Wallet className="w-4 h-4 text-blue-400" /> Resumen Spot
                 </h2>
                 <div className="flex items-center gap-4 text-sm flex-wrap">

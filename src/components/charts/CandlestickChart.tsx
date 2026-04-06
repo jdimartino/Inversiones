@@ -288,6 +288,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
             upColor: "#4ade80", downColor: "#f87171",
             borderUpColor: "#4ade80", borderDownColor: "#f87171",
             wickUpColor: "#4ade80", wickDownColor: "#f87171",
+            priceLineVisible: false,
         });
         const volumeSeries = (mainChart as any).addHistogramSeries({
             color: "#26a69a", priceFormat: { type: "volume" }, priceScaleId: "vol",
@@ -394,7 +395,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                 color: alert.direction === 'up' ? '#22c55e' : '#ef4444',
                 lineWidth: 1,
                 lineStyle: LineStyle.Dashed,
-                axisLabelVisible: true,
+                axisLabelVisible: false,
                 title: `🔔 ${alert.isPersistent ? '∞' : '1x'}`,
             });
             alertPriceLinesRef.current.push(line);
@@ -448,6 +449,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
         const isSubDollar = (asset?.currentPrice ?? 1) < 1;
         candleSeriesRef.current.applyOptions({
             priceFormat: { type: "price", precision: isSubDollar ? 4 : 2, minMove: isSubDollar ? 0.0001 : 0.01 },
+            priceLineVisible: false,
         });
 
         const coinItems = items.filter((inv) => inv.coin === selectedCoin);
@@ -455,7 +457,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
             priceLinesRef.current.push(
                 candleSeriesRef.current!.createPriceLine({
                     price: inv.buyPrice, color: "#60a5fa", lineWidth: 1,
-                    lineStyle: LineStyle.Dotted, axisLabelVisible: true, title: "",
+                    lineStyle: LineStyle.Dotted, axisLabelVisible: false, title: "Compra",
                 })
             );
         });
@@ -463,7 +465,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
             priceLinesRef.current.push(
                 candleSeriesRef.current!.createPriceLine({
                     price: asset.avgBuyPrice, color: "#f59e0b", lineWidth: 2,
-                    lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "",
+                    lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "Promedio",
                 })
             );
         }
@@ -471,7 +473,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
             priceLinesRef.current.push(
                 candleSeriesRef.current!.createPriceLine({
                     price: asset.currentPrice, color: "#22d3ee", lineWidth: 1,
-                    lineStyle: LineStyle.Solid, axisLabelVisible: true, title: "",
+                    lineStyle: LineStyle.Solid, axisLabelVisible: false, title: "Actual",
                 })
             );
         }
@@ -531,6 +533,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
         <ChartCard
             title="Precio de Monedas"
             subtitle="Velas OHLCV · pasa el cursor sobre una vela para ver detalle"
+            hideTitleOnMobile
         >
             {/* Controls */}
             <div className="flex flex-wrap justify-between items-center gap-2">

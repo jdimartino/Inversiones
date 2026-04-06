@@ -51,7 +51,7 @@ export default function SignalsTab({
     <div className="space-y-6 animate-fadeIn">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b border-slate-800 pb-4">
-        <div>
+        <div className="hidden sm:block">
           <h1 className="text-xl md:text-2xl font-bold text-white flex items-center gap-2">
             <Zap className="w-6 h-6 text-yellow-400" />
             Señales de Trading
@@ -78,7 +78,7 @@ export default function SignalsTab({
       </div>
 
       {/* Disclaimer */}
-      <div className="bg-yellow-900/10 border border-yellow-800/30 rounded-lg px-3 py-2 flex items-start gap-2">
+      <div className="bg-yellow-900/10 border border-yellow-800/30 rounded-lg px-3 py-2 hidden sm:flex items-start gap-2">
         <AlertTriangle className="w-4 h-4 text-yellow-600 flex-shrink-0 mt-0.5" />
         <p className="text-[10px] text-yellow-700 leading-relaxed">
           Las señales son indicadores técnicos automatizados, NO constituyen consejo financiero.

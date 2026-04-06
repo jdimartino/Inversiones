@@ -318,7 +318,7 @@ const SellCalculator = ({
           <div className="p-2 md:p-3 bg-red-600/20 rounded-lg hidden sm:block">
             <Calculator className="w-6 h-6 md:w-8 md:h-8 text-red-500" />
           </div>
-          <div>
+          <div className="hidden sm:block">
             <h1 className="text-lg md:text-2xl font-bold text-white flex items-center gap-2">
               Suite de VENTA <span className="text-xs bg-red-500/20 text-red-400 px-2 py-1 rounded-full border border-red-500/30 hidden md:block">Mercado Spot</span>
             </h1>
