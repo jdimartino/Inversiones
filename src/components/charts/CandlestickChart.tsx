@@ -535,6 +535,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
             <div className="flex flex-wrap justify-between items-center gap-2">
                 {/* Coin selector with signal dots */}
                 <div className="flex flex-wrap gap-1">
+
                     {coins.map((coin) => {
                         const sig = signals.find((s) => s.coin === coin);
                         const dot = signalDotColor(sig?.signal);
@@ -560,6 +561,29 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                         );
                     })}
                 </div>
+
+                {/* Price display — center */}
+                {(() => {
+                    const klines = getCurrentKlines();
+                    const first = klines[0];
+                    const last = klines[klines.length - 1];
+                    const price = currentPrice || last?.close || 0;
+                    const change = first && last ? ((last.close - first.open) / first.open) * 100 : null;
+                    const up = change !== null && change >= 0;
+                    if (!price) return null;
+                    return (
+                        <div className="flex flex-col items-center">
+                            <span className="text-white font-mono font-bold text-xl leading-none tracking-tight">
+                                {fmtPrice(price)}
+                            </span>
+                            {change !== null && (
+                                <span className={`text-xs font-bold font-mono mt-0.5 ${up ? "text-green-400" : "text-red-400"}`}>
+                                    {up ? "▲" : "▼"} {Math.abs(change).toFixed(2)}%
+                                </span>
+                            )}
+                        </div>
+                    );
+                })()}
 
                 {/* Interval + expand */}
                 <div className="flex items-center gap-1.5">
