@@ -33,6 +33,20 @@ export interface ProcessedLoan extends Loan {
     liquidationPrice: number;
 }
 
+export interface ClosedTrade {
+    id: string;
+    coin: string;
+    quantity: number;
+    buyPrice: number;
+    sellPrice: number;
+    invested: number;
+    soldValue: number;
+    pnl: number;
+    pnlPercent: number;
+    buyDate: number;
+    sellDate: number;
+}
+
 export interface AggregatedAsset {
     coin: string;
     totalQty: number;

@@ -12,6 +12,7 @@ import InvestmentTimeline from "./charts/InvestmentTimeline";
 import CandlestickChart from "./charts/CandlestickChart";
 import TechnicalSummary from "./charts/TechnicalSummary";
 import FearGreedGauge from "./charts/FearGreedGauge";
+import SignalCard from "./SignalCard";
 
 
 // ── Sub-tab types ────────────────────────────────────────────────────
@@ -47,6 +48,7 @@ const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
     initialCoin,
 }) => {
     const [subTab, setSubTab] = useState<SubTab>("mercado");
+    const [activeCoin, setActiveCoin] = useState<string>(initialCoin ?? "");
 
     useEffect(() => {
         if (initialCoin) setSubTab("mercado");
@@ -95,7 +97,12 @@ const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fadeIn">
                     {hasKlines && (
                         <div className="md:col-span-2">
-                            <CandlestickChart aggregated={aggregated} klinesMap={klinesMap} items={items} initialCoin={initialCoin} signals={signals} />
+                            <CandlestickChart aggregated={aggregated} klinesMap={klinesMap} items={items} initialCoin={initialCoin} signals={signals} onCoinChange={setActiveCoin} />
+                            {signals.find(s => s.coin === activeCoin) && (
+                                <div className="mt-3">
+                                    <SignalCard signal={signals.find(s => s.coin === activeCoin)!} />
+                                </div>
+                            )}
                         </div>
                     )}
                     {hasSignals && <TechnicalSummary signals={signals} />}

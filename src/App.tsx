@@ -8,6 +8,7 @@ import {
   AggregatedAsset,
 } from "./lib/constants";
 import { usePortfolio } from "./hooks/usePortfolio";
+import { useClosedTrades } from "./hooks/useClosedTrades";
 import { useLoans } from "./hooks/useLoans";
 import { usePrices } from "./hooks/usePrices";
 import { useAlerts, InvestmentAlert, GlobalAlert, WatchlistAlert } from "./hooks/useAlerts";
@@ -23,6 +24,8 @@ import LiquidationDashboard from "./components/LiquidationDashboard";
 import SellSuite from "./components/SellSuite";
 import SignalsTab from "./components/SignalsTab";
 import EditLoanModal from "./components/EditLoanModal";
+import ClosePositionModal from "./components/ClosePositionModal";
+import ClosedTradesTable from "./components/ClosedTradesTable";
 import AlertSettings from "./components/AlertSettings";
 import EditInvestmentModal from "./components/EditInvestmentModal";
 import InvestmentAlertModal from "./components/InvestmentAlertModal";
@@ -31,6 +34,7 @@ import WatchlistAlertModal from "./components/WatchlistAlertModal";
 
 const App: React.FC = () => {
   const { portfolio, addInvestment, removeInvestment, updateInvestment } = usePortfolio();
+  const { closedTrades, addClosedTrade, loading: closedTradesLoading } = useClosedTrades();
   const { loans, addLoan, updateLoan, removeLoan } = useLoans();
   const { config, saveConfig } = useAlerts();
   const { prices, priceDirections, loading, refresh } = usePrices();
@@ -42,6 +46,7 @@ const App: React.FC = () => {
   const [editingInvestment, setEditingInvestment] = useState<ProcessedInvestment | null>(null);
   const [alertingInvestment, setAlertingInvestment] = useState<ProcessedInvestment | null>(null);
   const [sellPreload, setSellPreload] = useState<ProcessedInvestment | null>(null);
+  const [closingInvestment, setClosingInvestment] = useState<ProcessedInvestment | null>(null);
   const [isGlobalAlertModalOpen, setIsGlobalAlertModalOpen] = useState(false);
   const [isWatchlistModalOpen, setIsWatchlistModalOpen] = useState(false);
   const [globalEditIndex, setGlobalEditIndex] = useState<number | null>(null);
@@ -142,6 +147,8 @@ const App: React.FC = () => {
     setSellPreload(item);
     setActiveTab("venta");
   }, []);
+
+  const handleClosePosition = useCallback((item: ProcessedInvestment) => setClosingInvestment(item), []);
 
   const handleViewChart = useCallback((item: ProcessedInvestment) => {
     setGraficoCoin(item.coin);
@@ -264,9 +271,11 @@ const App: React.FC = () => {
               onAlert={handleAlertInvestment}
               onSellEvaluate={handleSellEvaluate}
               onViewChart={handleViewChart}
+              onClosePosition={handleClosePosition}
               priceDirections={priceDirections}
             />
             <AggregatedTable items={aggregatedList} priceDirections={priceDirections} />
+            <ClosedTradesTable trades={closedTrades} loading={closedTradesLoading} />
           </div>
         )}
 
@@ -342,6 +351,31 @@ const App: React.FC = () => {
       </main>
 
       {/* ── Modals (always mounted regardless of active tab) ───────── */}
+      {closingInvestment && (
+        <ClosePositionModal
+          investment={closingInvestment}
+          onConfirm={async (sellPrice: number) => {
+            const inv = closingInvestment;
+            const soldValue = sellPrice * inv.quantity;
+            const pnl = soldValue - inv.invested;
+            await addClosedTrade({
+              coin: inv.coin,
+              quantity: inv.quantity,
+              buyPrice: inv.buyPrice,
+              sellPrice,
+              invested: inv.invested,
+              soldValue,
+              pnl,
+              pnlPercent: inv.invested > 0 ? (pnl / inv.invested) * 100 : 0,
+              buyDate: inv.date,
+              sellDate: Date.now(),
+            });
+            await removeInvestment(inv.id);
+            setClosingInvestment(null);
+          }}
+          onClose={() => setClosingInvestment(null)}
+        />
+      )}
       {editingLoan && (
         <EditLoanModal loan={editingLoan} onSave={updateLoan} onClose={handleCloseModal} />
       )}

@@ -12,7 +12,8 @@ import type { Kline, CoinSignal } from "../../lib/types/signals";
 import ChartCard from "./ChartCard";
 import { coinColor } from "./chartColors";
 import { fmtPrice } from "../../lib/format";
-import { Maximize2, Minimize2 } from "lucide-react";
+import { Maximize2, Minimize2, Bell } from "lucide-react";
+import { useAlerts, WatchlistAlert } from "../../hooks/useAlerts";
 
 // ── Indicator utilities ─────────────────────────────────────────────
 
@@ -103,6 +104,7 @@ interface CandlestickChartProps {
     items: ProcessedInvestment[];
     initialCoin?: string;
     signals?: CoinSignal[];
+    onCoinChange?: (coin: string) => void;
 }
 
 type Interval = "15m" | "1h" | "4h" | "1d" | "1M";
@@ -147,9 +149,10 @@ async function fetchKlines(coin: string, interval: Interval): Promise<Kline[]> {
 // ── Component ───────────────────────────────────────────────────────
 
 const CandlestickChart: React.FC<CandlestickChartProps> = ({
-    aggregated, klinesMap, items, initialCoin, signals = [],
+    aggregated, klinesMap, items, initialCoin, signals = [], onCoinChange,
 }) => {
     const coins = aggregated.filter((a) => a.currentValue > 0).map((a) => a.coin);
+    const { config, saveConfig } = useAlerts();
 
     const [selectedCoin, setSelectedCoin] = useState<string>(
         initialCoin && coins.includes(initialCoin) ? initialCoin : coins[0] || ""
@@ -159,6 +162,14 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
     const [loading, setLoading] = useState(false);
     const [expanded, setExpanded] = useState(false);
     const [legend, setLegend] = useState<OhlcvLegend | null>(null);
+
+    // Alert form state
+    const [showAlertForm, setShowAlertForm] = useState(false);
+    const [alertTarget, setAlertTarget] = useState(0);
+    const [alertDirection, setAlertDirection] = useState<'up' | 'down'>('up');
+    const [alertPersistent, setAlertPersistent] = useState(false);
+    const [alertNote, setAlertNote] = useState("");
+    const [alertSaved, setAlertSaved] = useState(false);
 
     // Chart containers
     const mainContainerRef = useRef<HTMLDivElement>(null);
@@ -176,6 +187,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
     const sma20Ref = useRef<ISeriesApi<"Line"> | null>(null);
     const sma50Ref = useRef<ISeriesApi<"Line"> | null>(null);
     const priceLinesRef = useRef<ReturnType<ISeriesApi<"Candlestick">["createPriceLine"]>[]>([]);
+    const alertPriceLinesRef = useRef<ReturnType<ISeriesApi<"Candlestick">["createPriceLine"]>[]>([]);
     const rsiSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
     const macdLineRef = useRef<ISeriesApi<"Line"> | null>(null);
     const macdSignalRef = useRef<ISeriesApi<"Line"> | null>(null);
@@ -186,6 +198,10 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
     useEffect(() => {
         if (initialCoin && coins.includes(initialCoin)) setSelectedCoin(initialCoin);
     }, [initialCoin]);
+
+    useEffect(() => {
+        onCoinChange?.(selectedCoin);
+    }, [selectedCoin, onCoinChange]);
 
     const getCurrentKlines = useCallback((): Kline[] => {
         if (selectedInterval === "1h") return klinesMap[selectedCoin] || [];
@@ -312,7 +328,6 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
         // ── OHLCV legend on crosshair ────────────────────────────────
         mainChart.subscribeCrosshairMove((param) => {
             if (!param.time || !(param.seriesData?.size)) {
-                setLegend(null);
                 return;
             }
             const c = param.seriesData.get(candleSeries) as any;
@@ -363,6 +378,27 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
     useEffect(() => {
         mainChartRef.current?.applyOptions({ height: expanded ? 600 : 420 });
     }, [expanded]);
+
+    // Draw alert price lines on chart when alerts or selected coin changes
+    useEffect(() => {
+        if (!candleSeriesRef.current) return;
+        alertPriceLinesRef.current.forEach(line => {
+            try { candleSeriesRef.current!.removePriceLine(line); } catch {}
+        });
+        alertPriceLinesRef.current = [];
+        const activeAlerts = config.watchlistAlerts?.[selectedCoin] ?? [];
+        activeAlerts.forEach(alert => {
+            const line = candleSeriesRef.current!.createPriceLine({
+                price: alert.targetValue,
+                color: alert.direction === 'up' ? '#22c55e' : '#ef4444',
+                lineWidth: 1,
+                lineStyle: LineStyle.Dashed,
+                axisLabelVisible: true,
+                title: `🔔 ${alert.isPersistent ? '∞' : '1x'}`,
+            });
+            alertPriceLinesRef.current.push(line);
+        });
+    }, [config.watchlistAlerts, selectedCoin]);
 
     // Update data when coin / interval / klines change
     useEffect(() => {
@@ -467,6 +503,27 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
         }
     }, [selectedCoin, selectedInterval, extraKlines, klinesMap, aggregated, items]);
 
+    const currentPrice = aggregated.find(a => a.coin === selectedCoin)?.currentPrice ?? 0;
+
+    const handleSaveChartAlert = async () => {
+        const existing = config.watchlistAlerts?.[selectedCoin] ?? [];
+        const newAlert: WatchlistAlert = {
+            targetValue: alertTarget,
+            direction: alertDirection,
+            isPersistent: alertPersistent,
+            ...(alertNote.trim() ? { note: alertNote.trim() } : {}),
+        };
+        await saveConfig({
+            ...config,
+            watchlistAlerts: {
+                ...(config.watchlistAlerts ?? {}),
+                [selectedCoin]: [...existing, newAlert],
+            },
+        });
+        setAlertSaved(true);
+        setTimeout(() => { setAlertSaved(false); setShowAlertForm(false); setAlertNote(""); }, 1500);
+    };
+
     if (coins.length === 0) return null;
 
     return (
@@ -522,6 +579,26 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                         ))}
                     </div>
                     <button
+                        onClick={() => {
+                            if (!showAlertForm) {
+                                setAlertTarget(currentPrice);
+                                setAlertDirection('up');
+                                setAlertNote("");
+                                setAlertPersistent(false);
+                            }
+                            setShowAlertForm(v => !v);
+                        }}
+                        className={`flex items-center gap-1 px-2 py-1.5 rounded text-[10px] font-bold border transition-colors ${
+                            showAlertForm
+                                ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40'
+                                : 'bg-slate-700 text-slate-400 border-slate-700 hover:text-yellow-300'
+                        }`}
+                        title="Nueva alerta de precio"
+                    >
+                        <Bell className="w-3 h-3" />
+                        <span>Alerta</span>
+                    </button>
+                    <button
                         onClick={() => setExpanded((e) => !e)}
                         className="p-1.5 rounded bg-slate-700 text-slate-400 hover:bg-slate-600 transition-colors"
                         title={expanded ? "Contraer" : "Expandir"}
@@ -566,6 +643,64 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                     Actual
                 </span>
             </div>
+
+            {/* Inline alert form */}
+            {showAlertForm && (
+                <div className="bg-slate-900 border border-slate-700 rounded-lg p-3 flex flex-wrap items-center gap-2">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">🔔 {selectedCoin}</span>
+                    {currentPrice > 0 && (
+                        (alertDirection === 'up' && currentPrice >= alertTarget) ||
+                        (alertDirection === 'down' && currentPrice <= alertTarget)
+                    ) && (
+                        <span className="w-full text-[10px] font-bold text-yellow-400">
+                            ⚠️ El precio actual ya {alertDirection === 'up' ? 'supera' : 'está por debajo de'} {fmtPrice(alertTarget)} — se disparará en el próximo ciclo
+                        </span>
+                    )}
+                    <input
+                        type="number"
+                        value={alertTarget}
+                        onChange={e => {
+                            const v = parseFloat(e.target.value) || 0;
+                            setAlertTarget(v);
+                            setAlertDirection(v >= currentPrice ? 'up' : 'down');
+                        }}
+                        className="w-28 h-7 bg-slate-800 border border-slate-700 rounded px-2 text-xs font-bold text-white text-center focus:outline-none focus:border-yellow-500"
+                    />
+                    <button
+                        onClick={() => setAlertDirection('up')}
+                        className={`px-2 py-1 rounded text-[10px] font-bold border transition-colors ${alertDirection === 'up' ? 'bg-green-500/20 text-green-400 border-green-500/40' : 'bg-slate-800 text-slate-500 border-slate-700 hover:text-green-400'}`}
+                    >▲ Sube a</button>
+                    <button
+                        onClick={() => setAlertDirection('down')}
+                        className={`px-2 py-1 rounded text-[10px] font-bold border transition-colors ${alertDirection === 'down' ? 'bg-red-500/20 text-red-400 border-red-500/40' : 'bg-slate-800 text-slate-500 border-slate-700 hover:text-red-400'}`}
+                    >▼ Baja a</button>
+                    <button
+                        onClick={() => setAlertPersistent(v => !v)}
+                        className={`px-2 py-1 rounded text-[10px] font-bold border transition-colors ${alertPersistent ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40' : 'bg-slate-800 text-slate-500 border-slate-700 hover:text-yellow-400'}`}
+                    >{alertPersistent ? '∞ Perm.' : '1x Vez'}</button>
+                    <input
+                        type="text"
+                        placeholder="Nota..."
+                        value={alertNote}
+                        onChange={e => setAlertNote(e.target.value)}
+                        maxLength={100}
+                        className="flex-1 min-w-[80px] h-7 bg-slate-800 border border-slate-700 rounded px-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-slate-500"
+                    />
+                    <button
+                        onClick={handleSaveChartAlert}
+                        disabled={alertSaved}
+                        className={`px-3 py-1 rounded text-[10px] font-bold transition-colors disabled:opacity-70 ${
+                            currentPrice > 0 && (
+                                (alertDirection === 'up' && currentPrice >= alertTarget) ||
+                                (alertDirection === 'down' && currentPrice <= alertTarget)
+                            )
+                                ? 'bg-orange-500 text-white hover:bg-orange-400'
+                                : 'bg-yellow-500 text-slate-900 hover:bg-yellow-400'
+                        }`}
+                    >{alertSaved ? '✅' : '+ Agregar'}</button>
+                    <button onClick={() => setShowAlertForm(false)} className="text-slate-500 hover:text-white text-xs leading-none">✕</button>
+                </div>
+            )}
 
             {/* Main chart */}
             <div className="relative">

@@ -1,5 +1,5 @@
 import React from "react";
-import { Activity, Pencil, Bell, TrendingUp, LineChart } from "lucide-react";
+import { Activity, Pencil, Bell, TrendingUp, LineChart, Archive } from "lucide-react";
 import { getCoinStyle, getCoinTextColor, ProcessedInvestment } from "../lib/constants";
 import { fmt, fmtUSD, fmtPrice } from "../lib/format";
 import DeleteButton from "./DeleteButton";
@@ -13,6 +13,7 @@ interface AssetTableProps {
     onAlert: (item: ProcessedInvestment) => void;
     onSellEvaluate: (item: ProcessedInvestment) => void;
     onViewChart?: (item: ProcessedInvestment) => void;
+    onClosePosition?: (item: ProcessedInvestment) => void;
     priceDirections?: Record<string, PriceDirection>;
 }
 
@@ -31,8 +32,29 @@ function fmtDate(ts: number): string {
     });
 }
 
+// Reusable action button with dark tooltip
+const ActionBtn: React.FC<{
+    onClick: (e: React.MouseEvent) => void;
+    label: string;
+    className: string;
+    children: React.ReactNode;
+}> = ({ onClick, label, className, children }) => (
+    <div className="relative group/btn">
+        <button
+            onClick={onClick}
+            className={`p-1.5 transition-colors ${className}`}
+            title={label}
+        >
+            {children}
+        </button>
+        <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap rounded bg-slate-900 border border-slate-700 px-2 py-0.5 text-[10px] font-bold text-white opacity-0 group-hover/btn:opacity-100 transition-opacity z-50">
+            {label}
+        </span>
+    </div>
+);
+
 const AssetTable: React.FC<AssetTableProps> = React.memo(
-    ({ items, activeAlertIds, onDelete, onEdit, onAlert, onSellEvaluate, onViewChart, priceDirections = {} }) => {
+    ({ items, activeAlertIds, onDelete, onEdit, onAlert, onSellEvaluate, onViewChart, onClosePosition, priceDirections = {} }) => {
         if (items.length === 0) return null;
 
         return (
@@ -48,35 +70,24 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                                 {/* Action buttons top-right */}
                                 <div className="absolute top-3 right-3 flex items-center gap-0.5">
                                     {onViewChart && (
-                                        <button
-                                            onClick={() => onViewChart(item)}
-                                            className="text-slate-500 hover:text-cyan-400 p-1 transition-colors"
-                                            title="Ver Gráfico"
-                                        >
-                                            <LineChart className="w-3.5 h-3.5" />
-                                        </button>
+                                        <ActionBtn onClick={() => onViewChart(item)} label="Ver Gráfico" className="text-slate-500 hover:text-cyan-400">
+                                            <LineChart className="w-4 h-4" />
+                                        </ActionBtn>
                                     )}
-                                    <button
-                                        onClick={() => onSellEvaluate(item)}
-                                        className="text-slate-500 hover:text-red-400 p-1 transition-colors"
-                                        title="Evaluar Venta"
-                                    >
-                                        <TrendingUp className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                        onClick={() => onAlert(item)}
-                                        className={`p-1 transition-colors ${activeAlertIds.includes(item.id) ? "text-yellow-400 hover:text-yellow-300" : "text-slate-500 hover:text-yellow-400"}`}
-                                        title="Configurar Alerta"
-                                    >
-                                        <Bell className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                        onClick={() => onEdit(item)}
-                                        className="text-slate-500 hover:text-yellow-400 p-1 transition-colors"
-                                        title="Modificar"
-                                    >
-                                        <Pencil className="w-3.5 h-3.5" />
-                                    </button>
+                                    <ActionBtn onClick={() => onSellEvaluate(item)} label="Evaluar Venta" className="text-slate-500 hover:text-red-400">
+                                        <TrendingUp className="w-4 h-4" />
+                                    </ActionBtn>
+                                    {onClosePosition && (
+                                        <ActionBtn onClick={() => onClosePosition(item)} label="Cerrar Posición" className="text-slate-500 hover:text-emerald-400">
+                                            <Archive className="w-4 h-4" />
+                                        </ActionBtn>
+                                    )}
+                                    <ActionBtn onClick={() => onAlert(item)} label="Configurar Alerta" className={activeAlertIds.includes(item.id) ? "text-yellow-400 hover:text-yellow-300" : "text-slate-500 hover:text-yellow-400"}>
+                                        <Bell className="w-4 h-4" />
+                                    </ActionBtn>
+                                    <ActionBtn onClick={() => onEdit(item)} label="Modificar" className="text-slate-500 hover:text-yellow-400">
+                                        <Pencil className="w-4 h-4" />
+                                    </ActionBtn>
                                     <DeleteButton onDelete={() => onDelete(item.id)} />
                                 </div>
 
@@ -104,7 +115,11 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                                         <p className="text-[10px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Precio Compra</p>
                                         <p className="text-sky-400 font-mono text-[13px]">{fmtPrice(item.buyPrice)}</p>
                                     </div>
-                                    <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50 text-center">
+                                    <div
+                                        className={`bg-slate-900/40 p-2 rounded-lg border border-slate-700/50 text-center ${onViewChart ? 'cursor-pointer hover:border-slate-500' : ''}`}
+                                        onClick={() => onViewChart?.(item)}
+                                        title={onViewChart ? "Ver gráfico" : undefined}
+                                    >
                                         <p className="text-[10px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Precio Actual</p>
                                         <p className={`font-mono text-[13px] font-bold ${priceColor(priceDirections[item.coin])}`}>{fmtPrice(item.currentPrice)}</p>
                                     </div>
@@ -163,7 +178,11 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                                     <td className="p-5 text-right text-sky-400 font-mono">
                                         {fmtPrice(item.buyPrice)}
                                     </td>
-                                    <td className={`p-5 text-right font-mono font-bold ${priceColor(priceDirections[item.coin])}`}>
+                                    <td
+                                        className={`p-5 text-right font-mono font-bold ${priceColor(priceDirections[item.coin])} ${onViewChart ? 'cursor-pointer hover:underline' : ''}`}
+                                        onClick={() => onViewChart?.(item)}
+                                        title={onViewChart ? "Ver gráfico" : undefined}
+                                    >
                                         {fmtPrice(item.currentPrice)}
                                     </td>
                                     <td className="p-5 text-right text-emerald-300 font-mono font-bold">
@@ -189,37 +208,26 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                                         {fmtDate(item.date)}
                                     </td>
                                     <td className="p-5 text-center">
-                                        <div className="flex items-center justify-center gap-1">
+                                        <div className="flex items-center justify-center gap-0.5">
                                             {onViewChart && (
-                                                <button
-                                                    onClick={() => onViewChart(item)}
-                                                    className="text-slate-500 hover:text-cyan-400 p-1 transition-colors"
-                                                    title="Ver Gráfico"
-                                                >
-                                                    <LineChart className="w-4 h-4" />
-                                                </button>
+                                                <ActionBtn onClick={() => onViewChart(item)} label="Ver Gráfico" className="text-slate-500 hover:text-cyan-400">
+                                                    <LineChart className="w-5 h-5" />
+                                                </ActionBtn>
                                             )}
-                                            <button
-                                                onClick={() => onSellEvaluate(item)}
-                                                className="text-slate-500 hover:text-red-400 p-1 transition-colors"
-                                                title="Evaluar Venta"
-                                            >
-                                                <TrendingUp className="w-4 h-4" />
-                                            </button>
-                                            <button
-                                                onClick={() => onAlert(item)}
-                                                className={`p-1 transition-colors ${activeAlertIds.includes(item.id) ? "text-yellow-400 hover:text-yellow-300" : "text-slate-500 hover:text-yellow-400"}`}
-                                                title="Configurar Alerta"
-                                            >
-                                                <Bell className="w-4 h-4" />
-                                            </button>
-                                            <button
-                                                onClick={() => onEdit(item)}
-                                                className="text-slate-500 hover:text-yellow-400 p-1 transition-colors"
-                                                title="Modificar"
-                                            >
-                                                <Pencil className="w-4 h-4" />
-                                            </button>
+                                            <ActionBtn onClick={() => onSellEvaluate(item)} label="Evaluar Venta" className="text-slate-500 hover:text-red-400">
+                                                <TrendingUp className="w-5 h-5" />
+                                            </ActionBtn>
+                                            {onClosePosition && (
+                                                <ActionBtn onClick={() => onClosePosition(item)} label="Cerrar Posición" className="text-slate-500 hover:text-emerald-400">
+                                                    <Archive className="w-5 h-5" />
+                                                </ActionBtn>
+                                            )}
+                                            <ActionBtn onClick={() => onAlert(item)} label="Configurar Alerta" className={activeAlertIds.includes(item.id) ? "text-yellow-400 hover:text-yellow-300" : "text-slate-500 hover:text-yellow-400"}>
+                                                <Bell className="w-5 h-5" />
+                                            </ActionBtn>
+                                            <ActionBtn onClick={() => onEdit(item)} label="Modificar" className="text-slate-500 hover:text-yellow-400">
+                                                <Pencil className="w-5 h-5" />
+                                            </ActionBtn>
                                             <DeleteButton onDelete={() => onDelete(item.id)} />
                                         </div>
                                     </td>

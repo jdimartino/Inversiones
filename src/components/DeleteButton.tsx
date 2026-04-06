@@ -35,9 +35,10 @@ const DeleteButton: React.FC<DeleteButtonProps> = React.memo(({ onDelete }) => {
                 e.stopPropagation();
                 setConfirming(true);
             }}
-            className="text-slate-500 hover:text-red-400 p-1 transition-colors"
+            className="text-slate-500 hover:text-red-400 p-1.5 transition-colors"
+            title="Eliminar"
         >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-5 h-5" />
         </button>
     );
 });
