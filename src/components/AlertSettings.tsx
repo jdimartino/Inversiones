@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Trash2, Edit2, Repeat, Clock, History, CheckCircle, AlertTriangle, TrendingUp, TrendingDown, Loader2, Eye, Plus, Sun } from "lucide-react";
+import { Trash2, Edit2, Repeat, Clock, History, CheckCircle, AlertTriangle, TrendingUp, TrendingDown, Loader2, Eye, Plus, Sun, Send } from "lucide-react";
 import { AlertConfig, GlobalAlert, InvestmentAlert, WatchlistAlert } from "../hooks/useAlerts";
 import { usePortfolio } from "../hooks/usePortfolio";
 import { usePrices } from "../hooks/usePrices";
@@ -295,25 +295,47 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                             <p className="text-[10px] text-slate-500 mt-0.5">Envía el portafolio completo a las 8:00 am</p>
                         </div>
                     </div>
-                    <button
-                        onClick={async () => {
-                            if (savingId) return;
-                            setSavingId("dailyReport");
-                            await saveConfig({ ...config, dailyReportEnabled: !config.dailyReportEnabled });
-                            setSavingId(null);
-                        }}
-                        disabled={savingId === "dailyReport"}
-                        className={`relative w-10 h-5.5 rounded-full transition-colors flex items-center px-0.5 ${
-                            config.dailyReportEnabled ? "bg-yellow-500" : "bg-slate-600"
-                        } disabled:opacity-50`}
-                        title={config.dailyReportEnabled ? "Desactivar resumen diario" : "Activar resumen diario"}
-                    >
-                        {savingId === "dailyReport" ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin text-white mx-auto" />
-                        ) : (
-                            <span className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${config.dailyReportEnabled ? "translate-x-4" : "translate-x-0"}`} />
+                    <div className="flex items-center gap-2">
+                        {config.dailyReportEnabled && (
+                            <button
+                                onClick={async () => {
+                                    if (savingId) return;
+                                    setSavingId("testDailyReport");
+                                    try {
+                                        await fetch("https://europe-west1-micriptoapp.cloudfunctions.net/testDailyReport");
+                                    } catch {}
+                                    setSavingId(null);
+                                }}
+                                disabled={!!savingId}
+                                className="text-[10px] font-bold text-slate-400 hover:text-yellow-300 border border-slate-700 rounded-lg px-2 py-1 transition-colors disabled:opacity-50 flex items-center gap-1"
+                                title="Enviar resumen ahora"
+                            >
+                                {savingId === "testDailyReport"
+                                    ? <Loader2 className="w-3 h-3 animate-spin" />
+                                    : <Send className="w-3 h-3" />}
+                                Probar
+                            </button>
                         )}
-                    </button>
+                        <button
+                            onClick={async () => {
+                                if (savingId) return;
+                                setSavingId("dailyReport");
+                                await saveConfig({ ...config, dailyReportEnabled: !config.dailyReportEnabled });
+                                setSavingId(null);
+                            }}
+                            disabled={savingId === "dailyReport"}
+                            className={`relative w-10 h-5.5 rounded-full transition-colors flex items-center px-0.5 ${
+                                config.dailyReportEnabled ? "bg-yellow-500" : "bg-slate-600"
+                            } disabled:opacity-50`}
+                            title={config.dailyReportEnabled ? "Desactivar resumen diario" : "Activar resumen diario"}
+                        >
+                            {savingId === "dailyReport" ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-white mx-auto" />
+                            ) : (
+                                <span className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${config.dailyReportEnabled ? "translate-x-4" : "translate-x-0"}`} />
+                            )}
+                        </button>
+                    </div>
                 </div>
             </div>
 
