@@ -105,6 +105,7 @@ interface CandlestickChartProps {
     initialCoin?: string;
     signals?: CoinSignal[];
     onCoinChange?: (coin: string) => void;
+    priceDirections?: Record<string, "up" | "down" | "neutral">;
 }
 
 type Interval = "15m" | "1h" | "4h" | "1d" | "1M";
@@ -149,7 +150,7 @@ async function fetchKlines(coin: string, interval: Interval): Promise<Kline[]> {
 // ── Component ───────────────────────────────────────────────────────
 
 const CandlestickChart: React.FC<CandlestickChartProps> = ({
-    aggregated, klinesMap, items, initialCoin, signals = [], onCoinChange,
+    aggregated, klinesMap, items, initialCoin, signals = [], onCoinChange, priceDirections = {},
 }) => {
     const coins = aggregated.filter((a) => a.currentValue > 0).map((a) => a.coin);
     const { config, saveConfig } = useAlerts();
@@ -569,16 +570,18 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                     const last = klines[klines.length - 1];
                     const price = currentPrice || last?.close || 0;
                     const change = first && last ? ((last.close - first.open) / first.open) * 100 : null;
-                    const up = change !== null && change >= 0;
+                    const dir = priceDirections[selectedCoin];
+                    const priceColor = dir === "up" ? "text-green-400" : dir === "down" ? "text-red-400" : "text-yellow-300";
+                    const changeUp = change !== null && change >= 0;
                     if (!price) return null;
                     return (
                         <div className="flex flex-col items-center">
-                            <span className="text-white font-mono font-bold text-xl leading-none tracking-tight">
+                            <span className={`font-mono font-bold text-xl leading-none tracking-tight ${priceColor}`}>
                                 {fmtPrice(price)}
                             </span>
                             {change !== null && (
-                                <span className={`text-xs font-bold font-mono mt-0.5 ${up ? "text-green-400" : "text-red-400"}`}>
-                                    {up ? "▲" : "▼"} {Math.abs(change).toFixed(2)}%
+                                <span className={`text-xs font-bold font-mono mt-0.5 ${changeUp ? "text-green-400" : "text-red-400"}`}>
+                                    {changeUp ? "▲" : "▼"} {Math.abs(change).toFixed(2)}%
                                 </span>
                             )}
                         </div>

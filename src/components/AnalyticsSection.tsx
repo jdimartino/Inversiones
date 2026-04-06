@@ -35,6 +35,7 @@ interface AnalyticsSectionProps {
     fearGreed?: FearGreedData | null;
     fearGreedLoading?: boolean;
     initialCoin?: string;
+    priceDirections?: Record<string, "up" | "down" | "neutral">;
 }
 
 const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
@@ -46,6 +47,7 @@ const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
     fearGreed = null,
     fearGreedLoading = false,
     initialCoin,
+    priceDirections = {},
 }) => {
     const [subTab, setSubTab] = useState<SubTab>("mercado");
     const [activeCoin, setActiveCoin] = useState<string>(initialCoin ?? "");
@@ -97,7 +99,7 @@ const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fadeIn">
                     {hasKlines && (
                         <div className="md:col-span-2">
-                            <CandlestickChart aggregated={aggregated} klinesMap={klinesMap} items={items} initialCoin={initialCoin} signals={signals} onCoinChange={setActiveCoin} />
+                            <CandlestickChart aggregated={aggregated} klinesMap={klinesMap} items={items} initialCoin={initialCoin} signals={signals} onCoinChange={setActiveCoin} priceDirections={priceDirections} />
                             {signals.find(s => s.coin === activeCoin) && (
                                 <div className="mt-3">
                                     <SignalCard signal={signals.find(s => s.coin === activeCoin)!} />

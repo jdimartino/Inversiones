@@ -293,6 +293,7 @@ const App: React.FC = () => {
               fearGreed={fearGreed}
               fearGreedLoading={fgLoading}
               initialCoin={graficoCoin}
+              priceDirections={priceDirections}
             />
           </div>
         )}
