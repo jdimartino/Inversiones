@@ -330,7 +330,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
         const rsiSeries = (mainChart as any).addLineSeries({
             color: "#a78bfa", lineWidth: 1,
             priceScaleId: "rsi",
-            priceLineVisible: false, lastValueVisible: true,
+            priceLineVisible: true, lastValueVisible: true,
         });
         mainChart.priceScale("rsi").applyOptions({ scaleMargins: { top: 0.60, bottom: 0.22 } });
         rsiSeries.createPriceLine({ price: 70, color: "#f87171", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "" });
@@ -340,11 +340,11 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
         // ── MACD series + zero line (panel 80-100%) ──────────────────
         const macdLineSeries = (mainChart as any).addLineSeries({
             color: "#38bdf8", lineWidth: 1, priceScaleId: "macd",
-            priceLineVisible: false, lastValueVisible: false,
+            priceLineVisible: true, lastValueVisible: true,
         });
         const macdSignalSeries = (mainChart as any).addLineSeries({
             color: "#f97316", lineWidth: 1, priceScaleId: "macd",
-            priceLineVisible: false, lastValueVisible: false,
+            priceLineVisible: true, lastValueVisible: true,
         });
         const macdHistSeries = (mainChart as any).addHistogramSeries({
             priceFormat: { type: "price" }, priceScaleId: "macd", priceLineVisible: false,
