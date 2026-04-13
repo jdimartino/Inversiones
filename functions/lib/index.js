@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.testDailyReport = exports.dailyPortfolioReport = exports.checkTradingSignals = exports.testTradingSignals = exports.checkPNLAlerts = exports.testAlerts = exports.setupTestAlerts = exports.debugLogs = exports.debugInversiones = exports.debugAlerts = void 0;
+exports.testDailyReport = exports.dailyPortfolioReport = exports.checkTradingSignals = exports.testTradingSignals = exports.checkPNLAlerts = exports.testAlerts = exports.setupTestAlerts = exports.debugLogs = exports.debugInversiones = exports.debugAlerts = exports.analyzeMarket = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const axios_1 = require("axios");
@@ -410,6 +410,8 @@ async function runCheckAlerts() {
     }
 }
 // ─── Cloud Functions ───────────────────────────────────────────────────────────
+var analyzeMarket_1 = require("./analyzeMarket");
+Object.defineProperty(exports, "analyzeMarket", { enumerable: true, get: function () { return analyzeMarket_1.analyzeMarket; } });
 exports.debugAlerts = functions.region('europe-west1').https.onRequest(async (req, res) => {
     try {
         const doc = await db.collection("config").doc("alerts").get();

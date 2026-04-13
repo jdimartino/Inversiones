@@ -480,6 +480,9 @@ async function runCheckAlerts() {
 
 // ─── Cloud Functions ───────────────────────────────────────────────────────────
 
+export { analyzeMarket } from "./analyzeMarket";
+
+
 export const debugAlerts = functions.region('europe-west1').https.onRequest(async (req, res) => {
     try {
         const doc = await db.collection("config").doc("alerts").get();

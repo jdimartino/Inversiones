@@ -13,6 +13,7 @@ import CandlestickChart from "./charts/CandlestickChart";
 import TechnicalSummary from "./charts/TechnicalSummary";
 import FearGreedGauge from "./charts/FearGreedGauge";
 import SignalCard from "./SignalCard";
+import AITraderAnalysis from "./AITraderAnalysis";
 
 
 // ── Sub-tab types ────────────────────────────────────────────────────
@@ -105,6 +106,11 @@ const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
                                     <SignalCard signal={signals.find(s => s.coin === activeCoin)!} />
                                 </div>
                             )}
+                            <AITraderAnalysis
+                                coin={activeCoin || (aggregated[0]?.coin ?? "")}
+                                signal={signals.find(s => s.coin === (activeCoin || aggregated[0]?.coin))}
+                                fearGreed={fearGreed}
+                            />
                         </div>
                     )}
                     {hasSignals && <TechnicalSummary signals={signals} />}
