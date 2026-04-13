@@ -6,9 +6,7 @@ const admin = require("firebase-admin");
 const axios_1 = require("axios");
 admin.initializeApp();
 const db = admin.firestore();
-// ─── Telegram config ──────────────────────────────────────────────────────────
-const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
-const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+// ─── Telegram config (Ahora gestionados por Secret Manager) ──────────────────
 const DIVIDER = "────────────────────";
 // ─── Utils ────────────────────────────────────────────────────────────────────
 /** Pausa async (para reintentos). */
@@ -30,19 +28,21 @@ const fmtPrice = (price) => {
 /** Envío a Telegram con reintentos básicos. */
 async function sendTelegram(text) {
     var _a;
-    if (!TELEGRAM_TOKEN || !CHAT_ID) {
-        console.error("[Telegram] Faltan credenciales (TOKEN/CHAT_ID).");
+    const token = process.env.TELEGRAM_TOKEN;
+    const chatId = process.env.TELEGRAM_CHAT_ID;
+    if (!token || !chatId) {
+        console.error("[Telegram] Faltan credenciales (TELEGRAM_TOKEN/TELEGRAM_CHAT_ID en Secret Manager).");
         return false;
     }
     const payload = {
-        chat_id: CHAT_ID,
+        chat_id: chatId,
         text,
         parse_mode: "Markdown",
         disable_web_page_preview: true,
     };
     for (let attempt = 1; attempt <= 3; attempt++) {
         try {
-            await axios_1.default.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, payload);
+            await axios_1.default.post(`https://api.telegram.org/bot${token}/sendMessage`, payload);
             return true;
         }
         catch (e) {
@@ -470,7 +470,10 @@ exports.setupTestAlerts = functions.region('europe-west1').https.onRequest(async
         res.status(500).send(e.message);
     }
 });
-exports.testAlerts = functions.region('europe-west1').https.onRequest(async (req, res) => {
+exports.testAlerts = functions
+    .region('europe-west1')
+    .runWith({ secrets: ["TELEGRAM_TOKEN", "TELEGRAM_CHAT_ID"] })
+    .https.onRequest(async (req, res) => {
     try {
         const result = await runCheckAlerts();
         res.json(result);
@@ -479,7 +482,10 @@ exports.testAlerts = functions.region('europe-west1').https.onRequest(async (req
         res.status(500).send(e.message);
     }
 });
-exports.checkPNLAlerts = functions.region('europe-west1').pubsub.schedule("every 15 minutes").onRun(async (_context) => {
+exports.checkPNLAlerts = functions
+    .region('europe-west1')
+    .runWith({ secrets: ["TELEGRAM_TOKEN", "TELEGRAM_CHAT_ID"] })
+    .pubsub.schedule("every 15 minutes").onRun(async (_context) => {
     try {
         await runCheckAlerts();
     }
@@ -672,7 +678,10 @@ async function runTradingSignals() {
         console.log("[Trading Signals] Alert sent.");
     return { sent, summary: `${strongSignals.length} strong signal(s)`, analyses };
 }
-exports.testTradingSignals = functions.region('europe-west1').https.onRequest(async (req, res) => {
+exports.testTradingSignals = functions
+    .region('europe-west1')
+    .runWith({ secrets: ["TELEGRAM_TOKEN", "TELEGRAM_CHAT_ID"] })
+    .https.onRequest(async (req, res) => {
     try {
         const result = await runTradingSignals();
         res.json(result);
@@ -681,7 +690,10 @@ exports.testTradingSignals = functions.region('europe-west1').https.onRequest(as
         res.status(500).send(e.message);
     }
 });
-exports.checkTradingSignals = functions.region('europe-west1').pubsub.schedule("every 15 minutes").onRun(async (_context) => {
+exports.checkTradingSignals = functions
+    .region('europe-west1')
+    .runWith({ secrets: ["TELEGRAM_TOKEN", "TELEGRAM_CHAT_ID"] })
+    .pubsub.schedule("every 15 minutes").onRun(async (_context) => {
     try {
         await runTradingSignals();
     }
@@ -757,6 +769,7 @@ async function runDailyReport() {
 }
 exports.dailyPortfolioReport = functions
     .region('europe-west1')
+    .runWith({ secrets: ["TELEGRAM_TOKEN", "TELEGRAM_CHAT_ID"] })
     .pubsub.schedule("0 8 * * *")
     .timeZone("America/Caracas")
     .onRun(async (_context) => {
@@ -767,7 +780,10 @@ exports.dailyPortfolioReport = functions
         console.error("Error en dailyPortfolioReport:", e);
     }
 });
-exports.testDailyReport = functions.region('europe-west1').https.onRequest(async (_req, res) => {
+exports.testDailyReport = functions
+    .region('europe-west1')
+    .runWith({ secrets: ["TELEGRAM_TOKEN", "TELEGRAM_CHAT_ID"] })
+    .https.onRequest(async (_req, res) => {
     try {
         await runDailyReport();
         res.json({ ok: true });

@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef } from "react";
 import { Brain, Loader2, RefreshCw, AlertTriangle } from "lucide-react";
-import { getFunctions, httpsCallable } from "firebase/functions";
 import type { CoinSignal, FearGreedData } from "../lib/types/signals";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -13,13 +13,12 @@ interface AITraderAnalysisProps {
 
 type Status = "idle" | "loading" | "done" | "error";
 
-const COOLDOWN_MS = 60_000; // 60 segundos entre análisis
+const COOLDOWN_MS = 60_000;
 
 // ─── Markdown simple: bold y saltos de línea ─────────────────────────────────
 
 function renderMarkdown(text: string): React.ReactNode[] {
     return text.split("\n").map((line, i) => {
-        // Negritas: **texto**
         const parts = line.split(/(\*\*[^*]+\*\*)/g);
         const rendered = parts.map((part, j) =>
             part.startsWith("**") && part.endsWith("**")
@@ -61,28 +60,26 @@ const AITraderAnalysis: React.FC<AITraderAnalysisProps> = ({ coin, signal, fearG
 
         try {
             const functions = getFunctions(undefined, "europe-west1");
-            const analyzeMarket = httpsCallable<object, { analysis: string }>(functions, "analyzeMarket");
+            const analyzeMarket = httpsCallable<any, { analysis: string }>(functions, "analyzeMarket");
 
-            const result = await analyzeMarket({
-                coin,
+            const response = await analyzeMarket({
+                coin: coin,
                 price: signal.indicators.currentPrice,
                 rsi: signal.indicators.rsi14,
                 macd: signal.indicators.macdLine,
                 macdSignal: signal.indicators.macdSignal,
                 sma20: signal.indicators.sma20,
                 sma50: signal.indicators.sma50,
-                fearGreed: fearGreed
-                    ? { value: fearGreed.value, classification: fearGreed.classification }
-                    : null,
+                fearGreed: fearGreed,
                 signalStrength: signal.signal,
-                reasons: signal.reasons.map((r) => ({
-                    indicator: r.indicator,
-                    signal: r.signal,
-                    detail: r.detail,
-                })),
+                reasons: signal.reasons
             });
 
-            setAnalysis(result.data.analysis);
+            const text = response.data.analysis;
+
+            if (!text) throw new Error("Respuesta vacía del modelo.");
+
+            setAnalysis(text);
             setStatus("done");
             startCooldown();
         } catch (e: any) {
@@ -102,7 +99,7 @@ const AITraderAnalysis: React.FC<AITraderAnalysisProps> = ({ coin, signal, fearG
                     <span className="text-sm font-bold text-slate-200">Análisis con IA</span>
                     <span className="text-xs text-slate-500">— Don Ernesto, trader veterano</span>
                 </div>
-                <span className="text-xs text-slate-600 italic">Powered by Claude</span>
+                <span className="text-xs text-slate-600 italic">Powered by Gemini</span>
             </div>
 
             {/* Chips de datos utilizados */}

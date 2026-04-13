@@ -2,7 +2,6 @@ node_modules
 # Local historical backups
 history/
 # Environment variables (Project IDs, keys — no subir a Git)
-.env
-.env.local
-.env.*
-
+**/.env
+**/.env.local
+**/.env.*
