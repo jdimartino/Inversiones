@@ -1,5 +1,5 @@
 import * as functions from "firebase-functions";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import Groq from "groq-sdk";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -20,13 +20,13 @@ interface AnalyzeRequest {
 
 export const analyzeMarket = functions
     .region("europe-west1")
-    .runWith({ timeoutSeconds: 60, memory: "256MB", secrets: ["GEMINI_API_KEY"] })
+    .runWith({ timeoutSeconds: 60, memory: "256MB", secrets: ["GROQ_API_KEY"] })
     .https.onCall(async (data: AnalyzeRequest) => {
-        const apiKey = process.env.GEMINI_API_KEY;
+        const apiKey = process.env.GROQ_API_KEY;
         if (!apiKey) {
             throw new functions.https.HttpsError(
                 "failed-precondition",
-                "GEMINI_API_KEY no configurada en el entorno de Cloud Functions."
+                "GROQ_API_KEY no configurada en el entorno de Cloud Functions."
             );
         }
 
@@ -101,18 +101,19 @@ Presentá tu análisis en este formato:
 [Tu perspectiva como trader veterano: qué patrones históricos similares recordás de tus décadas en mercados, cómo se compara esta situación con lo que viviste antes, y qué harías vos ahora con estos datos. Sé directo, sin adornos.]`;
 
         try {
-            const genAI = new GoogleGenerativeAI(apiKey);
-            const model = genAI.getGenerativeModel({
-                model: "gemini-2.5-flash", // Modelo actual disponible para nuevos usuarios
-                systemInstruction: systemPrompt,
+            const client = new Groq({ apiKey });
+            const completion = await client.chat.completions.create({
+                model: "llama-3.3-70b-versatile",
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: userMessage },
+                ],
+                max_tokens: 1024,
             });
-
-            const result = await model.generateContent(userMessage);
-            const text = result.response.text();
-
+            const text = completion.choices[0].message.content ?? "";
             return { analysis: text };
         } catch (error: any) {
-            console.error("Error al llamar a Gemini:", error);
+            console.error("Error al llamar a Groq:", error);
             throw new functions.https.HttpsError(
                 "unknown",
                 `Error en el servicio de IA: ${error.message || "Desconocido"}`

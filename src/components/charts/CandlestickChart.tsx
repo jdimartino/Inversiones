@@ -304,7 +304,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
             },
             rightPriceScale: { visible: true, autoScale: false, borderColor: "#1e293b", textColor: "#94a3b8", minimumWidth: priceScaleWidth },
             leftPriceScale: { visible: false },
-            timeScale: { visible: true, borderColor: "#1e293b", timeVisible: true, secondsVisible: false },
+            timeScale: { visible: true, borderColor: "#1e293b", timeVisible: true, secondsVisible: false, minBarSpacing: 4 },
             width: mainContainerRef.current.clientWidth,
             height: 560,
         });
@@ -675,6 +675,57 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
         if (measureDragging && measureEnd) finalizeMeasure(measureEnd.x, measureEnd.y);
     }, [measureDragging, measureEnd, finalizeMeasure]);
 
+    const handleMeasureTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+        if (!measureOverlayRef.current) return;
+        e.preventDefault();
+        const touch = e.touches[0];
+        const rect = measureOverlayRef.current.getBoundingClientRect();
+        const anchor = { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+        setMeasureStart(anchor); setMeasureEnd(anchor);
+        setMeasureDragging(true); setMeasureStats(null);
+    }, []);
+
+    const handleMeasureTouchMove = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+        if (!measureDragging || !measureOverlayRef.current || !measureStart) return;
+        e.preventDefault();
+        const touch = e.touches[0];
+        const rect = measureOverlayRef.current.getBoundingClientRect();
+        const x = touch.clientX - rect.left;
+        const y = touch.clientY - rect.top;
+        setMeasureEnd({ x, y });
+        if (!candleSeriesRef.current || !mainChartRef.current) return;
+        const startPrice = candleSeriesRef.current.coordinateToPrice(measureStart.y);
+        const endPrice = candleSeriesRef.current.coordinateToPrice(y);
+        if (startPrice === null || endPrice === null) return;
+        const priceChange = endPrice - startPrice;
+        const pctChange = startPrice !== 0 ? (priceChange / startPrice) * 100 : 0;
+        const startSec = mainChartRef.current.timeScale().coordinateToTime(measureStart.x);
+        const endSec = mainChartRef.current.timeScale().coordinateToTime(x);
+        let barCount = 0, totalVolume = 0;
+        if (startSec !== null && endSec !== null) {
+            const klines = getCurrentKlines();
+            const t0 = Math.min((startSec as number) * 1000, (endSec as number) * 1000);
+            const t1 = Math.max((startSec as number) * 1000, (endSec as number) * 1000);
+            const inRange = klines.filter((k) => k.openTime >= t0 && k.openTime <= t1);
+            barCount = inRange.length;
+            totalVolume = inRange.reduce((s, k) => s + k.volume, 0);
+        }
+        setMeasureStats({ priceChange, pctChange, barCount, totalVolume, startPrice, endPrice,
+            startTimeSec: startSec !== null ? (startSec as number) : null,
+            endTimeSec: endSec !== null ? (endSec as number) : null });
+    }, [measureDragging, measureStart, getCurrentKlines]);
+
+    const handleMeasureTouchEnd = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+        if (!measureDragging || !measureOverlayRef.current) return;
+        e.preventDefault();
+        const touch = e.changedTouches[0];
+        const rect = measureOverlayRef.current.getBoundingClientRect();
+        const x = touch.clientX - rect.left;
+        const y = touch.clientY - rect.top;
+        setMeasureEnd({ x, y });
+        finalizeMeasure(x, y);
+    }, [measureDragging, finalizeMeasure]);
+
     // ── Measure geometry (derived) ──────────────────────────────────
     const measureRect = (() => {
         if (!measureStart || !measureEnd) return null;
@@ -1036,11 +1087,14 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                     <div
                         ref={measureOverlayRef}
                         className="absolute inset-0 z-20 select-none"
-                        style={{ cursor: 'crosshair' }}
+                        style={{ cursor: 'crosshair', touchAction: 'none' }}
                         onMouseDown={handleMeasureMouseDown}
                         onMouseMove={handleMeasureMouseMove}
                         onMouseUp={handleMeasureMouseUp}
                         onMouseLeave={handleMeasureMouseLeave}
+                        onTouchStart={handleMeasureTouchStart}
+                        onTouchMove={handleMeasureTouchMove}
+                        onTouchEnd={handleMeasureTouchEnd}
                     >
                         {/* Rectangle */}
                         {measureRect && (

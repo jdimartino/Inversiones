@@ -36,6 +36,7 @@ const AITraderAnalysis: React.FC<AITraderAnalysisProps> = ({ coin, signal, fearG
     const [analysis, setAnalysis] = useState<string>("");
     const [error, setError] = useState<string>("");
     const [cooldownLeft, setCooldownLeft] = useState(0);
+    const [notes, setNotes] = useState("");
     const cooldownTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const startCooldown = useCallback(() => {
@@ -72,7 +73,8 @@ const AITraderAnalysis: React.FC<AITraderAnalysisProps> = ({ coin, signal, fearG
                 sma50: signal.indicators.sma50,
                 fearGreed: fearGreed,
                 signalStrength: signal.signal,
-                reasons: signal.reasons
+                reasons: signal.reasons,
+                notes: notes.trim() || undefined,
             });
 
             const text = response.data.analysis;
@@ -86,7 +88,7 @@ const AITraderAnalysis: React.FC<AITraderAnalysisProps> = ({ coin, signal, fearG
             setError(e?.message ?? "Error desconocido al contactar al analista.");
             setStatus("error");
         }
-    }, [coin, signal, fearGreed, status, cooldownLeft, startCooldown]);
+    }, [coin, signal, fearGreed, status, cooldownLeft, startCooldown, notes]);
 
     const canAnalyze = !!signal && status !== "loading" && cooldownLeft === 0;
 
@@ -97,9 +99,9 @@ const AITraderAnalysis: React.FC<AITraderAnalysisProps> = ({ coin, signal, fearG
                 <div className="flex items-center gap-2">
                     <Brain className="w-4 h-4 text-violet-400" />
                     <span className="text-sm font-bold text-slate-200">Análisis con IA</span>
-                    <span className="text-xs text-slate-500">— Don Ernesto, trader veterano</span>
+                    <span className="text-xs text-slate-500">— Marco, swing trader</span>
                 </div>
-                <span className="text-xs text-slate-600 italic">Powered by Gemini</span>
+                <span className="text-xs text-slate-600 italic">Powered by Groq / Llama 3.3</span>
             </div>
 
             {/* Chips de datos utilizados */}
@@ -111,6 +113,15 @@ const AITraderAnalysis: React.FC<AITraderAnalysisProps> = ({ coin, signal, fearG
                     {fearGreed && <DataChip label={`F&G ${fearGreed.value}`} />}
                 </div>
             )}
+
+            {/* Notas opcionales */}
+            <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Contexto para Marco (opcional): monto a invertir, niveles ya puestos, objetivo del trade..."
+                rows={2}
+                className="w-full text-xs bg-slate-900/40 border border-slate-700/50 rounded-lg px-3 py-2 text-slate-300 placeholder-slate-600 resize-none mb-3 focus:outline-none focus:border-violet-500/50"
+            />
 
             {/* Botón */}
             <button
@@ -125,7 +136,7 @@ const AITraderAnalysis: React.FC<AITraderAnalysisProps> = ({ coin, signal, fearG
                 {status === "loading" ? (
                     <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        Consultando a Don Ernesto...
+                        Analizando con Marco...
                     </>
                 ) : cooldownLeft > 0 ? (
                     <>
