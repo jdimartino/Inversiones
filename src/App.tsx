@@ -9,6 +9,7 @@ import {
 } from "./lib/constants";
 import { usePortfolio } from "./hooks/usePortfolio";
 import { useClosedTrades } from "./hooks/useClosedTrades";
+import { useSales } from "./hooks/useSales";
 import { useLoans } from "./hooks/useLoans";
 import { usePrices } from "./hooks/usePrices";
 import { useAlerts, InvestmentAlert, GlobalAlert, WatchlistAlert } from "./hooks/useAlerts";
@@ -20,12 +21,15 @@ import AssetTable from "./components/AssetTable";
 import AggregatedTable from "./components/AggregatedTable";
 import AnalyticsSection from "./components/AnalyticsSection";
 import InvestmentForm from "./components/InvestmentForm";
+import SaleForm from "./components/SaleForm";
+import SalesHistoryTable from "./components/SalesHistoryTable";
 import LiquidationDashboard from "./components/LiquidationDashboard";
 import SellSuite from "./components/SellSuite";
 import SignalsTab from "./components/SignalsTab";
 import EditLoanModal from "./components/EditLoanModal";
 import ClosePositionModal from "./components/ClosePositionModal";
 import ClosedTradesTable from "./components/ClosedTradesTable";
+import EditSaleModal from "./components/EditSaleModal";
 import AlertSettings from "./components/AlertSettings";
 import EditInvestmentModal from "./components/EditInvestmentModal";
 import InvestmentAlertModal from "./components/InvestmentAlertModal";
@@ -35,6 +39,7 @@ import WatchlistAlertModal from "./components/WatchlistAlertModal";
 const App: React.FC = () => {
   const { portfolio, addInvestment, removeInvestment, updateInvestment } = usePortfolio();
   const { closedTrades, addClosedTrade, loading: closedTradesLoading } = useClosedTrades();
+  const { sales, addSale, deleteSale, updateSale, loading: salesLoading } = useSales();
   const { loans, addLoan, updateLoan, removeLoan } = useLoans();
   const { config, saveConfig } = useAlerts();
   const { prices, priceDirections, loading, refresh } = usePrices();
@@ -47,6 +52,7 @@ const App: React.FC = () => {
   const [alertingInvestment, setAlertingInvestment] = useState<ProcessedInvestment | null>(null);
   const [sellPreload, setSellPreload] = useState<ProcessedInvestment | null>(null);
   const [closingInvestment, setClosingInvestment] = useState<ProcessedInvestment | null>(null);
+  const [editingSale, setEditingSale] = useState<import("./lib/constants").SaleRecord | null>(null);
   const [isGlobalAlertModalOpen, setIsGlobalAlertModalOpen] = useState(false);
   const [isWatchlistModalOpen, setIsWatchlistModalOpen] = useState(false);
   const [globalEditIndex, setGlobalEditIndex] = useState<number | null>(null);
@@ -253,6 +259,13 @@ const App: React.FC = () => {
               priceDirections={priceDirections}
             />
             <AggregatedTable items={aggregatedList} priceDirections={priceDirections} />
+            <SalesHistoryTable
+              sales={sales}
+              loading={salesLoading}
+              prices={prices}
+              onEdit={setEditingSale}
+              onDelete={deleteSale}
+            />
             <ClosedTradesTable trades={closedTrades} loading={closedTradesLoading} />
           </div>
         )}
@@ -309,8 +322,9 @@ const App: React.FC = () => {
         {/* ── OPERACIONES ───────────────────────────────────────────── */}
         {activeTab === "operaciones" && (
           <div key="operaciones" className={tabClass}>
-            <div className="max-w-xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
               <InvestmentForm onSubmit={addInvestment} />
+              <SaleForm onSubmit={addSale} />
             </div>
           </div>
         )}
@@ -342,6 +356,16 @@ const App: React.FC = () => {
       </main>
 
       {/* ── Modals (always mounted regardless of active tab) ───────── */}
+      {editingSale && (
+        <EditSaleModal
+          sale={editingSale}
+          onSave={async (id, coin, quantity, sellPrice, usdtReceived) => {
+            await updateSale(id, coin, quantity, sellPrice, usdtReceived);
+            setEditingSale(null);
+          }}
+          onClose={() => setEditingSale(null)}
+        />
+      )}
       {closingInvestment && (
         <ClosePositionModal
           investment={closingInvestment}

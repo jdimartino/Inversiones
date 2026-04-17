@@ -47,6 +47,15 @@ export interface ClosedTrade {
     sellDate: number;
 }
 
+export interface SaleRecord {
+    id: string;
+    coin: string;
+    quantity: number;
+    sellPrice: number;
+    usdtReceived: number;
+    date: number;
+}
+
 export interface AggregatedAsset {
     coin: string;
     totalQty: number;
