@@ -6,6 +6,7 @@ import {
   ProcessedLoan,
   Loan,
   AggregatedAsset,
+  SaleRecord,
 } from "./lib/constants";
 import { usePortfolio } from "./hooks/usePortfolio";
 import { useClosedTrades } from "./hooks/useClosedTrades";
@@ -28,6 +29,7 @@ import SellSuite from "./components/SellSuite";
 import SignalsTab from "./components/SignalsTab";
 import EditLoanModal from "./components/EditLoanModal";
 import ClosePositionModal from "./components/ClosePositionModal";
+import CloseVentaModal from "./components/CloseVentaModal";
 import ClosedTradesTable from "./components/ClosedTradesTable";
 import EditSaleModal from "./components/EditSaleModal";
 import AlertSettings from "./components/AlertSettings";
@@ -51,8 +53,10 @@ const App: React.FC = () => {
   const [editingInvestment, setEditingInvestment] = useState<ProcessedInvestment | null>(null);
   const [alertingInvestment, setAlertingInvestment] = useState<ProcessedInvestment | null>(null);
   const [sellPreload, setSellPreload] = useState<ProcessedInvestment | null>(null);
+  const [buyPreload, setBuyPreload] = useState<import("./components/SellSuite").BuyPreload | null>(null);
   const [closingInvestment, setClosingInvestment] = useState<ProcessedInvestment | null>(null);
-  const [editingSale, setEditingSale] = useState<import("./lib/constants").SaleRecord | null>(null);
+  const [editingSale, setEditingSale] = useState<SaleRecord | null>(null);
+  const [closingVenta, setClosingVenta] = useState<SaleRecord | null>(null);
   const [isGlobalAlertModalOpen, setIsGlobalAlertModalOpen] = useState(false);
   const [isWatchlistModalOpen, setIsWatchlistModalOpen] = useState(false);
   const [globalEditIndex, setGlobalEditIndex] = useState<number | null>(null);
@@ -156,6 +160,13 @@ const App: React.FC = () => {
 
   const handleClosePosition = useCallback((item: ProcessedInvestment) => setClosingInvestment(item), []);
 
+  const handleBuyEvaluate = useCallback((sale: SaleRecord) => {
+    setBuyPreload({ coin: sale.coin, usdtAmount: sale.usdtReceived });
+    setActiveTab("venta");
+  }, []);
+
+  const handleCloseVenta = useCallback((sale: SaleRecord) => setClosingVenta(sale), []);
+
   const handleViewChart = useCallback((item: ProcessedInvestment) => {
     setGraficoCoin(item.coin);
     setActiveTab("graficos");
@@ -258,14 +269,16 @@ const App: React.FC = () => {
               onClosePosition={handleClosePosition}
               priceDirections={priceDirections}
             />
-            <AggregatedTable items={aggregatedList} priceDirections={priceDirections} />
             <SalesHistoryTable
               sales={sales}
               loading={salesLoading}
               prices={prices}
               onEdit={setEditingSale}
               onDelete={deleteSale}
+              onBuyEvaluate={handleBuyEvaluate}
+              onCloseVenta={handleCloseVenta}
             />
+            <AggregatedTable items={aggregatedList} priceDirections={priceDirections} />
             <ClosedTradesTable trades={closedTrades} loading={closedTradesLoading} />
           </div>
         )}
@@ -299,7 +312,7 @@ const App: React.FC = () => {
         {/* ── VENTA ─────────────────────────────────────────────────── */}
         {activeTab === "venta" && (
           <div key="venta" className={tabClass}>
-            <SellSuite preload={sellPreload} />
+            <SellSuite preload={sellPreload} buyPreload={buyPreload} />
           </div>
         )}
 
@@ -364,6 +377,31 @@ const App: React.FC = () => {
             setEditingSale(null);
           }}
           onClose={() => setEditingSale(null)}
+        />
+      )}
+      {closingVenta && (
+        <CloseVentaModal
+          sale={closingVenta}
+          onConfirm={async (buyPrice: number) => {
+            const sale = closingVenta;
+            const invested = buyPrice * sale.quantity;
+            const pnl = sale.usdtReceived - invested;
+            await addClosedTrade({
+              coin: sale.coin,
+              quantity: sale.quantity,
+              buyPrice,
+              sellPrice: sale.sellPrice,
+              invested,
+              soldValue: sale.usdtReceived,
+              pnl,
+              pnlPercent: invested > 0 ? (pnl / invested) * 100 : 0,
+              buyDate: 0,
+              sellDate: sale.date,
+            });
+            await deleteSale(sale.id);
+            setClosingVenta(null);
+          }}
+          onClose={() => setClosingVenta(null)}
         />
       )}
       {closingInvestment && (

@@ -1,14 +1,19 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Calculator, AlertCircle, ShieldCheck, Settings,
-  ArrowLeft, TrendingUp, AlertTriangle,
+  ArrowLeft, TrendingUp, TrendingDown, AlertTriangle,
   Monitor, Smartphone, CheckCircle2,
-  Save, FolderOpen, X
+  Save, FolderOpen, X, ShoppingCart
 } from 'lucide-react';
 import { usePrices } from '../hooks/usePrices';
 import { useSellStrategies, SellStrategy, SellStrategyData } from '../hooks/useSellStrategies';
 import { AVAILABLE_COINS, ProcessedInvestment } from '../lib/constants';
 import DeleteButton from './DeleteButton';
+
+export interface BuyPreload {
+  coin: string;
+  usdtAmount: number;
+}
 
 // --- UTILIDADES ---
 const formatDec = (num: number): string => {
@@ -494,8 +499,182 @@ const SavedStrategiesView = ({
   );
 };
 
+// --- MÓDULO: CALCULADORA DE COMPRA ---
+const BuyCalculator = ({
+  isMobile,
+  setIsMobile,
+  loadedCoin,
+  loadedUsdt,
+}: {
+  isMobile: boolean;
+  setIsMobile: (v: boolean) => void;
+  loadedCoin?: string;
+  loadedUsdt?: number;
+}) => {
+  const { prices } = usePrices();
+  const [coin, setCoin] = useState(loadedCoin || 'BTC');
+  const [usdtAmount, setUsdtAmount] = useState(loadedUsdt || 1000);
+  const [entryPrice, setEntryPrice] = useState(0);
+  const [tpPercent, setTpPercent] = useState(6);
+  const [slPercent, setSlPercent] = useState(3);
+
+  useEffect(() => { if (loadedCoin) setCoin(loadedCoin); }, [loadedCoin]);
+  useEffect(() => { if (loadedUsdt) setUsdtAmount(loadedUsdt); }, [loadedUsdt]);
+
+  const currentPrice = prices[coin] || 0;
+  const targetEntry = entryPrice > 0 ? entryPrice : currentPrice;
+  const quantity = targetEntry > 0 ? usdtAmount / targetEntry : 0;
+  const tpPrice = targetEntry * (1 + tpPercent / 100);
+  const slPrice = targetEntry * (1 - slPercent / 100);
+  const tpGain = quantity * (tpPrice - targetEntry);
+  const slLoss = quantity * (targetEntry - slPrice);
+  const riskReward = slLoss > 0 ? tpGain / slLoss : 0;
+
+  const priceDiff = targetEntry > 0 ? ((currentPrice - targetEntry) / targetEntry) * 100 : 0;
+  const buyStatus: AnalysisStatus = currentPrice === 0 ? 'idle' : priceDiff <= 0 ? 'success' : priceDiff <= 3 ? 'warning' : 'danger';
+  const buyTitle = { idle: 'Esperando precio...', success: '¡Precio en zona de compra!', warning: 'Precio cerca del objetivo', danger: 'Precio por encima del objetivo' }[buyStatus];
+  const buyRecommendation = {
+    idle: 'Cargando precio de mercado...',
+    success: `El precio actual (${formatDec(currentPrice)}) está en tu objetivo o por debajo. Buen momento para ejecutar la orden.`,
+    warning: `El precio está solo ${priceDiff.toFixed(2)}% por encima de tu objetivo. Monitorea y espera una pequeña corrección.`,
+    danger: `El precio está ${priceDiff.toFixed(2)}% por encima de tu objetivo de entrada. Considera esperar una corrección.`,
+  }[buyStatus];
+  const buyBgColor = { idle: 'bg-slate-800/50 border-slate-700', success: 'bg-green-900/20 border-green-800', warning: 'bg-yellow-900/20 border-yellow-800', danger: 'bg-red-900/20 border-red-800' }[buyStatus];
+  const buyColor = { idle: 'text-slate-400', success: 'text-green-400', warning: 'text-yellow-400', danger: 'text-red-400' }[buyStatus];
+
+  return (
+    <div className={`animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6 ${isMobile ? 'max-w-md mx-auto' : 'max-w-6xl mx-auto'}`}>
+      <div className="flex items-center justify-between border-b border-green-900/50 pb-4">
+        <div className="flex items-center gap-4">
+          <div className="p-2 md:p-3 bg-green-600/20 rounded-lg hidden sm:block">
+            <ShoppingCart className="w-6 h-6 md:w-8 md:h-8 text-green-500" />
+          </div>
+          <div className="hidden sm:block">
+            <h1 className="text-lg md:text-2xl font-bold text-white flex items-center gap-2">
+              Suite de COMPRA <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded-full border border-green-500/30 hidden md:block">Mercado Spot</span>
+            </h1>
+            <p className="text-slate-400 text-xs md:text-sm">Calculando entrada, TP y SL para recompra</p>
+          </div>
+        </div>
+        <DeviceToggle isMobile={isMobile} setIsMobile={setIsMobile} />
+      </div>
+
+      <div className={`grid grid-cols-1 ${isMobile ? '' : 'lg:grid-cols-12'} gap-6 md:gap-8`}>
+        {/* Panel izquierdo — inputs */}
+        <div className={`${isMobile ? '' : 'lg:col-span-5'} space-y-6`}>
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 md:p-5 shadow-lg border-t-4 border-t-green-500">
+            <h2 className="text-sm md:text-lg font-semibold flex items-center space-x-2 text-white mb-4">
+              <Settings className="w-4 h-4 md:w-5 md:h-5 text-green-400" />
+              <span>Datos de Compra</span>
+            </h2>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Moneda</label>
+                  <select value={coin} onChange={(e) => setCoin(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-md p-2 text-white text-sm font-bold focus:border-green-500 focus:outline-none transition-colors">
+                    {AVAILABLE_COINS.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">USDT Disponibles</label>
+                  <input type="number" value={usdtAmount} onChange={(e) => setUsdtAmount(Number(e.target.value))} className="w-full bg-slate-950 border border-slate-800 rounded-md p-2 text-white text-sm focus:border-green-500 focus:outline-none" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Precio Objetivo de Entrada ($)</label>
+                  <input type="number" step="0.00001" placeholder={formatDec(currentPrice)} value={entryPrice || ''} onChange={(e) => setEntryPrice(Number(e.target.value))} className="w-full bg-slate-950 border border-slate-800 rounded-md p-2 text-white text-sm focus:border-green-500 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs text-blue-400 font-bold mb-1">Precio Actual ($)</label>
+                  <div className={`w-full bg-slate-950 border-2 rounded-md p-2 font-mono text-sm flex items-center justify-between ${currentPrice <= targetEntry ? 'text-green-400 border-green-900/50' : 'text-red-400 border-red-900/50'}`}>
+                    <span>{formatDec(currentPrice)}</span>
+                    <TrendingDown className={`w-3 h-3 ${currentPrice <= targetEntry ? 'rotate-180' : 'rotate-0'}`} />
+                  </div>
+                </div>
+              </div>
+              <div className="pt-4 border-t border-slate-800">
+                <h3 className="text-[10px] md:text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Metas (%)</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] text-slate-400 block mb-1">Take Profit</label>
+                    <input type="number" value={tpPercent} onChange={(e) => setTpPercent(Number(e.target.value))} className="w-full bg-slate-950 border border-slate-800 rounded-md p-1.5 text-center text-green-400 text-sm font-bold focus:outline-none border-b-2 border-b-green-900/50" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-400 block mb-1">Stop Loss</label>
+                    <input type="number" value={slPercent} onChange={(e) => setSlPercent(Number(e.target.value))} className="w-full bg-slate-950 border border-slate-800 rounded-md p-1.5 text-center text-red-400 text-sm font-bold focus:outline-none border-b-2 border-b-red-900/50" />
+                  </div>
+                </div>
+              </div>
+              <div className={`mt-4 p-4 rounded-xl border ${buyBgColor} transition-all duration-300 shadow-inner`}>
+                <div className="flex items-center gap-2 mb-2">
+                  {STATUS_ICONS[buyStatus]}
+                  <h3 className={`font-bold text-sm ${buyColor}`}>{buyTitle}</h3>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed italic">{buyRecommendation}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Panel derecho — resultado */}
+        <div className={`${isMobile ? '' : 'lg:col-span-7'} bg-slate-900 border border-slate-800 rounded-xl p-4 md:p-5 shadow-lg`}>
+          <h2 className="text-sm md:text-lg font-semibold flex items-center space-x-2 text-white mb-6">
+            <ShieldCheck className="w-4 h-4 md:w-5 md:h-5 text-green-400" />
+            <span>Resumen de la Operación</span>
+          </h2>
+          <div className="bg-[#111217] p-5 rounded-xl border border-slate-800 shadow-xl font-sans max-w-sm mx-auto w-full space-y-4">
+            <div className="text-right text-xs text-slate-400 mb-2">
+              Disponible <span className="text-white font-mono ml-2">{formatDec(usdtAmount)} USDT ⊕</span>
+            </div>
+            {/* Orden de compra */}
+            <div className="relative">
+              <label className="absolute left-3 top-2 text-[10px] text-slate-500">Precio de Entrada (Límite)</label>
+              <span className="absolute right-3 top-4 text-xs text-white">USDT</span>
+              <input readOnly value={formatDec(targetEntry)} className="w-full bg-[#1e2025] border-none rounded-lg pt-6 pb-2 px-3 text-blue-400 font-mono focus:outline-none" />
+            </div>
+            <div className="relative">
+              <label className="absolute left-3 top-2 text-[10px] text-slate-500">Cantidad a Comprar</label>
+              <span className="absolute right-3 top-4 text-xs text-white">{coin}</span>
+              <input readOnly value={formatDec(quantity)} className="w-full bg-[#1e2025] border-none rounded-lg pt-6 pb-2 px-3 text-white font-mono focus:outline-none" />
+            </div>
+            <div className="h-px w-full bg-slate-800/50"></div>
+            {/* TP / SL */}
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="bg-green-900/20 rounded-lg p-3 border border-green-800/40">
+                <p className="text-slate-500 uppercase tracking-wider font-bold text-[9px] mb-1">Take Profit</p>
+                <p className="text-green-400 font-mono font-bold">{formatDec(tpPrice)}</p>
+                <p className="text-green-300 font-mono text-[10px] mt-0.5">+{formatDec(tpGain)} USDT</p>
+              </div>
+              <div className="bg-red-900/20 rounded-lg p-3 border border-red-800/40">
+                <p className="text-slate-500 uppercase tracking-wider font-bold text-[9px] mb-1">Stop Loss</p>
+                <p className="text-red-400 font-mono font-bold">{formatDec(slPrice)}</p>
+                <p className="text-red-300 font-mono text-[10px] mt-0.5">-{formatDec(slLoss)} USDT</p>
+              </div>
+            </div>
+            <div className="bg-slate-800/60 rounded-lg p-3 flex justify-between items-center border border-slate-700/40">
+              <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Risk / Reward</span>
+              <span className={`font-mono font-bold text-sm ${riskReward >= 2 ? 'text-green-400' : riskReward >= 1 ? 'text-yellow-400' : 'text-red-400'}`}>
+                1 : {riskReward.toFixed(2)}
+              </span>
+            </div>
+            <button
+              disabled
+              title="Solo referencia visual — coloca la orden manualmente en el exchange"
+              className="w-full bg-green-600/40 cursor-not-allowed text-white/50 font-bold py-3 rounded-lg mt-2 shadow-lg"
+            >
+              Comprar {coin} (referencia)
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- EXPORTE GLOBAL ---
-export default function SellSuite({ preload }: { preload?: ProcessedInvestment | null }) {
+export default function SellSuite({ preload, buyPreload }: { preload?: ProcessedInvestment | null; buyPreload?: BuyPreload | null }) {
+  const [mode, setMode] = useState<'sell' | 'buy'>('sell');
   const [view, setView] = useState<'sell' | 'saved'>('sell');
   const [isMobile, setIsMobile] = useState(false);
   const [loadedData, setLoadedData] = useState<SellStrategy | null>(null);
@@ -518,9 +697,17 @@ export default function SellSuite({ preload }: { preload?: ProcessedInvestment |
         },
         createdAt: '',
       });
+      setMode('sell');
       setView('sell');
     }
   }, [preload]);
+
+  useEffect(() => {
+    if (buyPreload) {
+      setMode('buy');
+      setView('sell');
+    }
+  }, [buyPreload]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -551,15 +738,42 @@ export default function SellSuite({ preload }: { preload?: ProcessedInvestment |
   );
 
   return (
-    <div className="animate-fadeIn">
-      <SellCalculator
-        isMobile={isMobile}
-        setIsMobile={setIsMobile}
-        onOpenSaved={() => setView('saved')}
-        onSaveStrategy={handleSaveStrategy}
-        loadedData={loadedData}
-        strategyCount={strategies.length}
-      />
+    <div className="animate-fadeIn space-y-4">
+      {/* Toggle Compra / Venta */}
+      <div className="flex justify-center">
+        <div className="flex bg-slate-800 border border-slate-700 rounded-xl p-1 gap-1">
+          <button
+            onClick={() => setMode('buy')}
+            className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold transition-all ${mode === 'buy' ? 'bg-green-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+          >
+            <ShoppingCart className="w-4 h-4" /> Evaluar Compra
+          </button>
+          <button
+            onClick={() => setMode('sell')}
+            className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold transition-all ${mode === 'sell' ? 'bg-red-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+          >
+            <TrendingDown className="w-4 h-4" /> Evaluar Venta
+          </button>
+        </div>
+      </div>
+
+      {mode === 'buy' ? (
+        <BuyCalculator
+          isMobile={isMobile}
+          setIsMobile={setIsMobile}
+          loadedCoin={buyPreload?.coin}
+          loadedUsdt={buyPreload?.usdtAmount}
+        />
+      ) : (
+        <SellCalculator
+          isMobile={isMobile}
+          setIsMobile={setIsMobile}
+          onOpenSaved={() => setView('saved')}
+          onSaveStrategy={handleSaveStrategy}
+          loadedData={loadedData}
+          strategyCount={strategies.length}
+        />
+      )}
       <Toast message={toastMessage} />
     </div>
   );

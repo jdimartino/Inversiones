@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { TrendingDown, Pencil, Trash2 } from "lucide-react";
+import { TrendingDown, TrendingUp, Archive, Pencil, Trash2 } from "lucide-react";
 import type { SaleRecord } from "../lib/constants";
 import { getCoinStyle, getCoinTextColor } from "../lib/constants";
 import { fmtUSD, fmtPrice, fmt } from "../lib/format";
@@ -10,6 +10,8 @@ interface SalesHistoryTableProps {
     prices: Record<string, number>;
     onEdit: (sale: SaleRecord) => void;
     onDelete: (id: string) => void;
+    onBuyEvaluate?: (sale: SaleRecord) => void;
+    onCloseVenta?: (sale: SaleRecord) => void;
 }
 
 function fmtDate(ts: number): string {
@@ -22,7 +24,7 @@ function fmtDate(ts: number): string {
 }
 
 const SalesHistoryTable: React.FC<SalesHistoryTableProps> = React.memo(
-    ({ sales, loading, prices, onEdit, onDelete }) => {
+    ({ sales, loading, prices, onEdit, onDelete, onBuyEvaluate, onCloseVenta }) => {
         const sorted = useMemo(
             () => [...sales].sort((a, b) => b.date - a.date),
             [sales]
@@ -76,6 +78,24 @@ const SalesHistoryTable: React.FC<SalesHistoryTableProps> = React.memo(
                                                 <span className="font-bold text-sm text-emerald-400 mr-2">
                                                     {fmtUSD(sale.usdtReceived)}
                                                 </span>
+                                                {onBuyEvaluate && (
+                                                    <button
+                                                        onClick={() => onBuyEvaluate(sale)}
+                                                        title="Evaluar Compra"
+                                                        className="p-1.5 rounded-lg text-slate-400 hover:text-green-400 hover:bg-slate-700 transition-colors"
+                                                    >
+                                                        <TrendingUp className="w-3.5 h-3.5" />
+                                                    </button>
+                                                )}
+                                                {onCloseVenta && (
+                                                    <button
+                                                        onClick={() => onCloseVenta(sale)}
+                                                        title="Cerrar Posición"
+                                                        className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-400 hover:bg-slate-700 transition-colors"
+                                                    >
+                                                        <Archive className="w-3.5 h-3.5" />
+                                                    </button>
+                                                )}
                                                 <button
                                                     onClick={() => onEdit(sale)}
                                                     className="p-1.5 rounded-lg text-slate-400 hover:text-yellow-400 hover:bg-slate-700 transition-colors"
@@ -105,9 +125,14 @@ const SalesHistoryTable: React.FC<SalesHistoryTableProps> = React.memo(
                                                 <div className="bg-slate-900/40 p-1.5 rounded-lg border border-slate-700/50 text-center">
                                                     <p className="text-[9px] text-slate-500 uppercase font-bold mb-0.5">Si Recompras</p>
                                                     {recompraPnl !== null ? (
-                                                        <p className={`font-mono font-bold ${recompraPnl >= 0 ? "text-green-400" : "text-red-400"}`}>
-                                                            {recompraPnl >= 0 ? "+" : ""}{fmtUSD(recompraPnl)}
-                                                        </p>
+                                                        <>
+                                                            <p className={`font-mono font-bold ${recompraPnl >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                                                {recompraPnl >= 0 ? "+" : ""}{fmtUSD(recompraPnl)}
+                                                            </p>
+                                                            <p className={`text-[9px] font-mono ${recompraPnl >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                                                {recompraPnl >= 0 ? "+" : ""}{((recompraPnl / sale.usdtReceived) * 100).toFixed(2)}%
+                                                            </p>
+                                                        </>
                                                     ) : (
                                                         <p className="text-slate-500 font-mono">—</p>
                                                     )}
@@ -151,9 +176,14 @@ const SalesHistoryTable: React.FC<SalesHistoryTableProps> = React.memo(
                                                 </td>
                                                 <td className="p-5 text-right">
                                                     {recompraPnl !== null ? (
-                                                        <span className={`font-bold ${recompraPnl >= 0 ? "text-green-400" : "text-red-400"}`}>
-                                                            {recompraPnl >= 0 ? "+" : ""}{fmtUSD(recompraPnl)}
-                                                        </span>
+                                                        <div className="flex flex-col items-end">
+                                                            <span className={`font-bold ${recompraPnl >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                                                {recompraPnl >= 0 ? "+" : ""}{fmtUSD(recompraPnl)}
+                                                            </span>
+                                                            <span className={`text-[11px] font-mono ${recompraPnl >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                                                {recompraPnl >= 0 ? "+" : ""}{((recompraPnl / sale.usdtReceived) * 100).toFixed(2)}%
+                                                            </span>
+                                                        </div>
                                                     ) : (
                                                         <span className="text-slate-500">—</span>
                                                     )}
@@ -161,6 +191,24 @@ const SalesHistoryTable: React.FC<SalesHistoryTableProps> = React.memo(
                                                 <td className="p-5 text-center text-slate-400 text-xs">{fmtDate(sale.date)}</td>
                                                 <td className="p-5">
                                                     <div className="flex items-center gap-2 justify-end">
+                                                        {onBuyEvaluate && (
+                                                            <button
+                                                                onClick={() => onBuyEvaluate(sale)}
+                                                                title="Evaluar Compra"
+                                                                className="p-1.5 rounded-lg text-slate-400 hover:text-green-400 hover:bg-slate-700 transition-colors"
+                                                            >
+                                                                <TrendingUp className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        )}
+                                                        {onCloseVenta && (
+                                                            <button
+                                                                onClick={() => onCloseVenta(sale)}
+                                                                title="Cerrar Posición"
+                                                                className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-400 hover:bg-slate-700 transition-colors"
+                                                            >
+                                                                <Archive className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        )}
                                                         <button
                                                             onClick={() => onEdit(sale)}
                                                             className="p-1.5 rounded-lg text-slate-400 hover:text-yellow-400 hover:bg-slate-700 transition-colors"
@@ -189,9 +237,16 @@ const SalesHistoryTable: React.FC<SalesHistoryTableProps> = React.memo(
                                         </td>
                                         <td />
                                         <td className="p-5 text-right">
-                                            <span className={`font-bold text-xs ${totalRecompraPnl >= 0 ? "text-green-400" : "text-red-400"}`}>
-                                                {totalRecompraPnl >= 0 ? "+" : ""}{fmtUSD(totalRecompraPnl)}
-                                            </span>
+                                            <div className="flex flex-col items-end">
+                                                <span className={`font-bold text-xs ${totalRecompraPnl >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                                    {totalRecompraPnl >= 0 ? "+" : ""}{fmtUSD(totalRecompraPnl)}
+                                                </span>
+                                                {totalUsdtReceived > 0 && (
+                                                    <span className={`text-[11px] font-mono ${totalRecompraPnl >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                                        {totalRecompraPnl >= 0 ? "+" : ""}{((totalRecompraPnl / totalUsdtReceived) * 100).toFixed(2)}%
+                                                    </span>
+                                                )}
+                                            </div>
                                         </td>
                                         <td colSpan={2} />
                                     </tr>

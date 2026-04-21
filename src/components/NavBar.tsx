@@ -24,7 +24,7 @@ const TABS: Tab[] = [
     { id: "senales", label: "Señales", icon: <Zap className="w-4 h-4" /> },
     { id: "configuracion", label: "Telegram", icon: <Send className="w-4 h-4" /> },
     { id: "prestamos", label: "Préstamos", icon: <CreditCard className="w-4 h-4" /> },
-    { id: "venta", label: "Venta", icon: <TrendingUp className="w-4 h-4" /> },
+    { id: "venta", label: "Compra/Venta", icon: <TrendingUp className="w-4 h-4" /> },
     { id: "operaciones", label: "Operaciones", icon: <PlusCircle className="w-4 h-4" /> },
 ];
 
