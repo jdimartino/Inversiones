@@ -161,7 +161,7 @@ const App: React.FC = () => {
   const handleClosePosition = useCallback((item: ProcessedInvestment) => setClosingInvestment(item), []);
 
   const handleBuyEvaluate = useCallback((sale: SaleRecord) => {
-    setBuyPreload({ coin: sale.coin, usdtAmount: sale.usdtReceived });
+    setBuyPreload({ coin: sale.coin, usdtAmount: sale.usdtReceived, sellPrice: sale.sellPrice });
     setActiveTab("venta");
   }, []);
 

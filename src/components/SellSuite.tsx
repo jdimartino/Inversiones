@@ -13,6 +13,7 @@ import DeleteButton from './DeleteButton';
 export interface BuyPreload {
   coin: string;
   usdtAmount: number;
+  sellPrice: number;
 }
 
 // --- UTILIDADES ---
@@ -499,48 +500,88 @@ const SavedStrategiesView = ({
   );
 };
 
-// --- MÓDULO: CALCULADORA DE COMPRA ---
+// --- MÓDULO: CALCULADORA DE RECOMPRA ---
 const BuyCalculator = ({
   isMobile,
   setIsMobile,
   loadedCoin,
   loadedUsdt,
+  loadedSellPrice,
 }: {
   isMobile: boolean;
   setIsMobile: (v: boolean) => void;
   loadedCoin?: string;
   loadedUsdt?: number;
+  loadedSellPrice?: number;
 }) => {
   const { prices } = usePrices();
   const [coin, setCoin] = useState(loadedCoin || 'BTC');
   const [usdtAmount, setUsdtAmount] = useState(loadedUsdt || 1000);
-  const [entryPrice, setEntryPrice] = useState(0);
-  const [tpPercent, setTpPercent] = useState(6);
-  const [slPercent, setSlPercent] = useState(3);
+  const [sellPrice, setSellPrice] = useState(loadedSellPrice || 0);
+  const [rebuyPrice, setRebuyPrice] = useState(0);
+  const [discountPct, setDiscountPct] = useState(0);
 
   useEffect(() => { if (loadedCoin) setCoin(loadedCoin); }, [loadedCoin]);
   useEffect(() => { if (loadedUsdt) setUsdtAmount(loadedUsdt); }, [loadedUsdt]);
+  useEffect(() => { if (loadedSellPrice) setSellPrice(loadedSellPrice); }, [loadedSellPrice]);
+
+  const handleRebuyPriceChange = (val: number) => {
+    setRebuyPrice(val);
+    if (sellPrice > 0 && val > 0) {
+      setDiscountPct(((sellPrice - val) / sellPrice) * 100);
+    } else {
+      setDiscountPct(0);
+    }
+  };
+
+  const handleDiscountPctChange = (val: number) => {
+    setDiscountPct(val);
+    if (sellPrice > 0) {
+      setRebuyPrice(sellPrice * (1 - val / 100));
+    }
+  };
 
   const currentPrice = prices[coin] || 0;
-  const targetEntry = entryPrice > 0 ? entryPrice : currentPrice;
-  const quantity = targetEntry > 0 ? usdtAmount / targetEntry : 0;
-  const tpPrice = targetEntry * (1 + tpPercent / 100);
-  const slPrice = targetEntry * (1 - slPercent / 100);
-  const tpGain = quantity * (tpPrice - targetEntry);
-  const slLoss = quantity * (targetEntry - slPrice);
-  const riskReward = slLoss > 0 ? tpGain / slLoss : 0;
+  // Si no ingresó precio de recompra, usa el precio actual como referencia
+  const targetRebuy = rebuyPrice > 0 ? rebuyPrice : currentPrice;
 
-  const priceDiff = targetEntry > 0 ? ((currentPrice - targetEntry) / targetEntry) * 100 : 0;
-  const buyStatus: AnalysisStatus = currentPrice === 0 ? 'idle' : priceDiff <= 0 ? 'success' : priceDiff <= 3 ? 'warning' : 'danger';
-  const buyTitle = { idle: 'Esperando precio...', success: '¡Precio en zona de compra!', warning: 'Precio cerca del objetivo', danger: 'Precio por encima del objetivo' }[buyStatus];
-  const buyRecommendation = {
+  // Posición original: cuántas unidades tenías antes de vender
+  const originalQty = sellPrice > 0 ? usdtAmount / sellPrice : 0;
+  // Recompra: cuántas unidades obtenés con el mismo USDT al precio objetivo
+  const rebuyQty = targetRebuy > 0 ? usdtAmount / targetRebuy : 0;
+  // Unidades extra ganadas por la maniobra (positivo = ganaste unidades)
+  const extraQty = rebuyQty - originalQty;
+  // Valor en USDT de las unidades extra al precio de recompra
+  const maniobra_pnl = extraQty * targetRebuy;
+  // % vs precio actual
+  const vsCurrent = currentPrice > 0 ? ((currentPrice - targetRebuy) / currentPrice) * 100 : 0;
+
+  const isProfit = discountPct > 0;
+  const isBreakeven = Math.abs(discountPct) < 0.01;
+
+  const analysisStatus: AnalysisStatus = currentPrice === 0 ? 'idle'
+    : isBreakeven ? 'warning'
+    : isProfit ? (discountPct >= 3 ? 'success' : 'warning')
+    : 'danger';
+
+  const analysisTitle = {
+    idle: 'Esperando precio...',
+    success: `¡Maniobra rentable! −${discountPct.toFixed(2)}% vs tu venta`,
+    warning: isBreakeven ? 'Break-even — sin ganancia ni pérdida' : `Maniobra leve — ${discountPct.toFixed(2)}% vs tu venta`,
+    danger: `Recomprás más caro que tu precio de venta (+${Math.abs(discountPct).toFixed(2)}%)`,
+  }[analysisStatus];
+
+  const analysisText = {
     idle: 'Cargando precio de mercado...',
-    success: `El precio actual (${formatDec(currentPrice)}) está en tu objetivo o por debajo. Buen momento para ejecutar la orden.`,
-    warning: `El precio está solo ${priceDiff.toFixed(2)}% por encima de tu objetivo. Monitorea y espera una pequeña corrección.`,
-    danger: `El precio está ${priceDiff.toFixed(2)}% por encima de tu objetivo de entrada. Considera esperar una corrección.`,
-  }[buyStatus];
-  const buyBgColor = { idle: 'bg-slate-800/50 border-slate-700', success: 'bg-green-900/20 border-green-800', warning: 'bg-yellow-900/20 border-yellow-800', danger: 'bg-red-900/20 border-red-800' }[buyStatus];
-  const buyColor = { idle: 'text-slate-400', success: 'text-green-400', warning: 'text-yellow-400', danger: 'text-red-400' }[buyStatus];
+    success: `Si recomprás ${coin} a ${formatDec(targetRebuy)}, obtenés ${formatDec(rebuyQty)} unidades en lugar de ${formatDec(originalQty)}. Ganás ${formatDec(extraQty)} ${coin} extra (≈ +${formatDec(maniobra_pnl)} USDT).`,
+    warning: isBreakeven
+      ? `Recomprás exactamente al mismo precio que vendiste. Obtenés las mismas unidades (${formatDec(originalQty)} ${coin}), sin ganancia ni pérdida.`
+      : `Recomprás a un ${discountPct.toFixed(2)}% por debajo de tu venta. Obtenés ${formatDec(extraQty)} ${coin} extra (≈ +${formatDec(maniobra_pnl)} USDT).`,
+    danger: `Recomprás ${Math.abs(discountPct).toFixed(2)}% más caro que tu precio de venta. Obtenés ${formatDec(rebuyQty)} unidades, perdés ${formatDec(Math.abs(extraQty))} ${coin} (≈ ${formatDec(maniobra_pnl)} USDT).`,
+  }[analysisStatus];
+
+  const bgColor = { idle: 'bg-slate-800/50 border-slate-700', success: 'bg-green-900/20 border-green-800', warning: 'bg-yellow-900/20 border-yellow-800', danger: 'bg-red-900/20 border-red-800' }[analysisStatus];
+  const textColor = { idle: 'text-slate-400', success: 'text-green-400', warning: 'text-yellow-400', danger: 'text-red-400' }[analysisStatus];
 
   return (
     <div className={`animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6 ${isMobile ? 'max-w-md mx-auto' : 'max-w-6xl mx-auto'}`}>
@@ -551,9 +592,9 @@ const BuyCalculator = ({
           </div>
           <div className="hidden sm:block">
             <h1 className="text-lg md:text-2xl font-bold text-white flex items-center gap-2">
-              Suite de COMPRA <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded-full border border-green-500/30 hidden md:block">Mercado Spot</span>
+              Evaluar Recompra <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded-full border border-green-500/30 hidden md:block">Mercado Spot</span>
             </h1>
-            <p className="text-slate-400 text-xs md:text-sm">Calculando entrada, TP y SL para recompra</p>
+            <p className="text-slate-400 text-xs md:text-sm">¿Cuánto ganás si recomprás más barato de lo que vendiste?</p>
           </div>
         </div>
         <DeviceToggle isMobile={isMobile} setIsMobile={setIsMobile} />
@@ -565,9 +606,10 @@ const BuyCalculator = ({
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 md:p-5 shadow-lg border-t-4 border-t-green-500">
             <h2 className="text-sm md:text-lg font-semibold flex items-center space-x-2 text-white mb-4">
               <Settings className="w-4 h-4 md:w-5 md:h-5 text-green-400" />
-              <span>Datos de Compra</span>
+              <span>Datos de la Operación</span>
             </h2>
             <div className="space-y-4">
+              {/* Moneda + USDT */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-slate-400 mb-1">Moneda</label>
@@ -580,84 +622,126 @@ const BuyCalculator = ({
                   <input type="number" value={usdtAmount} onChange={(e) => setUsdtAmount(Number(e.target.value))} className="w-full bg-slate-950 border border-slate-800 rounded-md p-2 text-white text-sm focus:border-green-500 focus:outline-none" />
                 </div>
               </div>
+              {/* Precio de venta (referencia) + precio actual */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">Precio Objetivo de Entrada ($)</label>
-                  <input type="number" step="0.00001" placeholder={formatDec(currentPrice)} value={entryPrice || ''} onChange={(e) => setEntryPrice(Number(e.target.value))} className="w-full bg-slate-950 border border-slate-800 rounded-md p-2 text-white text-sm focus:border-green-500 focus:outline-none" />
+                  <label className="block text-xs text-red-400 font-bold mb-1">Precio de Venta ($)</label>
+                  <input type="number" step="0.00001" value={sellPrice || ''} onChange={(e) => setSellPrice(Number(e.target.value))} placeholder="Tu precio de venta" className="w-full bg-slate-950 border border-red-900/50 rounded-md p-2 text-red-300 text-sm font-mono focus:border-red-500 focus:outline-none" />
                 </div>
                 <div>
                   <label className="block text-xs text-blue-400 font-bold mb-1">Precio Actual ($)</label>
-                  <div className={`w-full bg-slate-950 border-2 rounded-md p-2 font-mono text-sm flex items-center justify-between ${currentPrice <= targetEntry ? 'text-green-400 border-green-900/50' : 'text-red-400 border-red-900/50'}`}>
-                    <span>{formatDec(currentPrice)}</span>
-                    <TrendingDown className={`w-3 h-3 ${currentPrice <= targetEntry ? 'rotate-180' : 'rotate-0'}`} />
+                  <div className="w-full bg-slate-950 border-2 border-slate-700 rounded-md p-2 font-mono text-sm text-blue-400 flex items-center justify-between">
+                    <span>{currentPrice > 0 ? formatDec(currentPrice) : '—'}</span>
+                    <TrendingDown className="w-3 h-3" />
                   </div>
                 </div>
               </div>
-              <div className="pt-4 border-t border-slate-800">
-                <h3 className="text-[10px] md:text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Metas (%)</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] text-slate-400 block mb-1">Take Profit</label>
-                    <input type="number" value={tpPercent} onChange={(e) => setTpPercent(Number(e.target.value))} className="w-full bg-slate-950 border border-slate-800 rounded-md p-1.5 text-center text-green-400 text-sm font-bold focus:outline-none border-b-2 border-b-green-900/50" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-slate-400 block mb-1">Stop Loss</label>
-                    <input type="number" value={slPercent} onChange={(e) => setSlPercent(Number(e.target.value))} className="w-full bg-slate-950 border border-slate-800 rounded-md p-1.5 text-center text-red-400 text-sm font-bold focus:outline-none border-b-2 border-b-red-900/50" />
-                  </div>
+              {/* Precio objetivo de recompra + % descuento */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-green-400 font-bold mb-1">Precio Objetivo ($)</label>
+                  <input
+                    type="number"
+                    step="0.00001"
+                    placeholder={currentPrice > 0 ? formatDec(currentPrice) : '0.00'}
+                    value={rebuyPrice || ''}
+                    onChange={(e) => handleRebuyPriceChange(Number(e.target.value))}
+                    className="w-full bg-slate-950 border border-green-900/50 rounded-md p-2 text-white text-sm focus:border-green-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-green-400 font-bold mb-1">% Descuento vs Venta</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={discountPct > 0.01 || discountPct < -0.01 ? discountPct.toFixed(2) : ''}
+                    onChange={(e) => handleDiscountPctChange(Number(e.target.value))}
+                    className="w-full bg-slate-950 border border-green-900/50 rounded-md p-2 text-white text-sm focus:border-green-500 focus:outline-none"
+                  />
+                  <span className="absolute right-3 text-xs text-slate-400">%</span>
                 </div>
               </div>
-              <div className={`mt-4 p-4 rounded-xl border ${buyBgColor} transition-all duration-300 shadow-inner`}>
+              {sellPrice > 0 && (
+                <p className="text-[10px] text-slate-500">
+                  Break-even: <span className="text-slate-300 font-mono">{formatDec(sellPrice)}</span> — ingresá % positivo para comprar más barato
+                </p>
+              )}
+              {/* Análisis */}
+              <div className={`p-4 rounded-xl border ${bgColor} transition-all duration-300 shadow-inner`}>
                 <div className="flex items-center gap-2 mb-2">
-                  {STATUS_ICONS[buyStatus]}
-                  <h3 className={`font-bold text-sm ${buyColor}`}>{buyTitle}</h3>
+                  {STATUS_ICONS[analysisStatus]}
+                  <h3 className={`font-bold text-sm ${textColor}`}>{analysisTitle}</h3>
                 </div>
-                <p className="text-xs text-slate-300 leading-relaxed italic">{buyRecommendation}</p>
+                <p className="text-xs text-slate-300 leading-relaxed italic">{analysisText}</p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Panel derecho — resultado */}
+        {/* Panel derecho — orden límite de compra */}
         <div className={`${isMobile ? '' : 'lg:col-span-7'} bg-slate-900 border border-slate-800 rounded-xl p-4 md:p-5 shadow-lg`}>
           <h2 className="text-sm md:text-lg font-semibold flex items-center space-x-2 text-white mb-6">
             <ShieldCheck className="w-4 h-4 md:w-5 md:h-5 text-green-400" />
-            <span>Resumen de la Operación</span>
+            <span>Resumen de la Maniobra</span>
           </h2>
           <div className="bg-[#111217] p-5 rounded-xl border border-slate-800 shadow-xl font-sans max-w-sm mx-auto w-full space-y-4">
-            <div className="text-right text-xs text-slate-400 mb-2">
+            <div className="text-right text-xs text-slate-400">
               Disponible <span className="text-white font-mono ml-2">{formatDec(usdtAmount)} USDT ⊕</span>
             </div>
-            {/* Orden de compra */}
+            {/* Precio de venta (referencia) */}
             <div className="relative">
-              <label className="absolute left-3 top-2 text-[10px] text-slate-500">Precio de Entrada (Límite)</label>
+              <label className="absolute left-3 top-2 text-[10px] text-slate-500">Vendiste a (Referencia)</label>
+              <span className="absolute right-3 top-4 text-xs text-slate-400">USDT</span>
+              <input readOnly value={sellPrice > 0 ? formatDec(sellPrice) : '—'} className="w-full bg-[#1e2025] border-none rounded-lg pt-6 pb-2 px-3 text-red-400 font-mono focus:outline-none" />
+            </div>
+            {/* Orden límite de compra */}
+            <div className="relative">
+              <label className="absolute left-3 top-2 text-[10px] text-slate-500">Precio de Recompra (Límite)</label>
               <span className="absolute right-3 top-4 text-xs text-white">USDT</span>
-              <input readOnly value={formatDec(targetEntry)} className="w-full bg-[#1e2025] border-none rounded-lg pt-6 pb-2 px-3 text-blue-400 font-mono focus:outline-none" />
+              <input readOnly value={targetRebuy > 0 ? formatDec(targetRebuy) : '—'} className="w-full bg-[#1e2025] border-none rounded-lg pt-6 pb-2 px-3 text-green-400 font-mono focus:outline-none" />
             </div>
             <div className="relative">
               <label className="absolute left-3 top-2 text-[10px] text-slate-500">Cantidad a Comprar</label>
               <span className="absolute right-3 top-4 text-xs text-white">{coin}</span>
-              <input readOnly value={formatDec(quantity)} className="w-full bg-[#1e2025] border-none rounded-lg pt-6 pb-2 px-3 text-white font-mono focus:outline-none" />
+              <input readOnly value={rebuyQty > 0 ? formatDec(rebuyQty) : '—'} className="w-full bg-[#1e2025] border-none rounded-lg pt-6 pb-2 px-3 text-white font-mono focus:outline-none" />
             </div>
-            <div className="h-px w-full bg-slate-800/50"></div>
-            {/* TP / SL */}
+            <div className="h-px w-full bg-slate-800/50" />
+            {/* Resultado de la maniobra */}
             <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="bg-green-900/20 rounded-lg p-3 border border-green-800/40">
-                <p className="text-slate-500 uppercase tracking-wider font-bold text-[9px] mb-1">Take Profit</p>
-                <p className="text-green-400 font-mono font-bold">{formatDec(tpPrice)}</p>
-                <p className="text-green-300 font-mono text-[10px] mt-0.5">+{formatDec(tpGain)} USDT</p>
+              <div className="bg-slate-800/60 rounded-lg p-3 border border-slate-700/40">
+                <p className="text-slate-500 uppercase tracking-wider font-bold text-[9px] mb-1">Tenías antes</p>
+                <p className="text-slate-300 font-mono font-bold">{originalQty > 0 ? formatDec(originalQty) : '—'} {coin}</p>
               </div>
-              <div className="bg-red-900/20 rounded-lg p-3 border border-red-800/40">
-                <p className="text-slate-500 uppercase tracking-wider font-bold text-[9px] mb-1">Stop Loss</p>
-                <p className="text-red-400 font-mono font-bold">{formatDec(slPrice)}</p>
-                <p className="text-red-300 font-mono text-[10px] mt-0.5">-{formatDec(slLoss)} USDT</p>
+              <div className={`rounded-lg p-3 border ${extraQty >= 0 ? 'bg-green-900/20 border-green-800/40' : 'bg-red-900/20 border-red-800/40'}`}>
+                <p className="text-slate-500 uppercase tracking-wider font-bold text-[9px] mb-1">{extraQty >= 0 ? 'Ganás extra' : 'Perdés'}</p>
+                <p className={`font-mono font-bold ${extraQty >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {extraQty >= 0 ? '+' : ''}{formatDec(extraQty)} {coin}
+                </p>
               </div>
             </div>
-            <div className="bg-slate-800/60 rounded-lg p-3 flex justify-between items-center border border-slate-700/40">
-              <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Risk / Reward</span>
-              <span className={`font-mono font-bold text-sm ${riskReward >= 2 ? 'text-green-400' : riskReward >= 1 ? 'text-yellow-400' : 'text-red-400'}`}>
-                1 : {riskReward.toFixed(2)}
+            <div className={`rounded-lg p-3 flex justify-between items-center border ${isProfit ? 'bg-green-900/20 border-green-800/40' : 'bg-red-900/20 border-red-800/40'}`}>
+              <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Ganancia de la maniobra</span>
+              <span className={`font-mono font-bold text-sm ${isProfit ? 'text-green-400' : 'text-red-400'}`}>
+                {maniobra_pnl >= 0 ? '+' : ''}{formatDec(maniobra_pnl)} USDT
               </span>
             </div>
+            {sellPrice > 0 && targetRebuy > 0 && (
+              <div className="bg-slate-800/60 rounded-lg p-3 flex justify-between items-center border border-slate-700/40">
+                <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Descuento vs venta</span>
+                <span className={`font-mono font-bold text-sm ${discountPct > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {discountPct > 0 ? '−' : '+'}{Math.abs(discountPct).toFixed(2)}%
+                </span>
+              </div>
+            )}
+            {currentPrice > 0 && targetRebuy > 0 && targetRebuy !== currentPrice && (
+              <div className="bg-slate-800/60 rounded-lg p-3 flex justify-between items-center border border-slate-700/40">
+                <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Objetivo vs precio actual</span>
+                <span className={`font-mono font-bold text-sm ${vsCurrent > 0 ? 'text-green-400' : 'text-yellow-400'}`}>
+                  {vsCurrent > 0 ? '−' : '+'}{Math.abs(vsCurrent).toFixed(2)}% {vsCurrent > 0 ? 'por debajo' : 'por encima'}
+                </span>
+              </div>
+            )}
             <button
               disabled
               title="Solo referencia visual — coloca la orden manualmente en el exchange"
@@ -763,6 +847,7 @@ export default function SellSuite({ preload, buyPreload }: { preload?: Processed
           setIsMobile={setIsMobile}
           loadedCoin={buyPreload?.coin}
           loadedUsdt={buyPreload?.usdtAmount}
+          loadedSellPrice={buyPreload?.sellPrice}
         />
       ) : (
         <SellCalculator
