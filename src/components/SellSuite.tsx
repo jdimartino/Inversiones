@@ -520,24 +520,45 @@ const BuyCalculator = ({
   const [sellPrice, setSellPrice] = useState(loadedSellPrice || 0);
   const [rebuyPrice, setRebuyPrice] = useState(0);
   const [discountPct, setDiscountPct] = useState(0);
+  const [rebuyPriceStr, setRebuyPriceStr] = useState('');
+  const [discountPctStr, setDiscountPctStr] = useState('');
 
   useEffect(() => { if (loadedCoin) setCoin(loadedCoin); }, [loadedCoin]);
   useEffect(() => { if (loadedUsdt) setUsdtAmount(loadedUsdt); }, [loadedUsdt]);
   useEffect(() => { if (loadedSellPrice) setSellPrice(loadedSellPrice); }, [loadedSellPrice]);
 
-  const handleRebuyPriceChange = (val: number) => {
-    setRebuyPrice(val);
-    if (sellPrice > 0 && val > 0) {
-      setDiscountPct(((sellPrice - val) / sellPrice) * 100);
+  const handleRebuyPriceChange = (raw: string) => {
+    setRebuyPriceStr(raw);
+    const val = parseFloat(raw);
+    if (!isNaN(val)) {
+      setRebuyPrice(val);
+      if (sellPrice > 0 && val > 0) {
+        const pct = ((sellPrice - val) / sellPrice) * 100;
+        setDiscountPct(pct);
+        setDiscountPctStr(pct.toFixed(4));
+      } else {
+        setDiscountPct(0);
+        setDiscountPctStr('');
+      }
     } else {
+      setRebuyPrice(0);
       setDiscountPct(0);
+      setDiscountPctStr('');
     }
   };
 
-  const handleDiscountPctChange = (val: number) => {
-    setDiscountPct(val);
-    if (sellPrice > 0) {
-      setRebuyPrice(sellPrice * (1 - val / 100));
+  const handleDiscountPctChange = (raw: string) => {
+    setDiscountPctStr(raw);
+    const val = parseFloat(raw);
+    if (!isNaN(val)) {
+      setDiscountPct(val);
+      if (sellPrice > 0) {
+        const price = sellPrice * (1 - val / 100);
+        setRebuyPrice(price);
+        setRebuyPriceStr(price.toFixed(5));
+      }
+    } else {
+      setDiscountPct(0);
     }
   };
 
@@ -644,8 +665,8 @@ const BuyCalculator = ({
                     type="number"
                     step="0.00001"
                     placeholder={currentPrice > 0 ? formatDec(currentPrice) : '0.00'}
-                    value={rebuyPrice || ''}
-                    onChange={(e) => handleRebuyPriceChange(Number(e.target.value))}
+                    value={rebuyPriceStr}
+                    onChange={(e) => handleRebuyPriceChange(e.target.value)}
                     className="w-full bg-slate-950 border border-green-900/50 rounded-md p-2 text-white text-sm focus:border-green-500 focus:outline-none"
                   />
                 </div>
@@ -655,8 +676,8 @@ const BuyCalculator = ({
                     type="number"
                     step="0.01"
                     placeholder="0.00"
-                    value={discountPct > 0.01 || discountPct < -0.01 ? discountPct.toFixed(2) : ''}
-                    onChange={(e) => handleDiscountPctChange(Number(e.target.value))}
+                    value={discountPctStr}
+                    onChange={(e) => handleDiscountPctChange(e.target.value)}
                     className="w-full bg-slate-950 border border-green-900/50 rounded-md p-2 text-white text-sm focus:border-green-500 focus:outline-none"
                   />
                   <span className="absolute right-3 text-xs text-slate-400">%</span>
