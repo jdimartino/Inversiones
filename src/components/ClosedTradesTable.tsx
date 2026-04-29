@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { History, ChevronDown, ChevronRight } from "lucide-react";
+import { History, ChevronDown, ChevronRight, Brain } from "lucide-react";
 import type { ClosedTrade } from "../lib/constants";
 import { getCoinStyle, getCoinTextColor } from "../lib/constants";
 import { fmtUSD, fmtPrice } from "../lib/format";
@@ -7,6 +7,7 @@ import { fmtUSD, fmtPrice } from "../lib/format";
 interface ClosedTradesTableProps {
     trades: ClosedTrade[];
     loading: boolean;
+    onMarcoAnalysis?: (trade: ClosedTrade) => void;
 }
 
 function fmtDate(ts: number): string {
@@ -24,7 +25,7 @@ function durationDays(buyDate: number, sellDate: number): string {
 }
 
 const ClosedTradesTable: React.FC<ClosedTradesTableProps> = React.memo(
-    ({ trades, loading }) => {
+    ({ trades, loading, onMarcoAnalysis }) => {
         const [open, setOpen] = useState(false);
 
         const sorted = useMemo(
@@ -82,6 +83,15 @@ const ClosedTradesTable: React.FC<ClosedTradesTableProps> = React.memo(
                                                 <span className={`font-bold text-sm ${trade.pnl >= 0 ? "text-green-400" : "text-red-400"}`}>
                                                     {trade.pnl >= 0 ? "+" : ""}{fmtUSD(trade.pnl)}
                                                 </span>
+                                                {onMarcoAnalysis && (
+                                                    <button
+                                                        onClick={() => onMarcoAnalysis(trade)}
+                                                        title="Analizar con Marco"
+                                                        className="p-1.5 rounded-lg text-slate-400 hover:text-violet-400 hover:bg-slate-700 transition-colors"
+                                                    >
+                                                        <Brain className="w-3.5 h-3.5" />
+                                                    </button>
+                                                )}
                                             </div>
                                             <div className="grid grid-cols-2 gap-1.5 text-xs">
                                                 <div className="bg-slate-900/40 p-1.5 rounded-lg border border-slate-700/50 text-center">
@@ -119,6 +129,7 @@ const ClosedTradesTable: React.FC<ClosedTradesTableProps> = React.memo(
                                             <th className="p-5 text-right">%</th>
                                             <th className="p-5 text-center">Duración</th>
                                             <th className="p-5 text-center">Fecha Cierre</th>
+                                            {onMarcoAnalysis && <th className="p-5 text-center">IA</th>}
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-700">
@@ -144,6 +155,17 @@ const ClosedTradesTable: React.FC<ClosedTradesTableProps> = React.memo(
                                                 </td>
                                                 <td className="p-5 text-center text-slate-400 text-xs">{durationDays(trade.buyDate, trade.sellDate)}</td>
                                                 <td className="p-5 text-center text-slate-400 text-xs">{fmtDate(trade.sellDate)}</td>
+                                                {onMarcoAnalysis && (
+                                                    <td className="p-5 text-center">
+                                                        <button
+                                                            onClick={() => onMarcoAnalysis(trade)}
+                                                            title="Analizar con Marco"
+                                                            className="p-1.5 rounded-lg text-slate-400 hover:text-violet-400 hover:bg-slate-700 transition-colors"
+                                                        >
+                                                            <Brain className="w-4 h-4" />
+                                                        </button>
+                                                    </td>
+                                                )}
                                             </tr>
                                         ))}
                                     </tbody>
@@ -158,7 +180,7 @@ const ClosedTradesTable: React.FC<ClosedTradesTableProps> = React.memo(
                                                     {totals.pnl >= 0 ? "+" : ""}{fmtUSD(totals.pnl)}
                                                 </span>
                                             </td>
-                                            <td colSpan={3} />
+                                            <td colSpan={onMarcoAnalysis ? 4 : 3} />
                                         </tr>
                                     </tfoot>
                                 </table>

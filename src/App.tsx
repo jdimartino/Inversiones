@@ -7,6 +7,7 @@ import {
   Loan,
   AggregatedAsset,
   SaleRecord,
+  ClosedTrade,
 } from "./lib/constants";
 import { usePortfolio } from "./hooks/usePortfolio";
 import { useClosedTrades } from "./hooks/useClosedTrades";
@@ -37,6 +38,7 @@ import EditInvestmentModal from "./components/EditInvestmentModal";
 import InvestmentAlertModal from "./components/InvestmentAlertModal";
 import GlobalAlertModal from "./components/GlobalAlertModal";
 import WatchlistAlertModal from "./components/WatchlistAlertModal";
+import MarcoAnalysisModal, { MarcoAnalysisModalProps } from "./components/MarcoAnalysisModal";
 
 const App: React.FC = () => {
   const { portfolio, addInvestment, removeInvestment, updateInvestment } = usePortfolio();
@@ -61,6 +63,7 @@ const App: React.FC = () => {
   const [isWatchlistModalOpen, setIsWatchlistModalOpen] = useState(false);
   const [globalEditIndex, setGlobalEditIndex] = useState<number | null>(null);
   const [investmentEditIndex, setInvestmentEditIndex] = useState<number | null>(null);
+  const [marcoItem, setMarcoItem] = useState<Omit<MarcoAnalysisModalProps, "fearGreed" | "onClose"> | null>(null);
 
   // ── Computed: unique coins in portfolio ──────────────────────────
   const portfolioCoins = useMemo(() => {
@@ -171,6 +174,34 @@ const App: React.FC = () => {
     setGraficoCoin(item.coin);
     setActiveTab("graficos");
   }, []);
+
+  const handleMarcoAsset = useCallback((item: ProcessedInvestment) => {
+    setMarcoItem({
+      coin: item.coin, operationType: "buy",
+      entryPrice: item.buyPrice, quantity: item.quantity,
+      pnl: item.profit, pnlPct: item.roi,
+      currentPrice: item.currentPrice,
+    });
+  }, []);
+
+  const handleMarcoSale = useCallback((sale: SaleRecord) => {
+    setMarcoItem({
+      coin: sale.coin, operationType: "sell",
+      sellPrice: sale.sellPrice, quantity: sale.quantity,
+      usdtReceived: sale.usdtReceived,
+      currentPrice: prices[sale.coin] || 0,
+    });
+  }, [prices]);
+
+  const handleMarcoClosed = useCallback((trade: ClosedTrade) => {
+    setMarcoItem({
+      coin: trade.coin, operationType: "closed",
+      buyPrice: trade.buyPrice, sellPrice: trade.sellPrice,
+      quantity: trade.quantity,
+      closedPnl: trade.pnl, closedPnlPct: trade.pnlPercent,
+      currentPrice: prices[trade.coin] || 0,
+    });
+  }, [prices]);
   const handleCloseAlertModal = useCallback(() => {
     setAlertingInvestment(null);
     setInvestmentEditIndex(null);
@@ -268,6 +299,7 @@ const App: React.FC = () => {
                   onDelete={deleteSale}
                   onBuyEvaluate={handleBuyEvaluate}
                   onCloseVenta={handleCloseVenta}
+                  onMarcoAnalysis={handleMarcoSale}
                 />
                 <AssetTable
                   items={sortedPortfolio}
@@ -278,6 +310,7 @@ const App: React.FC = () => {
                   onSellEvaluate={handleSellEvaluate}
                   onViewChart={handleViewChart}
                   onClosePosition={handleClosePosition}
+                  onMarcoAnalysis={handleMarcoAsset}
                   priceDirections={priceDirections}
                 />
               </>
@@ -292,6 +325,7 @@ const App: React.FC = () => {
                   onSellEvaluate={handleSellEvaluate}
                   onViewChart={handleViewChart}
                   onClosePosition={handleClosePosition}
+                  onMarcoAnalysis={handleMarcoAsset}
                   priceDirections={priceDirections}
                 />
                 <SalesHistoryTable
@@ -302,11 +336,12 @@ const App: React.FC = () => {
                   onDelete={deleteSale}
                   onBuyEvaluate={handleBuyEvaluate}
                   onCloseVenta={handleCloseVenta}
+                  onMarcoAnalysis={handleMarcoSale}
                 />
               </>
             )}
             <AggregatedTable items={aggregatedList} priceDirections={priceDirections} />
-            <ClosedTradesTable trades={closedTrades} loading={closedTradesLoading} />
+            <ClosedTradesTable trades={closedTrades} loading={closedTradesLoading} onMarcoAnalysis={handleMarcoClosed} />
           </div>
         )}
 
@@ -488,6 +523,13 @@ const App: React.FC = () => {
             setGlobalEditIndex(null);
           }}
           initialEditIndex={globalEditIndex}
+        />
+      )}
+      {marcoItem && (
+        <MarcoAnalysisModal
+          {...marcoItem}
+          fearGreed={fearGreed}
+          onClose={() => setMarcoItem(null)}
         />
       )}
     </div>

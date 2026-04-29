@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { TrendingDown, TrendingUp, Archive, Pencil, Trash2 } from "lucide-react";
+import { TrendingDown, TrendingUp, Archive, Pencil, Trash2, Brain } from "lucide-react";
 import type { SaleRecord } from "../lib/constants";
 import { getCoinStyle, getCoinTextColor } from "../lib/constants";
 import { fmtUSD, fmtPrice, fmt } from "../lib/format";
@@ -12,6 +12,7 @@ interface SalesHistoryTableProps {
     onDelete: (id: string) => void;
     onBuyEvaluate?: (sale: SaleRecord) => void;
     onCloseVenta?: (sale: SaleRecord) => void;
+    onMarcoAnalysis?: (sale: SaleRecord) => void;
 }
 
 function fmtDate(ts: number): string {
@@ -24,7 +25,7 @@ function fmtDate(ts: number): string {
 }
 
 const SalesHistoryTable: React.FC<SalesHistoryTableProps> = React.memo(
-    ({ sales, loading, prices, onEdit, onDelete, onBuyEvaluate, onCloseVenta }) => {
+    ({ sales, loading, prices, onEdit, onDelete, onBuyEvaluate, onCloseVenta, onMarcoAnalysis }) => {
         const sorted = useMemo(
             () => [...sales].sort((a, b) => b.date - a.date),
             [sales]
@@ -78,6 +79,15 @@ const SalesHistoryTable: React.FC<SalesHistoryTableProps> = React.memo(
                                                 <span className="font-bold text-sm text-emerald-400 mr-2">
                                                     {fmtUSD(sale.usdtReceived)}
                                                 </span>
+                                                {onMarcoAnalysis && (
+                                                    <button
+                                                        onClick={() => onMarcoAnalysis(sale)}
+                                                        title="Analizar con Marco"
+                                                        className="p-1.5 rounded-lg text-slate-400 hover:text-violet-400 hover:bg-slate-700 transition-colors"
+                                                    >
+                                                        <Brain className="w-3.5 h-3.5" />
+                                                    </button>
+                                                )}
                                                 {onBuyEvaluate && (
                                                     <button
                                                         onClick={() => onBuyEvaluate(sale)}
@@ -191,6 +201,15 @@ const SalesHistoryTable: React.FC<SalesHistoryTableProps> = React.memo(
                                                 <td className="p-5 text-center text-slate-400 text-xs">{fmtDate(sale.date)}</td>
                                                 <td className="p-5">
                                                     <div className="flex items-center gap-2 justify-end">
+                                                        {onMarcoAnalysis && (
+                                                            <button
+                                                                onClick={() => onMarcoAnalysis(sale)}
+                                                                title="Analizar con Marco"
+                                                                className="p-1.5 rounded-lg text-slate-400 hover:text-violet-400 hover:bg-slate-700 transition-colors"
+                                                            >
+                                                                <Brain className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        )}
                                                         {onBuyEvaluate && (
                                                             <button
                                                                 onClick={() => onBuyEvaluate(sale)}

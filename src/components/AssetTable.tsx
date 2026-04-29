@@ -1,5 +1,5 @@
 import React from "react";
-import { Activity, Pencil, Bell, TrendingUp, LineChart, Archive } from "lucide-react";
+import { Activity, Pencil, Bell, TrendingUp, LineChart, Archive, Brain } from "lucide-react";
 import { getCoinStyle, getCoinTextColor, ProcessedInvestment } from "../lib/constants";
 import { fmt, fmtUSD, fmtPrice } from "../lib/format";
 import DeleteButton from "./DeleteButton";
@@ -14,6 +14,7 @@ interface AssetTableProps {
     onSellEvaluate: (item: ProcessedInvestment) => void;
     onViewChart?: (item: ProcessedInvestment) => void;
     onClosePosition?: (item: ProcessedInvestment) => void;
+    onMarcoAnalysis?: (item: ProcessedInvestment) => void;
     priceDirections?: Record<string, PriceDirection>;
 }
 
@@ -54,7 +55,7 @@ const ActionBtn: React.FC<{
 );
 
 const AssetTable: React.FC<AssetTableProps> = React.memo(
-    ({ items, activeAlertIds, onDelete, onEdit, onAlert, onSellEvaluate, onViewChart, onClosePosition, priceDirections = {} }) => {
+    ({ items, activeAlertIds, onDelete, onEdit, onAlert, onSellEvaluate, onViewChart, onClosePosition, onMarcoAnalysis, priceDirections = {} }) => {
         if (items.length === 0) return null;
 
         return (
@@ -69,6 +70,11 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                             <div key={item.id} className="p-3 relative hover:bg-slate-700/10 transition-colors">
                                 {/* Action buttons top-right */}
                                 <div className="absolute top-3 right-3 flex items-center gap-0.5">
+                                    {onMarcoAnalysis && (
+                                        <ActionBtn onClick={() => onMarcoAnalysis(item)} label="Analizar con Marco" className="text-slate-500 hover:text-violet-400">
+                                            <Brain className="w-4 h-4" />
+                                        </ActionBtn>
+                                    )}
                                     {onViewChart && (
                                         <ActionBtn onClick={() => onViewChart(item)} label="Ver Gráfico" className="text-slate-500 hover:text-cyan-400">
                                             <LineChart className="w-4 h-4" />
@@ -209,6 +215,11 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                                     </td>
                                     <td className="p-5 text-center">
                                         <div className="flex items-center justify-center gap-0.5">
+                                            {onMarcoAnalysis && (
+                                                <ActionBtn onClick={() => onMarcoAnalysis(item)} label="Analizar con Marco" className="text-slate-500 hover:text-violet-400">
+                                                    <Brain className="w-5 h-5" />
+                                                </ActionBtn>
+                                            )}
                                             {onViewChart && (
                                                 <ActionBtn onClick={() => onViewChart(item)} label="Ver Gráfico" className="text-slate-500 hover:text-cyan-400">
                                                     <LineChart className="w-5 h-5" />
