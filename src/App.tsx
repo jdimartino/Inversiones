@@ -258,26 +258,53 @@ const App: React.FC = () => {
               hasActiveGlobalAlerts={(config.globalAlerts || []).length > 0}
               onOpenGlobalAlerts={() => setIsGlobalAlertModalOpen(true)}
             />
-            <AssetTable
-              items={sortedPortfolio}
-              activeAlertIds={activeAlertIds}
-              onDelete={removeInvestment}
-              onEdit={handleEditInvestment}
-              onAlert={handleAlertInvestment}
-              onSellEvaluate={handleSellEvaluate}
-              onViewChart={handleViewChart}
-              onClosePosition={handleClosePosition}
-              priceDirections={priceDirections}
-            />
-            <SalesHistoryTable
-              sales={sales}
-              loading={salesLoading}
-              prices={prices}
-              onEdit={setEditingSale}
-              onDelete={deleteSale}
-              onBuyEvaluate={handleBuyEvaluate}
-              onCloseVenta={handleCloseVenta}
-            />
+            {sales.length > 0 ? (
+              <>
+                <SalesHistoryTable
+                  sales={sales}
+                  loading={salesLoading}
+                  prices={prices}
+                  onEdit={setEditingSale}
+                  onDelete={deleteSale}
+                  onBuyEvaluate={handleBuyEvaluate}
+                  onCloseVenta={handleCloseVenta}
+                />
+                <AssetTable
+                  items={sortedPortfolio}
+                  activeAlertIds={activeAlertIds}
+                  onDelete={removeInvestment}
+                  onEdit={handleEditInvestment}
+                  onAlert={handleAlertInvestment}
+                  onSellEvaluate={handleSellEvaluate}
+                  onViewChart={handleViewChart}
+                  onClosePosition={handleClosePosition}
+                  priceDirections={priceDirections}
+                />
+              </>
+            ) : (
+              <>
+                <AssetTable
+                  items={sortedPortfolio}
+                  activeAlertIds={activeAlertIds}
+                  onDelete={removeInvestment}
+                  onEdit={handleEditInvestment}
+                  onAlert={handleAlertInvestment}
+                  onSellEvaluate={handleSellEvaluate}
+                  onViewChart={handleViewChart}
+                  onClosePosition={handleClosePosition}
+                  priceDirections={priceDirections}
+                />
+                <SalesHistoryTable
+                  sales={sales}
+                  loading={salesLoading}
+                  prices={prices}
+                  onEdit={setEditingSale}
+                  onDelete={deleteSale}
+                  onBuyEvaluate={handleBuyEvaluate}
+                  onCloseVenta={handleCloseVenta}
+                />
+              </>
+            )}
             <AggregatedTable items={aggregatedList} priceDirections={priceDirections} />
             <ClosedTradesTable trades={closedTrades} loading={closedTradesLoading} />
           </div>
