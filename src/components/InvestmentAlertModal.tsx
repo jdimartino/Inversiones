@@ -157,7 +157,13 @@ export default function InvestmentAlertModal({
                             </p>
                         ) : (
                             <div className="space-y-1.5">
-                                {draftAlerts.map((alert, index) => (
+                                {draftAlerts.map((alert, index) => {
+                                    const isOnHold = alert.isPersistent && (
+                                        alert.type === 'pnl'
+                                            ? (alert.direction === 'up' ? investment.roi >= (alert.targetPercent || 0) : investment.roi <= (alert.targetPercent || 0))
+                                            : (alert.direction === 'up' ? investment.currentPrice >= (alert.targetValue || 0) : investment.currentPrice <= (alert.targetValue || 0))
+                                    );
+                                    return (
                                     <div key={index} className="flex items-center justify-between bg-slate-800 border border-slate-700 rounded-lg px-3 py-2">
                                         <div className="flex items-center gap-2 min-w-0">
                                             <div className="flex flex-col min-w-0">
@@ -173,8 +179,8 @@ export default function InvestmentAlertModal({
                                                 )}
                                             </div>
                                             {alert.isPersistent ? (
-                                                <span className="flex items-center gap-1 text-[9px] bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap">
-                                                    <Repeat className="w-2.5 h-2.5" /> Permanente
+                                                <span className={`flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap border ${isOnHold ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' : 'bg-green-500/20 text-green-400 border-green-500/30'}`}>
+                                                    <Repeat className="w-2.5 h-2.5" /> {isOnHold ? 'En Pausa' : 'Armada'}
                                                 </span>
                                             ) : (
                                                 <span className="flex items-center gap-1 text-[9px] bg-slate-700 text-slate-400 border border-slate-600 px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap">
@@ -185,21 +191,22 @@ export default function InvestmentAlertModal({
                                         <div className="flex items-center shrink-0">
                                             <button
                                                 onClick={() => handleEdit(index)}
-                                                className="text-slate-500 hover:text-blue-400 hover:bg-blue-500/10 transition-colors p-1.5 rounded-lg"
+                                                className="text-slate-500 hover:text-blue-400 hover:bg-blue-500/10 transition-colors p-2 rounded-lg"
                                                 title="Editar alerta"
                                             >
-                                                <Edit2 className="w-3.5 h-3.5" />
+                                                <Edit2 className="w-4 h-4" />
                                             </button>
                                             <button
                                                 onClick={() => handleRemove(index)}
-                                                className="text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors p-1.5 rounded-lg"
+                                                className="text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors p-2 rounded-lg"
                                                 title="Eliminar alerta"
                                             >
-                                                <Trash2 className="w-3.5 h-3.5" />
+                                                <Trash2 className="w-4 h-4" />
                                             </button>
                                         </div>
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>

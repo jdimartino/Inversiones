@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Trash2, Edit2, Repeat, Clock, History, CheckCircle, AlertTriangle, TrendingUp, TrendingDown, Loader2, Eye, Plus, Sun, Send } from "lucide-react";
 import { AlertConfig, GlobalAlert, InvestmentAlert, WatchlistAlert } from "../hooks/useAlerts";
+import type { SaleRecord } from "../lib/constants";
 import { usePortfolio } from "../hooks/usePortfolio";
 import { usePrices } from "../hooks/usePrices";
 import { useNotificationLogs } from "../hooks/useNotificationLogs";
@@ -12,9 +13,12 @@ interface AlertSettingsProps {
     onEditGlobal?: (index: number) => void;
     onEditInvestment?: (investmentId: string, index: number) => void;
     onOpenWatchlist?: () => void;
+    onEditWatchlistAlert?: (coin: string, index: number) => void;
+    sales?: SaleRecord[];
+    totalPnl?: number;
 }
 
-export default function AlertSettings({ config, saveConfig, onEditGlobal, onEditInvestment, onOpenWatchlist }: AlertSettingsProps) {
+export default function AlertSettings({ config, saveConfig, onEditGlobal, onEditInvestment, onOpenWatchlist, onEditWatchlistAlert, sales, totalPnl = 0 }: AlertSettingsProps) {
     const { portfolio } = usePortfolio();
     const { prices } = usePrices();
     const { logs, loading: logsLoading } = useNotificationLogs(15);
@@ -66,36 +70,54 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                                         <span className="text-[9px] text-slate-500 font-bold">{alerts.length} alerta{alerts.length !== 1 ? "s" : ""}</span>
                                     </div>
                                     <div className="flex flex-wrap gap-1.5">
-                                        {(alerts as WatchlistAlert[]).sort((a, b) => b.targetValue - a.targetValue).map((alert, index) => (
-                                            <div key={index} className="flex items-center gap-1 bg-slate-800/60 px-2 py-1 rounded-md">
-                                                <span className={`text-[11px] font-bold flex items-center gap-0.5 ${alert.direction === 'up' ? 'text-green-400' : 'text-red-400'}`}>
-                                                    {alert.direction === 'up' ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
-                                                    {fmtPrice(alert.targetValue)}
-                                                </span>
-                                                {alert.isPersistent ? (
-                                                    <span className="text-[8px] bg-yellow-500/10 text-yellow-400 px-1 py-0.5 rounded-full font-bold">P</span>
-                                                ) : (
-                                                    <span className="text-[8px] bg-slate-700/50 text-slate-500 px-1 py-0.5 rounded-full font-bold">1×</span>
-                                                )}
-                                                {alert.note && <span title={alert.note} className="text-slate-500 text-[10px] cursor-help">📝</span>}
-                                                <button
-                                                    onClick={async () => {
-                                                        if (savingId) return;
-                                                        setSavingId(`watch-${coin}-${index}`);
-                                                        const newWatchlist = { ...(config.watchlistAlerts || {}) };
-                                                        const updated = (newWatchlist[coin] || []).filter((_, i) => i !== index);
-                                                        if (updated.length === 0) delete newWatchlist[coin];
-                                                        else newWatchlist[coin] = updated;
-                                                        await saveConfig({ ...config, watchlistAlerts: newWatchlist });
-                                                        setSavingId(null);
-                                                    }}
-                                                    disabled={savingId === `watch-${coin}-${index}`}
-                                                    className="text-slate-600 hover:text-red-400 transition-colors ml-0.5 disabled:opacity-50"
-                                                >
-                                                    {savingId === `watch-${coin}-${index}` ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Trash2 className="w-2.5 h-2.5" />}
-                                                </button>
+                                        {(alerts as WatchlistAlert[]).sort((a, b) => b.targetValue - a.targetValue).map((alert, index) => {
+                                            const cp = prices[coin] ?? 0;
+                                            const isOnHold = alert.isPersistent && (
+                                                alert.direction === 'up' ? cp >= alert.targetValue : cp <= alert.targetValue
+                                            );
+                                            return (
+                                            <div key={index} className="flex flex-col bg-slate-800/60 px-2 py-1.5 rounded-md">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className={`text-[11px] font-bold flex items-center gap-0.5 ${alert.direction === 'up' ? 'text-green-400' : 'text-red-400'}`}>
+                                                        {alert.direction === 'up' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                                                        {fmtPrice(alert.targetValue)}
+                                                    </span>
+                                                    {alert.isPersistent ? (
+                                                        <span className={`text-[8px] px-1 py-0.5 rounded-full font-bold ${isOnHold ? 'bg-orange-500/20 text-orange-400' : 'bg-green-500/20 text-green-400'}`}>
+                                                            {isOnHold ? '⏸P' : '▶P'}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-[8px] bg-slate-700/50 text-slate-500 px-1 py-0.5 rounded-full font-bold">1×</span>
+                                                    )}
+                                                    {onEditWatchlistAlert && (
+                                                        <button
+                                                            onClick={() => onEditWatchlistAlert(coin, index)}
+                                                            className="p-1 rounded text-slate-500 hover:text-blue-400 hover:bg-blue-500/10 transition-colors"
+                                                        >
+                                                            <Edit2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (savingId) return;
+                                                            setSavingId(`watch-${coin}-${index}`);
+                                                            const newWatchlist = { ...(config.watchlistAlerts || {}) };
+                                                            const updated = (newWatchlist[coin] || []).filter((_, i) => i !== index);
+                                                            if (updated.length === 0) delete newWatchlist[coin];
+                                                            else newWatchlist[coin] = updated;
+                                                            await saveConfig({ ...config, watchlistAlerts: newWatchlist });
+                                                            setSavingId(null);
+                                                        }}
+                                                        disabled={savingId === `watch-${coin}-${index}`}
+                                                        className="p-1 rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                                                    >
+                                                        {savingId === `watch-${coin}-${index}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                                                    </button>
+                                                </div>
+                                                {alert.note && <span className="text-[9px] text-slate-400 italic mt-0.5">📝 {alert.note}</span>}
                                             </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             );
@@ -123,15 +145,17 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                         {Object.entries(config.investmentAlerts)
                             .map(([id, alerts]) => {
                                 const inv = portfolio.find((i) => i.id === id);
-                                const p = inv ? (prices[inv.coin] || inv.buyPrice) : 0;
+                                const sale = !inv ? sales?.find((s) => s.id === id) : undefined;
+                                const p = inv ? (prices[inv.coin] || inv.buyPrice) : (sale ? (prices[sale.coin] || sale.sellPrice) : 0);
                                 return { id, alerts, price: p };
                             })
                             .filter(({ alerts }) => Array.isArray(alerts) && alerts.length > 0)
                             .sort((a, b) => b.price - a.price)
                             .map(({ id, alerts }) => {
                             const inv = portfolio.find((i) => i.id === id);
-                            const coinName = inv ? inv.coin : "Desconocido";
-                            const currentPrice = inv ? (prices[inv.coin] || inv.buyPrice) : 0;
+                            const sale = !inv ? sales?.find((s) => s.id === id) : undefined;
+                            const coinName = inv?.coin ?? sale?.coin ?? "Desconocido";
+                            const currentPrice = inv ? (prices[inv.coin] || inv.buyPrice) : (sale ? (prices[sale.coin] || sale.sellPrice) : 0);
                             if (!Array.isArray(alerts) || alerts.length === 0) return null;
 
                             return (
@@ -154,47 +178,61 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                                             const va = a.type === 'price' ? a.targetValue || 0 : -Infinity;
                                             const vb = b.type === 'price' ? b.targetValue || 0 : -Infinity;
                                             return vb - va;
-                                        }).map((alert: InvestmentAlert, index: number) => (
-                                            <div key={index} className="flex items-center gap-1 bg-slate-800/60 px-2 py-1 rounded-md">
-                                                <span className={`text-[11px] font-bold flex items-center gap-0.5 ${alert.type === 'price' ? 'text-yellow-400' : (alert.targetPercent >= 0 ? "text-green-400" : "text-red-400")}`}>
-                                                    {alert.direction === 'up' ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
-                                                    {alert.type === 'price' ? fmtPrice(alert.targetValue || 0) : `${alert.targetPercent >= 0 ? "+" : ""}${alert.targetPercent}%`}
-                                                </span>
-                                                <span className="text-[8px] text-slate-500 uppercase font-bold bg-slate-900/60 px-1 py-0.5 rounded border border-slate-700/50">
-                                                    {alert.type === 'price' ? '$' : '%'}
-                                                </span>
-                                                {alert.isPersistent ? (
-                                                    <span className="text-[8px] bg-yellow-500/10 text-yellow-400 px-1 py-0.5 rounded-full font-bold">P</span>
-                                                ) : (
-                                                    <span className="text-[8px] bg-slate-700/50 text-slate-500 px-1 py-0.5 rounded-full font-bold">1×</span>
-                                                )}
-                                                {alert.note && <span title={alert.note} className="text-slate-500 text-[10px] cursor-help">📝</span>}
-                                                <button
-                                                    onClick={() => onEditInvestment && onEditInvestment(id, index)}
-                                                    className="text-slate-600 hover:text-blue-400 transition-colors disabled:opacity-50"
-                                                    title="Editar"
-                                                >
-                                                    <Edit2 className="w-2.5 h-2.5" />
-                                                </button>
-                                                <button
-                                                    onClick={async () => {
-                                                        if (savingId) return;
-                                                        setSavingId(`inv-${id}-${index}`);
-                                                        const newAlerts = { ...config.investmentAlerts };
-                                                        const updated = (newAlerts[id] || []).filter((_, i) => i !== index);
-                                                        if (updated.length === 0) delete newAlerts[id];
-                                                        else newAlerts[id] = updated;
-                                                        await saveConfig({ ...config, investmentAlerts: newAlerts });
-                                                        setSavingId(null);
-                                                    }}
-                                                    disabled={savingId === `inv-${id}-${index}`}
-                                                    className="text-slate-600 hover:text-red-400 transition-colors disabled:opacity-50"
-                                                    title="Eliminar"
-                                                >
-                                                    {savingId === `inv-${id}-${index}` ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Trash2 className="w-2.5 h-2.5" />}
-                                                </button>
+                                        }).map((alert: InvestmentAlert, index: number) => {
+                                            const roi = inv
+                                                ? (inv.invested > 0 ? ((currentPrice * inv.quantity - inv.invested) / inv.invested) * 100 : 0)
+                                                : (sale && sale.usdtReceived > 0 ? ((sale.usdtReceived - sale.quantity * currentPrice) / sale.usdtReceived) * 100 : 0);
+                                            const isOnHold = alert.isPersistent && (
+                                                alert.type === 'price'
+                                                    ? (alert.direction === 'up' ? currentPrice >= (alert.targetValue || 0) : currentPrice <= (alert.targetValue || 0))
+                                                    : (alert.direction === 'up' ? roi >= (alert.targetPercent || 0) : roi <= (alert.targetPercent || 0))
+                                            );
+                                            return (
+                                            <div key={index} className="flex flex-col bg-slate-800/60 px-2 py-1.5 rounded-md">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className={`text-[11px] font-bold flex items-center gap-0.5 ${alert.type === 'price' ? 'text-yellow-400' : (alert.targetPercent >= 0 ? "text-green-400" : "text-red-400")}`}>
+                                                        {alert.direction === 'up' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                                                        {alert.type === 'price' ? fmtPrice(alert.targetValue || 0) : `${alert.targetPercent >= 0 ? "+" : ""}${alert.targetPercent}%`}
+                                                    </span>
+                                                    <span className="text-[8px] text-slate-500 uppercase font-bold bg-slate-900/60 px-1 py-0.5 rounded border border-slate-700/50">
+                                                        {alert.type === 'price' ? '$' : '%'}
+                                                    </span>
+                                                    {alert.isPersistent ? (
+                                                        <span className={`text-[8px] px-1 py-0.5 rounded-full font-bold ${isOnHold ? 'bg-orange-500/20 text-orange-400' : 'bg-green-500/20 text-green-400'}`}>
+                                                            {isOnHold ? '⏸P' : '▶P'}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-[8px] bg-slate-700/50 text-slate-500 px-1 py-0.5 rounded-full font-bold">1×</span>
+                                                    )}
+                                                    <button
+                                                        onClick={() => onEditInvestment && onEditInvestment(id, index)}
+                                                        className="p-1 rounded text-slate-500 hover:text-blue-400 hover:bg-blue-500/10 transition-colors"
+                                                        title="Editar"
+                                                    >
+                                                        <Edit2 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (savingId) return;
+                                                            setSavingId(`inv-${id}-${index}`);
+                                                            const newAlerts = { ...config.investmentAlerts };
+                                                            const updated = (newAlerts[id] || []).filter((_, i) => i !== index);
+                                                            if (updated.length === 0) delete newAlerts[id];
+                                                            else newAlerts[id] = updated;
+                                                            await saveConfig({ ...config, investmentAlerts: newAlerts });
+                                                            setSavingId(null);
+                                                        }}
+                                                        disabled={savingId === `inv-${id}-${index}`}
+                                                        className="p-1 rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                                                        title="Eliminar"
+                                                    >
+                                                        {savingId === `inv-${id}-${index}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                                                    </button>
+                                                </div>
+                                                {alert.note && <span className="text-[9px] text-slate-400 italic mt-0.5">📝 {alert.note}</span>}
                                             </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             );
@@ -220,7 +258,11 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                 </div>
                 {config.globalAlerts && config.globalAlerts.length > 0 ? (
                     <div className="space-y-1.5">
-                        {config.globalAlerts.map((alertData: GlobalAlert, index: number) => (
+                        {config.globalAlerts.map((alertData: GlobalAlert, index: number) => {
+                            const isOnHold = alertData.isPersistent && (
+                                alertData.direction === 'up' ? totalPnl >= alertData.targetAmount : totalPnl <= alertData.targetAmount
+                            );
+                            return (
                             <div key={`global-${index}`} className="flex items-center justify-between bg-slate-900/60 border border-slate-700/40 rounded-lg px-3 py-2">
                                 <div className="flex items-center gap-2 min-w-0 flex-wrap">
                                     <div className="flex flex-col">
@@ -233,8 +275,8 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                                         )}
                                     </div>
                                     {alertData.isPersistent ? (
-                                        <span className="flex items-center gap-1 text-[9px] bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap">
-                                            <Repeat className="w-2.5 h-2.5" /> Permanente
+                                        <span className={`flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap border ${isOnHold ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' : 'bg-green-500/20 text-green-400 border-green-500/30'}`}>
+                                            <Repeat className="w-2.5 h-2.5" /> {isOnHold ? 'En Pausa' : 'Armada'}
                                         </span>
                                     ) : (
                                         <span className="flex items-center gap-1 text-[9px] bg-slate-700/50 text-slate-400 border border-slate-600 px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap">
@@ -267,7 +309,8 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                                     </button>
                                 </div>
                             </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 ) : (
                     <p className="text-[11px] text-slate-600 italic text-center py-3 bg-slate-900/40 rounded-lg border border-slate-700/30">

@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { TrendingDown, TrendingUp, Archive, Pencil, Trash2, Brain } from "lucide-react";
+import { TrendingDown, TrendingUp, Archive, Pencil, Trash2, Brain, Bell } from "lucide-react";
 import type { SaleRecord } from "../lib/constants";
 import { getCoinStyle, getCoinTextColor } from "../lib/constants";
 import { fmtUSD, fmtPrice, fmt } from "../lib/format";
@@ -13,6 +13,8 @@ interface SalesHistoryTableProps {
     onBuyEvaluate?: (sale: SaleRecord) => void;
     onCloseVenta?: (sale: SaleRecord) => void;
     onMarcoAnalysis?: (sale: SaleRecord) => void;
+    onAlert?: (sale: SaleRecord) => void;
+    activeAlertIds?: string[];
 }
 
 function fmtDate(ts: number): string {
@@ -25,7 +27,7 @@ function fmtDate(ts: number): string {
 }
 
 const SalesHistoryTable: React.FC<SalesHistoryTableProps> = React.memo(
-    ({ sales, loading, prices, onEdit, onDelete, onBuyEvaluate, onCloseVenta, onMarcoAnalysis }) => {
+    ({ sales, loading, prices, onEdit, onDelete, onBuyEvaluate, onCloseVenta, onMarcoAnalysis, onAlert, activeAlertIds }) => {
         const sorted = useMemo(
             () => [...sales].sort((a, b) => b.date - a.date),
             [sales]
@@ -104,6 +106,15 @@ const SalesHistoryTable: React.FC<SalesHistoryTableProps> = React.memo(
                                                         className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-400 hover:bg-slate-700 transition-colors"
                                                     >
                                                         <Archive className="w-3.5 h-3.5" />
+                                                    </button>
+                                                )}
+                                                {onAlert && (
+                                                    <button
+                                                        onClick={() => onAlert(sale)}
+                                                        title="Configurar Alerta"
+                                                        className={`p-1.5 rounded-lg hover:bg-slate-700 transition-colors ${activeAlertIds?.includes(sale.id) ? "text-yellow-400 hover:text-yellow-300" : "text-slate-400 hover:text-yellow-400"}`}
+                                                    >
+                                                        <Bell className="w-3.5 h-3.5" />
                                                     </button>
                                                 )}
                                                 <button
@@ -226,6 +237,15 @@ const SalesHistoryTable: React.FC<SalesHistoryTableProps> = React.memo(
                                                                 className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-400 hover:bg-slate-700 transition-colors"
                                                             >
                                                                 <Archive className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        )}
+                                                        {onAlert && (
+                                                            <button
+                                                                onClick={() => onAlert(sale)}
+                                                                title="Configurar Alerta"
+                                                                className={`p-1.5 rounded-lg hover:bg-slate-700 transition-colors ${activeAlertIds?.includes(sale.id) ? "text-yellow-400 hover:text-yellow-300" : "text-slate-400 hover:text-yellow-400"}`}
+                                                            >
+                                                                <Bell className="w-3.5 h-3.5" />
                                                             </button>
                                                         )}
                                                         <button

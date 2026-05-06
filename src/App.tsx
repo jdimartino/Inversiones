@@ -61,6 +61,7 @@ const App: React.FC = () => {
   const [closingVenta, setClosingVenta] = useState<SaleRecord | null>(null);
   const [isGlobalAlertModalOpen, setIsGlobalAlertModalOpen] = useState(false);
   const [isWatchlistModalOpen, setIsWatchlistModalOpen] = useState(false);
+  const [watchlistEditTarget, setWatchlistEditTarget] = useState<{ coin: string; index: number } | null>(null);
   const [globalEditIndex, setGlobalEditIndex] = useState<number | null>(null);
   const [investmentEditIndex, setInvestmentEditIndex] = useState<number | null>(null);
   const [marcoItem, setMarcoItem] = useState<Omit<MarcoAnalysisModalProps, "fearGreed" | "onClose"> | null>(null);
@@ -184,6 +185,25 @@ const App: React.FC = () => {
     });
   }, []);
 
+  const handleAlertSale = useCallback((sale: SaleRecord) => {
+    const cp = prices[sale.coin] || 0;
+    // profit/roi desde la perspectiva del vendedor: positivo = precio bajó (puedes recomprar más barato)
+    const profit = sale.usdtReceived - sale.quantity * cp;
+    const roi = sale.usdtReceived > 0 ? (profit / sale.usdtReceived) * 100 : 0;
+    setAlertingInvestment({
+      id: sale.id,
+      coin: sale.coin,
+      buyPrice: sale.sellPrice,
+      quantity: sale.quantity,
+      invested: sale.usdtReceived,
+      date: sale.date,
+      currentPrice: cp,
+      currentValue: sale.quantity * cp,
+      profit,
+      roi,
+    });
+  }, [prices]);
+
   const handleMarcoSale = useCallback((sale: SaleRecord) => {
     setMarcoItem({
       coin: sale.coin, operationType: "sell",
@@ -300,6 +320,8 @@ const App: React.FC = () => {
                   onBuyEvaluate={handleBuyEvaluate}
                   onCloseVenta={handleCloseVenta}
                   onMarcoAnalysis={handleMarcoSale}
+                  onAlert={handleAlertSale}
+                  activeAlertIds={activeAlertIds}
                 />
                 <AssetTable
                   items={sortedPortfolio}
@@ -337,6 +359,8 @@ const App: React.FC = () => {
                   onBuyEvaluate={handleBuyEvaluate}
                   onCloseVenta={handleCloseVenta}
                   onMarcoAnalysis={handleMarcoSale}
+                  onAlert={handleAlertSale}
+                  activeAlertIds={activeAlertIds}
                 />
               </>
             )}
@@ -413,6 +437,9 @@ const App: React.FC = () => {
               onEditGlobal={handleEditGlobalAlert}
               onEditInvestment={handleEditInvestmentAlert}
               onOpenWatchlist={() => setIsWatchlistModalOpen(true)}
+              onEditWatchlistAlert={(coin, index) => { setWatchlistEditTarget({ coin, index }); setIsWatchlistModalOpen(true); }}
+              sales={sales}
+              totalPnl={totalPnl}
             />
           </div>
         )}
@@ -510,7 +537,9 @@ const App: React.FC = () => {
         <WatchlistAlertModal
           currentAlerts={config.watchlistAlerts || {}}
           onSaveAlerts={handleSaveWatchlistAlerts}
-          onClose={() => setIsWatchlistModalOpen(false)}
+          onClose={() => { setIsWatchlistModalOpen(false); setWatchlistEditTarget(null); }}
+          initialEditCoin={watchlistEditTarget?.coin}
+          initialEditIndex={watchlistEditTarget?.index}
         />
       )}
       {isGlobalAlertModalOpen && (

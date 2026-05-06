@@ -12,9 +12,11 @@ interface WatchlistAlertModalProps {
     currentAlerts: Record<string, WatchlistAlert[]>;
     onSaveAlerts: (alerts: Record<string, WatchlistAlert[]>) => Promise<void>;
     onClose: () => void;
+    initialEditCoin?: string;
+    initialEditIndex?: number;
 }
 
-export default function WatchlistAlertModal({ currentAlerts, onSaveAlerts, onClose }: WatchlistAlertModalProps) {
+export default function WatchlistAlertModal({ currentAlerts, onSaveAlerts, onClose, initialEditCoin, initialEditIndex }: WatchlistAlertModalProps) {
     const [draftAlerts, setDraftAlerts] = useState<Record<string, WatchlistAlert[]>>(
         JSON.parse(JSON.stringify(currentAlerts))
     );
@@ -47,6 +49,30 @@ export default function WatchlistAlertModal({ currentAlerts, onSaveAlerts, onClo
                     }))
                     .sort((a, b) => a.symbol.localeCompare(b.symbol));
                 setBinanceCoins(usdtCoins);
+
+                if (initialEditCoin !== undefined && initialEditIndex !== undefined) {
+                    // Pre-load form for editing a specific alert
+                    const alertData = currentAlerts[initialEditCoin]?.[initialEditIndex];
+                    if (alertData) {
+                        const coinData = usdtCoins.find((c) => c.symbol === initialEditCoin);
+                        setSelectedCoin(initialEditCoin);
+                        setSelectedPrice(coinData?.price ?? 0);
+                        setTargetValue(alertData.targetValue);
+                        setDirection(alertData.direction);
+                        setIsPersistent(alertData.isPersistent ?? false);
+                        setNote(alertData.note ?? "");
+                        setSearch(initialEditCoin);
+                        setDraftAlerts((prev) => {
+                            const updated = { ...prev };
+                            const filtered = (updated[initialEditCoin] || []).filter((_, i) => i !== initialEditIndex);
+                            if (filtered.length === 0) delete updated[initialEditCoin];
+                            else updated[initialEditCoin] = filtered;
+                            return updated;
+                        });
+                        return;
+                    }
+                }
+
                 // Default to BTC
                 const btc = usdtCoins.find((c) => c.symbol === "BTC");
                 if (btc) {
@@ -186,25 +212,35 @@ export default function WatchlistAlertModal({ currentAlerts, onSaveAlerts, onClo
                                             <span className="text-[9px] text-slate-500 font-bold">{alerts.length} alerta{alerts.length !== 1 ? "s" : ""}</span>
                                         </div>
                                         <div className="flex flex-wrap gap-1.5">
-                                            {alerts.map((alert, index) => (
-                                                <div key={index} className="flex items-center gap-1 bg-slate-900/80 px-2 py-1 rounded-md">
-                                                    <span className={`text-[11px] font-bold ${alert.direction === 'up' ? 'text-green-400' : 'text-red-400'}`}>
-                                                        {alert.direction === 'up' ? '🔼' : '🔽'} {fmtPrice(alert.targetValue)}
-                                                    </span>
-                                                    {alert.isPersistent ? (
-                                                        <span className="text-[8px] bg-yellow-500/10 text-yellow-400 px-1 py-0.5 rounded-full font-bold">P</span>
-                                                    ) : (
-                                                        <span className="text-[8px] bg-slate-700 text-slate-500 px-1 py-0.5 rounded-full font-bold">1×</span>
-                                                    )}
-                                                    {alert.note && <span title={alert.note} className="text-slate-500 text-[10px] cursor-help">📝</span>}
-                                                    <button onClick={() => handleEdit(coin, index)} className="text-slate-600 hover:text-blue-400 transition-colors">
-                                                        <Edit2 className="w-2.5 h-2.5" />
-                                                    </button>
-                                                    <button onClick={() => handleRemove(coin, index)} className="text-slate-600 hover:text-red-400 transition-colors">
-                                                        <Trash2 className="w-2.5 h-2.5" />
-                                                    </button>
+                                            {alerts.map((alert, index) => {
+                                                const cp = binanceCoins.find(b => b.symbol === coin)?.price ?? 0;
+                                                const isOnHold = alert.isPersistent && (
+                                                    alert.direction === 'up' ? cp >= alert.targetValue : cp <= alert.targetValue
+                                                );
+                                                return (
+                                                <div key={index} className="flex flex-col bg-slate-900/80 px-2 py-1.5 rounded-md">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className={`text-[11px] font-bold ${alert.direction === 'up' ? 'text-green-400' : 'text-red-400'}`}>
+                                                            {alert.direction === 'up' ? '🔼' : '🔽'} {fmtPrice(alert.targetValue)}
+                                                        </span>
+                                                        {alert.isPersistent ? (
+                                                            <span className={`text-[8px] px-1 py-0.5 rounded-full font-bold ${isOnHold ? 'bg-orange-500/20 text-orange-400' : 'bg-green-500/20 text-green-400'}`}>
+                                                                {isOnHold ? '⏸P' : '▶P'}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-[8px] bg-slate-700 text-slate-500 px-1 py-0.5 rounded-full font-bold">1×</span>
+                                                        )}
+                                                        <button onClick={() => handleEdit(coin, index)} className="p-1 rounded text-slate-500 hover:text-blue-400 hover:bg-blue-500/10 transition-colors">
+                                                            <Edit2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                        <button onClick={() => handleRemove(coin, index)} className="p-1 rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors">
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
+                                                    {alert.note && <span className="text-[9px] text-slate-400 italic mt-0.5">📝 {alert.note}</span>}
                                                 </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 ))}
