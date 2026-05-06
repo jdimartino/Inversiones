@@ -162,10 +162,15 @@ async function runCheckAlerts() {
         const roiPercent = (inv.invested && inv.invested > 0) ? (pnl / inv.invested) * 100 : 0;
         if (Array.isArray(alertRules) && alertRules.length > 0) {
             const remaining = [];
+            let hasInvChanged = false;
             for (const rule of alertRules) {
                 const type = rule.type || 'pnl';
                 const direction = rule.direction || (type === 'pnl' ? ((rule.targetPercent || 0) >= 0 ? 'up' : 'down') : 'up');
-                let isTriggered = false;
+                // Which side of the threshold is the current value on?
+                const currentSide = (type === 'pnl')
+                    ? (roiPercent >= (rule.targetPercent || 0) ? 'above' : 'below')
+                    : (currentPrice >= (rule.targetValue || 0) ? 'above' : 'below');
+                const prevSide = rule._lastSide;
                 const debugRule = {
                     coin: inv.coin,
                     type,
@@ -174,46 +179,71 @@ async function runCheckAlerts() {
                     target: type === 'pnl' ? rule.targetPercent : rule.targetValue,
                     triggered: false
                 };
+                // Base condition check (same logic as before)
+                let conditionMet = false;
                 if (type === 'pnl' && inv.invested > 0) {
                     const target = rule.targetPercent || 0;
-                    if (direction === 'up' && roiPercent >= target) {
-                        isTriggered = true;
-                        triggeredIndividualMessages.push(`🚀 *${inv.coin}* subió a *${pnlSign(roiPercent)}${roiPercent.toFixed(1)}%* (Meta: 🔼 >= ${target}%)`
-                            + (rule.note ? `\n_📝 ${rule.note}_` : ""));
-                    }
-                    else if (direction === 'down' && roiPercent <= target) {
-                        isTriggered = true;
-                        triggeredIndividualMessages.push(`📉 *${inv.coin}* cayó a *${roiPercent.toFixed(1)}%* (Límite: 🔽 <= ${target}%)`
-                            + (rule.note ? `\n_📝 ${rule.note}_` : ""));
-                    }
+                    if (direction === 'up' && roiPercent >= target)
+                        conditionMet = true;
+                    else if (direction === 'down' && roiPercent <= target)
+                        conditionMet = true;
                 }
                 else if (type === 'price') {
                     const target = rule.targetValue || 0;
-                    if (direction === 'up' && currentPrice >= target) {
-                        isTriggered = true;
-                        triggeredIndividualMessages.push(`💰 *${inv.coin}* alcanzó *${fmtPrice(currentPrice)}* (Meta: 🔼 >= ${fmtPrice(target)})`
-                            + (rule.note ? `\n_📝 ${rule.note}_` : ""));
-                    }
-                    else if (direction === 'down' && currentPrice <= target) {
-                        isTriggered = true;
-                        triggeredIndividualMessages.push(`📉 *${inv.coin}* bajó a *${fmtPrice(currentPrice)}* (Límite: 🔽 <= ${fmtPrice(target)})`
-                            + (rule.note ? `\n_📝 ${rule.note}_` : ""));
-                    }
+                    if (direction === 'up' && currentPrice >= target)
+                        conditionMet = true;
+                    else if (direction === 'down' && currentPrice <= target)
+                        conditionMet = true;
                 }
+                // Persistent alerts only fire on crossing; one-shot alerts fire whenever condition is met
+                const isTriggered = conditionMet && (!rule.isPersistent || (prevSide !== undefined && prevSide !== currentSide));
                 if (isTriggered) {
+                    // Build message (same text as before)
+                    if (type === 'pnl' && inv.invested > 0) {
+                        const target = rule.targetPercent || 0;
+                        if (direction === 'up') {
+                            triggeredIndividualMessages.push(`🚀 *${inv.coin}* subió a *${pnlSign(roiPercent)}${roiPercent.toFixed(1)}%* (Meta: 🔼 >= ${target}%)`
+                                + (rule.note ? `\n_📝 ${rule.note}_` : ""));
+                        }
+                        else {
+                            triggeredIndividualMessages.push(`📉 *${inv.coin}* cayó a *${roiPercent.toFixed(1)}%* (Límite: 🔽 <= ${target}%)`
+                                + (rule.note ? `\n_📝 ${rule.note}_` : ""));
+                        }
+                    }
+                    else if (type === 'price') {
+                        const target = rule.targetValue || 0;
+                        if (direction === 'up') {
+                            triggeredIndividualMessages.push(`💰 *${inv.coin}* alcanzó *${fmtPrice(currentPrice)}* (Meta: 🔼 >= ${fmtPrice(target)})`
+                                + (rule.note ? `\n_📝 ${rule.note}_` : ""));
+                        }
+                        else {
+                            triggeredIndividualMessages.push(`📉 *${inv.coin}* bajó a *${fmtPrice(currentPrice)}* (Límite: 🔽 <= ${fmtPrice(target)})`
+                                + (rule.note ? `\n_📝 ${rule.note}_` : ""));
+                        }
+                    }
                     debugRule.triggered = true;
                     const tipo = rule.isPersistent ? "PERMANENTE" : "UNA VEZ";
                     const targetVal = type === 'pnl' ? `${rule.targetPercent}%` : `${rule.targetValue}`;
-                    console.log(`[ALERTA v2.1] ${inv.coin} (${docSnap.id}) — ${type.toUpperCase()}: ${type === 'pnl' ? roiPercent.toFixed(2) + '%' : currentPrice} — Target: ${direction === 'up' ? '>=' : '<='} ${targetVal} — Tipo: ${tipo}`);
+                    console.log(`[ALERTA v3] ${inv.coin} (${docSnap.id}) — ${type.toUpperCase()}: ${type === 'pnl' ? roiPercent.toFixed(2) + '%' : currentPrice} — Target: ${direction === 'up' ? '>=' : '<='} ${targetVal} — Tipo: ${tipo}`);
                     if (rule.isPersistent) {
-                        remaining.push(rule);
+                        remaining.push(Object.assign(Object.assign({}, rule), { _lastSide: currentSide }));
+                        hasInvChanged = true;
                     }
                     else {
                         console.log(`[ONE-SHOT] Alerta ${inv.coin} (${targetVal}) eliminada.`);
+                        hasInvChanged = true;
                     }
                 }
                 else {
-                    remaining.push(rule);
+                    if (rule.isPersistent) {
+                        // Update _lastSide even when not triggered (tracks position for next crossing)
+                        if (prevSide !== currentSide)
+                            hasInvChanged = true;
+                        remaining.push(Object.assign(Object.assign({}, rule), { _lastSide: currentSide }));
+                    }
+                    else {
+                        remaining.push(rule);
+                    }
                 }
                 debugData.push(Object.assign(Object.assign({}, debugRule), { invId: docSnap.id }));
             }
@@ -221,7 +251,7 @@ async function runCheckAlerts() {
                 delete investmentAlerts[docSnap.id];
                 dbUpdates[`investmentAlerts.${docSnap.id}`] = admin.firestore.FieldValue.delete();
             }
-            else if (remaining.length !== alertRules.length) {
+            else if (hasInvChanged) {
                 investmentAlerts[docSnap.id] = remaining;
                 dbUpdates[`investmentAlerts.${docSnap.id}`] = remaining;
             }
@@ -272,33 +302,48 @@ async function runCheckAlerts() {
         const reason = globalPNL <= minAlert ? "⬇️ Límite inferior alcanzado" : "⬆️ Meta superior alcanzada";
         triggeredGlobalMessages.push(`🚨 *Alerta Global Legacy:* ${reason} (${pnlSign(globalPNL)}$${fmt(globalPNL)})`);
     }
+    let hasGlobalChanged = false;
     for (const rule of globalAlerts) {
         const target = rule.targetAmount;
         const direction = rule.direction || (target >= 0 ? 'up' : 'down');
-        let isTriggered = false;
-        if (direction === 'up' && globalPNL >= target) {
-            isTriggered = true;
-            triggeredGlobalMessages.push(`🚀 *PNL Global* alcanzó *${pnlSign(globalPNL)}$${fmt(globalPNL)}* (Meta: 🔼 >= ${pnlSign(target)}$${fmt(target)})`
-                + (rule.note ? `\n_📝 ${rule.note}_` : ""));
-        }
-        else if (direction === 'down' && globalPNL <= target) {
-            isTriggered = true;
-            triggeredGlobalMessages.push(`📉 *PNL Global* cayó a *${pnlSign(globalPNL)}$${fmt(globalPNL)}* (Límite: 🔽 <= ${pnlSign(target)}$${fmt(target)})`
-                + (rule.note ? `\n_📝 ${rule.note}_` : ""));
-        }
+        const currentSide = globalPNL >= target ? 'above' : 'below';
+        const prevSide = rule._lastSide;
+        let conditionMet = false;
+        if (direction === 'up' && globalPNL >= target)
+            conditionMet = true;
+        else if (direction === 'down' && globalPNL <= target)
+            conditionMet = true;
+        const isTriggered = conditionMet && (!rule.isPersistent || (prevSide !== undefined && prevSide !== currentSide));
         if (isTriggered) {
+            if (direction === 'up') {
+                triggeredGlobalMessages.push(`🚀 *PNL Global* alcanzó *${pnlSign(globalPNL)}$${fmt(globalPNL)}* (Meta: 🔼 >= ${pnlSign(target)}$${fmt(target)})`
+                    + (rule.note ? `\n_📝 ${rule.note}_` : ""));
+            }
+            else {
+                triggeredGlobalMessages.push(`📉 *PNL Global* cayó a *${pnlSign(globalPNL)}$${fmt(globalPNL)}* (Límite: 🔽 <= ${pnlSign(target)}$${fmt(target)})`
+                    + (rule.note ? `\n_📝 ${rule.note}_` : ""));
+            }
             const tipo = rule.isPersistent ? "PERMANENTE" : "UNA VEZ";
-            console.log(`[ALERTA GLOBAL v2.1] PNL: $${globalPNL.toFixed(2)} — Target: ${direction === 'up' ? '>=' : '<='} $${target} — Tipo: ${tipo}`);
+            console.log(`[ALERTA GLOBAL v3] PNL: $${globalPNL.toFixed(2)} — Target: ${direction === 'up' ? '>=' : '<='} $${target} — Tipo: ${tipo}`);
             if (rule.isPersistent) {
-                remainingGlobalAlerts.push(rule);
+                remainingGlobalAlerts.push(Object.assign(Object.assign({}, rule), { _lastSide: currentSide }));
+                hasGlobalChanged = true;
             }
             else {
                 hasGlobalAlertsToRemove = true;
+                hasGlobalChanged = true;
                 console.log(`[ONE-SHOT GLOBAL] Alerta Global ($${target}) eliminada.`);
             }
         }
         else {
-            remainingGlobalAlerts.push(rule);
+            if (rule.isPersistent) {
+                if (prevSide !== currentSide)
+                    hasGlobalChanged = true;
+                remainingGlobalAlerts.push(Object.assign(Object.assign({}, rule), { _lastSide: currentSide }));
+            }
+            else {
+                remainingGlobalAlerts.push(rule);
+            }
         }
     }
     // ── Watchlist alerts ──────────────────────────────────────────────────────
@@ -310,31 +355,43 @@ async function runCheckAlerts() {
         if (currentPrice === 0)
             continue;
         const remaining = [];
+        let hasWatchlistCoinChanged = false;
         for (const rule of rules) {
-            let isTriggered = false;
-            if (rule.direction === 'up' && currentPrice >= rule.targetValue) {
-                isTriggered = true;
-                triggeredWatchlistMessages.push(`👁 *${coin}* alcanzó *${fmtPrice(currentPrice)}* (Watchlist: 🔼 >= ${fmtPrice(rule.targetValue)})`
-                    + (rule.note ? `\n_📝 ${rule.note}_` : ""));
-            }
-            else if (rule.direction === 'down' && currentPrice <= rule.targetValue) {
-                isTriggered = true;
-                triggeredWatchlistMessages.push(`👁 *${coin}* bajó a *${fmtPrice(currentPrice)}* (Watchlist: 🔽 <= ${fmtPrice(rule.targetValue)})`
-                    + (rule.note ? `\n_📝 ${rule.note}_` : ""));
-            }
+            const currentSide = currentPrice >= rule.targetValue ? 'above' : 'below';
+            const prevSide = rule._lastSide;
+            let conditionMet = false;
+            if (rule.direction === 'up' && currentPrice >= rule.targetValue)
+                conditionMet = true;
+            else if (rule.direction === 'down' && currentPrice <= rule.targetValue)
+                conditionMet = true;
+            // Persistent: only fire on crossing; one-shot: fire whenever condition is met
+            const isTriggered = conditionMet && (!rule.isPersistent || (prevSide !== undefined && prevSide !== currentSide));
             if (isTriggered) {
-                console.log(`[WATCHLIST] ${coin}: ${currentPrice} — Target: ${rule.direction === 'up' ? '>=' : '<='} ${rule.targetValue} — Tipo: ${rule.isPersistent ? 'PERMANENTE' : 'UNA VEZ'}`);
-                if (rule.isPersistent)
-                    remaining.push(rule);
+                triggeredWatchlistMessages.push(rule.direction === 'up'
+                    ? `👁 *${coin}* alcanzó *${fmtPrice(currentPrice)}* (Watchlist: 🔼 >= ${fmtPrice(rule.targetValue)})` + (rule.note ? `\n_📝 ${rule.note}_` : "")
+                    : `👁 *${coin}* bajó a *${fmtPrice(currentPrice)}* (Watchlist: 🔽 <= ${fmtPrice(rule.targetValue)})` + (rule.note ? `\n_📝 ${rule.note}_` : ""));
+                console.log(`[WATCHLIST v3] ${coin}: ${currentPrice} — Target: ${rule.direction === 'up' ? '>=' : '<='} ${rule.targetValue} — Tipo: ${rule.isPersistent ? 'PERMANENTE' : 'UNA VEZ'}`);
+                if (rule.isPersistent) {
+                    remaining.push(Object.assign(Object.assign({}, rule), { _lastSide: currentSide }));
+                    hasWatchlistCoinChanged = true;
+                }
+                // one-shot: removed (not pushed to remaining)
             }
             else {
-                remaining.push(rule);
+                if (rule.isPersistent) {
+                    if (prevSide !== currentSide)
+                        hasWatchlistCoinChanged = true;
+                    remaining.push(Object.assign(Object.assign({}, rule), { _lastSide: currentSide }));
+                }
+                else {
+                    remaining.push(rule);
+                }
             }
         }
         if (remaining.length === 0) {
             watchlistDbUpdates[`watchlistAlerts.${coin}`] = admin.firestore.FieldValue.delete();
         }
-        else if (remaining.length !== rules.length) {
+        else if (remaining.length !== rules.length || hasWatchlistCoinChanged) {
             watchlistDbUpdates[`watchlistAlerts.${coin}`] = remaining;
         }
     }
@@ -371,7 +428,7 @@ async function runCheckAlerts() {
             // CRITICAL FIX: Only remove ONE-SHOT alerts from Firestore AFTER
             // Telegram confirms delivery. If we delete first and Telegram fails,
             // the alert is permanently lost with no notification sent.
-            if (hasGlobalAlertsToRemove)
+            if (hasGlobalAlertsToRemove || hasGlobalChanged)
                 dbUpdates.globalAlerts = remainingGlobalAlerts;
             const allUpdates = Object.assign(Object.assign({}, dbUpdates), watchlistDbUpdates);
             if (Object.keys(allUpdates).length > 0) {
@@ -397,9 +454,8 @@ async function runCheckAlerts() {
         }
     }
     else {
-        // No alerts triggered — still need to remove PERSISTENT alerts that were
-        // cleaned up (orphans) even though no notification was sent.
-        if (hasGlobalAlertsToRemove)
+        // No alerts triggered — still update _lastSide for position tracking and remove orphans.
+        if (hasGlobalAlertsToRemove || hasGlobalChanged)
             dbUpdates.globalAlerts = remainingGlobalAlerts;
         const allUpdatesNoAlert = Object.assign(Object.assign({}, dbUpdates), watchlistDbUpdates);
         if (Object.keys(allUpdatesNoAlert).length > 0) {

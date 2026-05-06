@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { X, Eye, Trash2, Edit2, Plus, Repeat, Clock, Check, Search, Loader2 } from "lucide-react";
 import { WatchlistAlert } from "../hooks/useAlerts";
 import { fmtPrice } from "../lib/format";
@@ -176,40 +176,38 @@ export default function WatchlistAlertModal({ currentAlerts, onSaveAlerts, onClo
                             </p>
                         ) : (
                             <div className="space-y-2">
-                                {Object.entries(draftAlerts).map(([coin, alerts]) =>
-                                    alerts.map((alert, index) => (
-                                        <div key={`${coin}-${index}`} className="flex items-center justify-between bg-slate-800 border border-slate-700 rounded-lg px-3 py-2">
-                                            <div className="flex items-center gap-2 min-w-0">
-                                                <span className="font-bold text-blue-400 text-xs shrink-0">{coin}</span>
-                                                <div className="flex flex-col">
-                                                    <span className={`text-sm font-bold ${alert.direction === 'up' ? 'text-green-400' : 'text-red-400'}`}>
+                                {Object.entries(draftAlerts).map(([coin, alerts]) => (
+                                    <div key={coin} className="bg-slate-800 border border-slate-700 rounded-lg p-2">
+                                        <div className="flex items-center justify-between mb-1.5">
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-bold text-blue-400 text-xs">{coin}</span>
+                                                {(() => { const c = binanceCoins.find(b => b.symbol === coin); return c ? <span className="text-[11px] text-slate-400 font-mono">{fmtPrice(c.price)}</span> : null; })()}
+                                            </div>
+                                            <span className="text-[9px] text-slate-500 font-bold">{alerts.length} alerta{alerts.length !== 1 ? "s" : ""}</span>
+                                        </div>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {alerts.map((alert, index) => (
+                                                <div key={index} className="flex items-center gap-1 bg-slate-900/80 px-2 py-1 rounded-md">
+                                                    <span className={`text-[11px] font-bold ${alert.direction === 'up' ? 'text-green-400' : 'text-red-400'}`}>
                                                         {alert.direction === 'up' ? '🔼' : '🔽'} {fmtPrice(alert.targetValue)}
                                                     </span>
-                                                    {alert.note && (
-                                                        <span className="text-[10px] text-slate-400 italic mt-0.5">📝 {alert.note}</span>
+                                                    {alert.isPersistent ? (
+                                                        <span className="text-[8px] bg-yellow-500/10 text-yellow-400 px-1 py-0.5 rounded-full font-bold">P</span>
+                                                    ) : (
+                                                        <span className="text-[8px] bg-slate-700 text-slate-500 px-1 py-0.5 rounded-full font-bold">1×</span>
                                                     )}
+                                                    {alert.note && <span title={alert.note} className="text-slate-500 text-[10px] cursor-help">📝</span>}
+                                                    <button onClick={() => handleEdit(coin, index)} className="text-slate-600 hover:text-blue-400 transition-colors">
+                                                        <Edit2 className="w-2.5 h-2.5" />
+                                                    </button>
+                                                    <button onClick={() => handleRemove(coin, index)} className="text-slate-600 hover:text-red-400 transition-colors">
+                                                        <Trash2 className="w-2.5 h-2.5" />
+                                                    </button>
                                                 </div>
-                                                {alert.isPersistent ? (
-                                                    <span className="flex items-center gap-1 text-[9px] bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap">
-                                                        <Repeat className="w-2.5 h-2.5" /> Perm.
-                                                    </span>
-                                                ) : (
-                                                    <span className="flex items-center gap-1 text-[9px] bg-slate-700 text-slate-400 border border-slate-600 px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap">
-                                                        <Clock className="w-2.5 h-2.5" /> 1 vez
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center shrink-0">
-                                                <button onClick={() => handleEdit(coin, index)} className="text-slate-500 hover:text-blue-400 hover:bg-blue-500/10 transition-colors p-1.5 rounded-lg">
-                                                    <Edit2 className="w-3.5 h-3.5" />
-                                                </button>
-                                                <button onClick={() => handleRemove(coin, index)} className="text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors p-1.5 rounded-lg">
-                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                </button>
-                                            </div>
+                                            ))}
                                         </div>
-                                    ))
-                                )}
+                                    </div>
+                                ))}
                             </div>
                         )}
                     </div>
@@ -221,13 +219,13 @@ export default function WatchlistAlertModal({ currentAlerts, onSaveAlerts, onClo
                         </h3>
 
                         {/* Coin search */}
-                        <label className="block text-[10px] text-slate-500 mb-1.5 uppercase tracking-wider font-bold">Buscar Moneda</label>
-                        <div ref={searchRef} className="relative mb-3">
+                        <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wider font-bold">Buscar Moneda</label>
+                        <div ref={searchRef} className="relative mb-2">
                             <div className="relative">
                                 {coinsLoading ? (
-                                    <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 animate-spin" />
+                                    <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 animate-spin" />
                                 ) : (
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
                                 )}
                                 <input
                                     type="text"
@@ -239,7 +237,7 @@ export default function WatchlistAlertModal({ currentAlerts, onSaveAlerts, onClo
                                     onFocus={() => setShowDropdown(true)}
                                     disabled={coinsLoading}
                                     placeholder={coinsLoading ? "Cargando monedas..." : "BTC, ETH, SOL, PEPE..."}
-                                    className="w-full h-10 bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 text-sm font-bold text-white outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400/50 disabled:opacity-50 placeholder:text-slate-600 placeholder:font-normal"
+                                    className="w-full h-9 bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 text-sm font-bold text-white outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400/50 disabled:opacity-50 placeholder:text-slate-600 placeholder:font-normal"
                                 />
                             </div>
                             {showDropdown && filteredCoins.length > 0 && (
@@ -259,15 +257,22 @@ export default function WatchlistAlertModal({ currentAlerts, onSaveAlerts, onClo
                         </div>
 
                         {/* Price target */}
-                        <label className="block text-[10px] text-slate-500 mb-1.5 uppercase tracking-wider font-bold">
-                            Precio Objetivo {selectedCoin ? `(${selectedCoin})` : ""}
-                        </label>
-                        <div className="flex items-center gap-2 mb-3">
+                        <div className="flex items-center justify-between mb-1">
+                            <label className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">
+                                Precio Objetivo {selectedCoin ? `(${selectedCoin})` : ""}
+                            </label>
+                            {selectedPrice > 0 && (
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                    Actual: <span className="text-white font-bold">{fmtPrice(selectedPrice)}</span>
+                                </span>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-2 mb-2">
                             <button
                                 onClick={() => handleTargetChange(targetValue * 0.99)}
-                                className="flex items-center justify-center w-10 h-10 bg-slate-900 border border-slate-700 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors active:scale-95 shrink-0"
+                                className="flex items-center justify-center w-9 h-9 bg-slate-900 border border-slate-700 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors active:scale-95 shrink-0"
                             >
-                                <span className="text-xl font-bold leading-none">−</span>
+                                <span className="text-lg font-bold leading-none">−</span>
                             </button>
                             <div className="relative flex-1">
                                 <input
@@ -275,61 +280,57 @@ export default function WatchlistAlertModal({ currentAlerts, onSaveAlerts, onClo
                                     step="0.0001"
                                     value={targetValue}
                                     onChange={(e) => handleTargetChange(Number(e.target.value))}
-                                    className="w-full h-10 bg-slate-900 border border-slate-700 rounded-lg px-2 pr-7 text-base font-bold text-center text-white outline-none focus:ring-2 focus:ring-yellow-400/50 focus:border-yellow-400/50"
+                                    className="w-full h-9 bg-slate-900 border border-slate-700 rounded-lg px-2 pr-7 text-base font-bold text-center text-white outline-none focus:ring-2 focus:ring-yellow-400/50 focus:border-yellow-400/50"
                                 />
                                 <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 text-xs font-bold pointer-events-none">$</span>
                             </div>
                             <button
                                 onClick={() => handleTargetChange(targetValue * 1.01)}
-                                className="flex items-center justify-center w-10 h-10 bg-slate-900 border border-slate-700 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors active:scale-95 shrink-0"
+                                className="flex items-center justify-center w-9 h-9 bg-slate-900 border border-slate-700 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors active:scale-95 shrink-0"
                             >
-                                <span className="text-xl font-bold leading-none">+</span>
+                                <span className="text-lg font-bold leading-none">+</span>
                             </button>
                         </div>
 
-                        {/* Direction */}
-                        <div className="grid grid-cols-2 gap-2 mb-2">
+                        {/* Direction + Persistence — single row */}
+                        <div className="grid grid-cols-4 gap-1.5 mb-1.5">
                             <button
                                 onClick={() => setDirection('up')}
-                                className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-[11px] font-bold border transition-all ${direction === 'up' ? "bg-green-500/20 text-green-400 border-green-500/50" : "bg-slate-900 text-slate-500 border-slate-700 hover:border-slate-600"}`}
+                                className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${direction === 'up' ? "bg-green-500/20 text-green-400 border-green-500/50" : "bg-slate-900 text-slate-500 border-slate-700 hover:border-slate-600"}`}
                             >
-                                <span>🔼</span> Sube a
+                                🔼 Sube
                             </button>
                             <button
                                 onClick={() => setDirection('down')}
-                                className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-[11px] font-bold border transition-all ${direction === 'down' ? "bg-red-500/20 text-red-400 border-red-500/50" : "bg-slate-900 text-slate-500 border-slate-700 hover:border-slate-600"}`}
+                                className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${direction === 'down' ? "bg-red-500/20 text-red-400 border-red-500/50" : "bg-slate-900 text-slate-500 border-slate-700 hover:border-slate-600"}`}
                             >
-                                <span>🔽</span> Baja a
+                                🔽 Baja
+                            </button>
+                            <button
+                                onClick={() => setIsPersistent(false)}
+                                className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${!isPersistent ? "bg-yellow-500 text-slate-900 border-yellow-500" : "bg-slate-900 text-slate-500 border-slate-700 hover:border-slate-600"}`}
+                            >
+                                <Clock className="w-2.5 h-2.5 shrink-0" /> 1 Vez
+                            </button>
+                            <button
+                                onClick={() => setIsPersistent(true)}
+                                className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${isPersistent ? "bg-yellow-500 text-slate-900 border-yellow-500" : "bg-slate-900 text-slate-500 border-slate-700 hover:border-slate-600"}`}
+                            >
+                                <Repeat className="w-2.5 h-2.5 shrink-0" /> Perm.
                             </button>
                         </div>
 
                         {selectedPrice > 0 && ((direction === 'up' && selectedPrice >= targetValue) || (direction === 'down' && selectedPrice <= targetValue)) ? (
-                            <p className="text-center text-[11px] font-bold mb-3 text-yellow-400">
+                            <p className="text-center text-[10px] font-bold mb-1.5 text-yellow-400">
                                 ⚠️ El precio actual ya {direction === 'up' ? 'supera' : 'está por debajo de'} {fmtPrice(targetValue)} — se disparará en el próximo ciclo
                             </p>
                         ) : (
-                            <p className={`text-center text-[11px] font-bold mb-3 ${direction === 'up' ? "text-green-400" : "text-red-400"}`}>
+                            <p className={`text-center text-[10px] font-bold mb-1.5 ${direction === 'up' ? "text-green-400" : "text-red-400"}`}>
                                 {selectedCoin
                                     ? `Notificar cuando ${selectedCoin} ${direction === 'up' ? "suba a" : "baje a"} ${fmtPrice(targetValue)}`
                                     : "Seleccioná una moneda para continuar"}
                             </p>
                         )}
-
-                        {/* Persistence */}
-                        <div className="grid grid-cols-2 gap-2 mb-3">
-                            <button
-                                onClick={() => setIsPersistent(false)}
-                                className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-[11px] font-bold border transition-all ${!isPersistent ? "bg-yellow-500 text-slate-900 border-yellow-500 shadow-md shadow-yellow-500/20" : "bg-slate-900 text-slate-500 border-slate-700 hover:border-slate-600"}`}
-                            >
-                                <Clock className="w-3 h-3 shrink-0" /> Una Vez
-                            </button>
-                            <button
-                                onClick={() => setIsPersistent(true)}
-                                className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-[11px] font-bold border transition-all ${isPersistent ? "bg-yellow-500 text-slate-900 border-yellow-500 shadow-md shadow-yellow-500/20" : "bg-slate-900 text-slate-500 border-slate-700 hover:border-slate-600"}`}
-                            >
-                                <Repeat className="w-3 h-3 shrink-0" /> Permanente
-                            </button>
-                        </div>
 
                         <input
                             type="text"
@@ -337,13 +338,13 @@ export default function WatchlistAlertModal({ currentAlerts, onSaveAlerts, onClo
                             value={note}
                             onChange={(e) => setNote(e.target.value)}
                             maxLength={200}
-                            className="w-full h-9 bg-slate-900 border border-slate-700 rounded-lg px-3 text-xs text-white placeholder-slate-600 outline-none focus:ring-2 focus:ring-yellow-400/50 focus:border-yellow-400/50 mb-3"
+                            className="w-full h-8 bg-slate-900 border border-slate-700 rounded-lg px-3 text-xs text-white placeholder-slate-600 outline-none focus:ring-2 focus:ring-yellow-400/50 focus:border-yellow-400/50 mb-2"
                         />
 
                         <button
                             onClick={handleAdd}
                             disabled={!selectedCoin || targetValue <= 0}
-                            className={`w-full flex items-center justify-center gap-1.5 font-bold py-2.5 rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 text-xs ${
+                            className={`w-full flex items-center justify-center gap-1.5 font-bold py-2 rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 text-xs ${
                                 selectedPrice > 0 && ((direction === 'up' && selectedPrice >= targetValue) || (direction === 'down' && selectedPrice <= targetValue))
                                     ? "bg-yellow-500 text-slate-900 hover:bg-yellow-400 shadow-md shadow-yellow-500/20"
                                     : "bg-blue-500 text-white hover:bg-blue-400 shadow-md shadow-blue-500/20"
@@ -355,17 +356,17 @@ export default function WatchlistAlertModal({ currentAlerts, onSaveAlerts, onClo
                     </div>
 
                     {/* Action buttons */}
-                    <div className="flex items-center gap-2 pt-2 pb-1 border-t border-slate-800">
+                    <div className="flex items-center gap-2 pt-1.5 pb-1 border-t border-slate-800">
                         <button
                             onClick={onClose}
-                            className="flex-1 py-2.5 rounded-lg font-bold bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700 hover:text-white transition-all text-xs uppercase tracking-wider"
+                            className="flex-1 py-2 rounded-lg font-bold bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700 hover:text-white transition-all text-xs uppercase tracking-wider"
                         >
                             Cancelar
                         </button>
                         <button
                             onClick={handleSave}
                             disabled={saving}
-                            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg font-bold bg-green-500 text-slate-900 hover:bg-green-400 transition-all shadow-md shadow-green-500/20 active:scale-[0.98] disabled:opacity-50 text-xs uppercase tracking-wider"
+                            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg font-bold bg-green-500 text-slate-900 hover:bg-green-400 transition-all shadow-md shadow-green-500/20 active:scale-[0.98] disabled:opacity-50 text-xs uppercase tracking-wider"
                         >
                             <Check className="w-3.5 h-3.5 shrink-0" />
                             {saving ? "Guardando..." : "Guardar"}

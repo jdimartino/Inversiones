@@ -152,7 +152,7 @@ const MarcoAnalysisModal: React.FC<MarcoAnalysisModalProps> = (props) => {
     useEffect(() => {
         runAnalysis();
         return () => { if (cooldownTimer.current) clearInterval(cooldownTimer.current); };
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    }, []); // eslint-disable-line
 
     // Close on overlay click
     const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
