@@ -188,6 +188,7 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                                             const vb = b.type === 'price' ? b.targetValue || 0 : -Infinity;
                                             return vb - va;
                                         }).map((alert: InvestmentAlert, index: number) => {
+                                            const originalIndex = (alerts as InvestmentAlert[]).indexOf(alert);
                                             const roi = inv
                                                 ? (inv.invested > 0 ? ((currentPrice * inv.quantity - inv.invested) / inv.invested) * 100 : 0)
                                                 : (sale && sale.usdtReceived > 0 ? ((sale.usdtReceived - sale.quantity * currentPrice) / sale.usdtReceived) * 100 : 0);
@@ -216,7 +217,7 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                                                         <span className="text-[8px] bg-slate-700/50 text-slate-500 px-1 py-0.5 rounded-full font-bold">1×</span>
                                                     )}
                                                     <button
-                                                        onClick={() => onEditInvestment && onEditInvestment(id, index)}
+                                                        onClick={() => onEditInvestment && onEditInvestment(id, originalIndex)}
                                                         className="p-1 rounded text-slate-500 hover:text-blue-400 hover:bg-blue-500/10 transition-colors"
                                                         title="Editar"
                                                     >
@@ -225,15 +226,15 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                                                     <button
                                                         onClick={async () => {
                                                             if (savingId) return;
-                                                            setSavingId(`inv-${id}-${index}`);
+                                                            setSavingId(`inv-${id}-${originalIndex}`);
                                                             const newAlerts = { ...config.investmentAlerts };
-                                                            const updated = (newAlerts[id] || []).filter((_, i) => i !== index);
+                                                            const updated = (newAlerts[id] || []).filter((_, i) => i !== originalIndex);
                                                             if (updated.length === 0) delete newAlerts[id];
                                                             else newAlerts[id] = updated;
                                                             await saveConfig({ ...config, investmentAlerts: newAlerts });
                                                             setSavingId(null);
                                                         }}
-                                                        disabled={savingId === `inv-${id}-${index}`}
+                                                        disabled={savingId === `inv-${id}-${originalIndex}`}
                                                         className="p-1 rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
                                                         title="Eliminar"
                                                     >
