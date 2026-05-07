@@ -37,6 +37,7 @@ export interface AlertConfig {
     investmentAlerts?: Record<string, InvestmentAlert[]>;
     watchlistAlerts?: Record<string, WatchlistAlert[]>;
     dailyReportEnabled?: boolean;
+    saleMeta?: Record<string, { coin: string; usdtReceived: number; quantity: number }>;
 }
 
 export function useAlerts() {
@@ -127,13 +128,15 @@ export function useAlerts() {
             // JSON stringification is the most robust way to strip all undefined properties.
             const cleanConfig = JSON.parse(JSON.stringify(newConfig));
 
-            // Use dotted-path notation for watchlistAlerts so we update individual coin
-            // sub-keys rather than replacing the entire map. This prevents a race condition
-            // where stale frontend state could restore a "1 vez" alert that the Cloud
-            // Function already deleted from Firestore.
+            // Use dotted-path notation for watchlistAlerts and investmentAlerts so we update
+            // individual sub-keys rather than replacing entire maps. This prevents a race condition
+            // where stale frontend state could restore alerts that the Cloud Function already
+            // deleted from Firestore (e.g., a "1 vez" alert that fired and was removed).
             const docRef = doc(db, "config", "alerts");
-            const { watchlistAlerts, ...restConfig } = cleanConfig;
+            const { watchlistAlerts, investmentAlerts, ...restConfig } = cleanConfig;
             const updates: Record<string, unknown> = { ...restConfig };
+
+            // watchlistAlerts: per-coin dotted paths
             if (watchlistAlerts && typeof watchlistAlerts === "object") {
                 for (const [coin, rules] of Object.entries(watchlistAlerts)) {
                     updates[`watchlistAlerts.${coin}`] = rules;
@@ -145,6 +148,20 @@ export function useAlerts() {
                     }
                 }
             }
+
+            // investmentAlerts: per-ID dotted paths (same pattern as watchlist)
+            if (investmentAlerts && typeof investmentAlerts === "object") {
+                for (const [id, rules] of Object.entries(investmentAlerts)) {
+                    updates[`investmentAlerts.${id}`] = rules;
+                }
+                // If an ID was removed entirely (not present in newConfig), delete its key.
+                for (const id of Object.keys(config.investmentAlerts ?? {})) {
+                    if (!(id in investmentAlerts)) {
+                        updates[`investmentAlerts.${id}`] = deleteField();
+                    }
+                }
+            }
+
             await updateDoc(docRef, updates as any);
 
             return true;
