@@ -140,6 +140,20 @@ async function runCheckAlerts() {
             saleMeta = conf.saleMeta;
         }
     }
+    // Fill in any saleMeta entries missing from the config by reading the ventas collection.
+    // This is a fallback for sales whose metadata was lost due to the overwrite bug.
+    const hasMissingSaleMeta = Object.keys(investmentAlerts).some(k => k.startsWith('sale_') && !saleMeta[k]);
+    if (hasMissingSaleMeta) {
+        const ventasSnap = await db.collection("ventas").get();
+        ventasSnap.forEach(d => {
+            const saleKey = `sale_${d.id}`;
+            if (investmentAlerts[saleKey] && !saleMeta[saleKey]) {
+                const v = d.data();
+                saleMeta[saleKey] = { coin: v.coin, usdtReceived: v.usdtReceived, quantity: v.quantity };
+                console.log(`[FALLBACK] saleMeta recuperado de ventas para ${saleKey} (${v.coin})`);
+            }
+        });
+    }
     const snap = await db.collection("inversiones").get();
     let totalInvested = 0;
     let totalCurrentValue = 0;

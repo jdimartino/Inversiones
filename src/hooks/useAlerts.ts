@@ -102,6 +102,7 @@ export function useAlerts() {
                         globalAlerts: normalizedGlobalAlerts,
                         watchlistAlerts: normalizedWatchlist,
                         dailyReportEnabled: data.dailyReportEnabled ?? false,
+                        saleMeta: data.saleMeta ?? {},
                     });
                 } else {
                     // Si no existe, inicializamos con defecto o limpiamos
@@ -133,8 +134,20 @@ export function useAlerts() {
             // where stale frontend state could restore alerts that the Cloud Function already
             // deleted from Firestore (e.g., a "1 vez" alert that fired and was removed).
             const docRef = doc(db, "config", "alerts");
-            const { watchlistAlerts, investmentAlerts, ...restConfig } = cleanConfig;
+            const { watchlistAlerts, investmentAlerts, saleMeta, ...restConfig } = cleanConfig;
             const updates: Record<string, unknown> = { ...restConfig };
+
+            // saleMeta: per-ID dotted paths (prevents overwriting other sales' metadata)
+            if (saleMeta && typeof saleMeta === "object") {
+                for (const [id, meta] of Object.entries(saleMeta)) {
+                    updates[`saleMeta.${id}`] = meta;
+                }
+                for (const id of Object.keys(config.saleMeta ?? {})) {
+                    if (!(id in saleMeta)) {
+                        updates[`saleMeta.${id}`] = deleteField();
+                    }
+                }
+            }
 
             // watchlistAlerts: per-coin dotted paths
             if (watchlistAlerts && typeof watchlistAlerts === "object") {

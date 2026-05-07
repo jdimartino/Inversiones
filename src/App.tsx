@@ -236,10 +236,33 @@ const App: React.FC = () => {
   }, []);
 
   const handleEditInvestmentAlert = useCallback((investmentId: string, index: number) => {
+    if (investmentId.startsWith('sale_')) {
+      const saleId = investmentId.slice(5);
+      const sale = sales.find(s => s.id === saleId);
+      if (!sale) return;
+      const cp = prices[sale.coin] || 0;
+      const profit = sale.usdtReceived - sale.quantity * cp;
+      const roi = sale.usdtReceived > 0 ? (profit / sale.usdtReceived) * 100 : 0;
+      setAlertingSale(sale);
+      setAlertingInvestment({
+        id: `sale_${sale.id}`,
+        coin: sale.coin,
+        buyPrice: sale.sellPrice,
+        quantity: sale.quantity,
+        invested: sale.usdtReceived,
+        date: sale.date,
+        currentPrice: cp,
+        currentValue: sale.quantity * cp,
+        profit,
+        roi,
+      });
+      setInvestmentEditIndex(index);
+      return;
+    }
+
     const inv = portfolio.find(i => i.id === investmentId);
     if (!inv) return;
 
-    // We compute the current ProcessedInvestment properties to pass to the modal
     const currentPrice = prices[inv.coin] || inv.buyPrice;
     const currentValue = inv.quantity * currentPrice;
     const profit = currentValue - inv.invested;
@@ -249,7 +272,7 @@ const App: React.FC = () => {
 
     setInvestmentEditIndex(index);
     setAlertingInvestment(processedInv);
-  }, [portfolio, prices]);
+  }, [portfolio, prices, sales]);
 
   const handleSaveGlobalAlerts = useCallback(async (alerts: GlobalAlert[]) => {
     await saveConfig({ ...config, globalAlerts: alerts });

@@ -165,11 +165,16 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                             return (
                                 <div key={id} className="bg-slate-900/60 border border-slate-700/40 rounded-lg p-2.5">
                                     <div className="flex items-center justify-between mb-1.5">
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 flex-wrap">
                                             <span className="font-bold text-yellow-400 text-sm">{coinName}</span>
                                             {currentPrice > 0 && (
                                                 <span className="text-base font-bold text-white font-mono">
                                                     {fmtPrice(currentPrice)}
+                                                </span>
+                                            )}
+                                            {id.startsWith('sale_') && sale && sale.sellPrice > 0 && (
+                                                <span className="text-[9px] text-slate-400 bg-slate-800 border border-slate-700 px-1.5 py-0.5 rounded font-bold">
+                                                    venta @ {fmtPrice(sale.sellPrice)}
                                                 </span>
                                             )}
                                         </div>
