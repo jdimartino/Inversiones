@@ -78,12 +78,14 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                                             return (
                                             <div key={index} className="flex flex-col bg-slate-800/60 px-2 py-1.5 rounded-md">
                                                 <div className="flex items-center gap-1.5">
-                                                    <span className={`text-[11px] font-bold flex items-center gap-0.5 ${alert.direction === 'up' ? 'text-green-400' : 'text-red-400'}`}>
-                                                        {alert.direction === 'up' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                                                    {(() => { const showUp = isOnHold ? alert.direction !== 'up' : alert.direction === 'up'; return (
+                                                    <span className={`text-[11px] font-bold flex items-center gap-0.5 ${showUp ? 'text-green-400' : 'text-red-400'}`}>
+                                                        {showUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                                                         {fmtPrice(alert.targetValue)}
                                                     </span>
+                                                    ); })()}
                                                     {alert.isPersistent ? (
-                                                        <span className={`text-[8px] px-1 py-0.5 rounded-full font-bold ${isOnHold ? 'bg-orange-500/20 text-orange-400' : 'bg-green-500/20 text-green-400'}`}>
+                                                        <span className={`text-[8px] px-1 py-0.5 rounded-full font-bold ${isOnHold ? 'bg-orange-500/20 text-orange-400' : (alert.direction === 'up' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400')}`}>
                                                             {isOnHold ? '⏸P' : '▶P'}
                                                         </span>
                                                     ) : (
@@ -145,7 +147,8 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                         {Object.entries(config.investmentAlerts)
                             .map(([id, alerts]) => {
                                 const inv = portfolio.find((i) => i.id === id);
-                                const sale = !inv ? sales?.find((s) => s.id === id) : undefined;
+                                const realSaleId = id.startsWith('sale_') ? id.slice(5) : id;
+                                const sale = !inv ? sales?.find((s) => s.id === realSaleId) : undefined;
                                 const p = inv ? (prices[inv.coin] || inv.buyPrice) : (sale ? (prices[sale.coin] || sale.sellPrice) : 0);
                                 return { id, alerts, price: p };
                             })
@@ -153,8 +156,9 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                             .sort((a, b) => b.price - a.price)
                             .map(({ id, alerts }) => {
                             const inv = portfolio.find((i) => i.id === id);
-                            const sale = !inv ? sales?.find((s) => s.id === id) : undefined;
-                            const coinName = inv?.coin ?? sale?.coin ?? "Desconocido";
+                            const realSaleId = id.startsWith('sale_') ? id.slice(5) : id;
+                            const sale = !inv ? sales?.find((s) => s.id === realSaleId) : undefined;
+                            const coinName = inv?.coin ?? sale?.coin ?? config.saleMeta?.[id]?.coin ?? "Desconocido";
                             const currentPrice = inv ? (prices[inv.coin] || inv.buyPrice) : (sale ? (prices[sale.coin] || sale.sellPrice) : 0);
                             if (!Array.isArray(alerts) || alerts.length === 0) return null;
 
@@ -190,15 +194,17 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                                             return (
                                             <div key={index} className="flex flex-col bg-slate-800/60 px-2 py-1.5 rounded-md">
                                                 <div className="flex items-center gap-1.5">
-                                                    <span className={`text-[11px] font-bold flex items-center gap-0.5 ${alert.type === 'price' ? 'text-yellow-400' : (alert.targetPercent >= 0 ? "text-green-400" : "text-red-400")}`}>
-                                                        {alert.direction === 'up' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                                                    {(() => { const showUp = isOnHold ? alert.direction !== 'up' : alert.direction === 'up'; return (
+                                                    <span className={`text-[11px] font-bold flex items-center gap-0.5 ${showUp ? 'text-green-400' : 'text-red-400'}`}>
+                                                        {showUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                                                         {alert.type === 'price' ? fmtPrice(alert.targetValue || 0) : `${alert.targetPercent >= 0 ? "+" : ""}${alert.targetPercent}%`}
                                                     </span>
+                                                    ); })()}
                                                     <span className="text-[8px] text-slate-500 uppercase font-bold bg-slate-900/60 px-1 py-0.5 rounded border border-slate-700/50">
                                                         {alert.type === 'price' ? '$' : '%'}
                                                     </span>
                                                     {alert.isPersistent ? (
-                                                        <span className={`text-[8px] px-1 py-0.5 rounded-full font-bold ${isOnHold ? 'bg-orange-500/20 text-orange-400' : 'bg-green-500/20 text-green-400'}`}>
+                                                        <span className={`text-[8px] px-1 py-0.5 rounded-full font-bold ${isOnHold ? 'bg-orange-500/20 text-orange-400' : (alert.direction === 'up' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400')}`}>
                                                             {isOnHold ? '⏸P' : '▶P'}
                                                         </span>
                                                     ) : (
@@ -230,6 +236,16 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                                                     </button>
                                                 </div>
                                                 {alert.note && <span className="text-[9px] text-slate-400 italic mt-0.5">📝 {alert.note}</span>}
+                                                {id.startsWith('sale_') && alert.type === 'pnl' && sale && sale.usdtReceived > 0 && sale.quantity > 0 && (
+                                                    (() => {
+                                                        const tp = (sale.usdtReceived * (1 - (alert.targetPercent || 0) / 100)) / sale.quantity;
+                                                        return (
+                                                            <span className="text-[9px] text-slate-500 mt-0.5">
+                                                                @ {fmtPrice(tp)}
+                                                            </span>
+                                                        );
+                                                    })()
+                                                )}
                                             </div>
                                             );
                                         })}
@@ -266,16 +282,18 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                             <div key={`global-${index}`} className="flex items-center justify-between bg-slate-900/60 border border-slate-700/40 rounded-lg px-3 py-2">
                                 <div className="flex items-center gap-2 min-w-0 flex-wrap">
                                     <div className="flex flex-col">
-                                        <span className={`flex items-center gap-1 text-xs font-bold whitespace-nowrap ${alertData.targetAmount >= 0 ? "text-green-400" : "text-red-400"}`}>
-                                            {alertData.direction === 'up' ? '🔼' : '🔽'}
+                                        {(() => { const showUp = isOnHold ? alertData.direction !== 'up' : alertData.direction === 'up'; return (
+                                        <span className={`flex items-center gap-1 text-xs font-bold whitespace-nowrap ${showUp ? "text-green-400" : "text-red-400"}`}>
+                                            {showUp ? '🔼' : '🔽'}
                                             {alertData.targetAmount >= 0 ? "+" : "-"}{fmtUSD(Math.abs(alertData.targetAmount))}
                                         </span>
+                                        ); })()}
                                         {alertData.note && (
                                             <span className="text-[10px] text-slate-400 italic mt-0.5">📝 {alertData.note}</span>
                                         )}
                                     </div>
                                     {alertData.isPersistent ? (
-                                        <span className={`flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap border ${isOnHold ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' : 'bg-green-500/20 text-green-400 border-green-500/30'}`}>
+                                        <span className={`flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap border ${isOnHold ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' : (alertData.direction === 'up' ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30')}`}>
                                             <Repeat className="w-2.5 h-2.5" /> {isOnHold ? 'En Pausa' : 'Armada'}
                                         </span>
                                     ) : (

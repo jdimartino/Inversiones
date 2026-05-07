@@ -220,11 +220,11 @@ export default function WatchlistAlertModal({ currentAlerts, onSaveAlerts, onClo
                                                 return (
                                                 <div key={index} className="flex flex-col bg-slate-900/80 px-2 py-1.5 rounded-md">
                                                     <div className="flex items-center gap-1.5">
-                                                        <span className={`text-[11px] font-bold ${alert.direction === 'up' ? 'text-green-400' : 'text-red-400'}`}>
-                                                            {alert.direction === 'up' ? '🔼' : '🔽'} {fmtPrice(alert.targetValue)}
+                                                        <span className={`text-[11px] font-bold ${(isOnHold ? alert.direction !== 'up' : alert.direction === 'up') ? 'text-green-400' : 'text-red-400'}`}>
+                                                            {(isOnHold ? alert.direction !== 'up' : alert.direction === 'up') ? '🔼' : '🔽'} {fmtPrice(alert.targetValue)}
                                                         </span>
                                                         {alert.isPersistent ? (
-                                                            <span className={`text-[8px] px-1 py-0.5 rounded-full font-bold ${isOnHold ? 'bg-orange-500/20 text-orange-400' : 'bg-green-500/20 text-green-400'}`}>
+                                                            <span className={`text-[8px] px-1 py-0.5 rounded-full font-bold ${isOnHold ? 'bg-orange-500/20 text-orange-400' : (alert.direction === 'up' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400')}`}>
                                                                 {isOnHold ? '⏸P' : '▶P'}
                                                             </span>
                                                         ) : (

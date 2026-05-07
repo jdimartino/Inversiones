@@ -54,6 +54,7 @@ const App: React.FC = () => {
   const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
   const [editingInvestment, setEditingInvestment] = useState<ProcessedInvestment | null>(null);
   const [alertingInvestment, setAlertingInvestment] = useState<ProcessedInvestment | null>(null);
+  const [alertingSale, setAlertingSale] = useState<SaleRecord | null>(null);
   const [sellPreload, setSellPreload] = useState<ProcessedInvestment | null>(null);
   const [buyPreload, setBuyPreload] = useState<import("./components/SellSuite").BuyPreload | null>(null);
   const [closingInvestment, setClosingInvestment] = useState<ProcessedInvestment | null>(null);
@@ -190,8 +191,9 @@ const App: React.FC = () => {
     // profit/roi desde la perspectiva del vendedor: positivo = precio bajó (puedes recomprar más barato)
     const profit = sale.usdtReceived - sale.quantity * cp;
     const roi = sale.usdtReceived > 0 ? (profit / sale.usdtReceived) * 100 : 0;
+    setAlertingSale(sale);
     setAlertingInvestment({
-      id: sale.id,
+      id: `sale_${sale.id}`,
       coin: sale.coin,
       buyPrice: sale.sellPrice,
       quantity: sale.quantity,
@@ -224,6 +226,7 @@ const App: React.FC = () => {
   }, [prices]);
   const handleCloseAlertModal = useCallback(() => {
     setAlertingInvestment(null);
+    setAlertingSale(null);
     setInvestmentEditIndex(null);
   }, []);
 
@@ -264,14 +267,26 @@ const App: React.FC = () => {
     } else {
       newAlerts[id] = alerts;
     }
-    await saveConfig({ ...config, investmentAlerts: newAlerts });
-  }, [config, saveConfig]);
+    if (id.startsWith('sale_') && alertingSale) {
+      const newSaleMeta = { ...(config.saleMeta || {}) };
+      newSaleMeta[id] = { coin: alertingSale.coin, usdtReceived: alertingSale.usdtReceived, quantity: alertingSale.quantity };
+      await saveConfig({ ...config, investmentAlerts: newAlerts, saleMeta: newSaleMeta });
+    } else {
+      await saveConfig({ ...config, investmentAlerts: newAlerts });
+    }
+  }, [config, saveConfig, alertingSale]);
 
   // Remove ALL alerts for an asset (used from AlertSettings panel)
   const handleRemoveInvestmentAlert = useCallback(async (id: string) => {
     const newAlerts = { ...(config.investmentAlerts || {}) };
     delete newAlerts[id];
-    await saveConfig({ ...config, investmentAlerts: newAlerts });
+    if (id.startsWith('sale_')) {
+      const newSaleMeta = { ...(config.saleMeta || {}) };
+      delete newSaleMeta[id];
+      await saveConfig({ ...config, investmentAlerts: newAlerts, saleMeta: newSaleMeta });
+    } else {
+      await saveConfig({ ...config, investmentAlerts: newAlerts });
+    }
   }, [config, saveConfig]);
 
   const activeAlertIds = useMemo(() => Object.keys(config.investmentAlerts || {}), [config.investmentAlerts]);
@@ -322,6 +337,7 @@ const App: React.FC = () => {
                   onMarcoAnalysis={handleMarcoSale}
                   onAlert={handleAlertSale}
                   activeAlertIds={activeAlertIds}
+                  priceDirections={priceDirections}
                 />
                 <AssetTable
                   items={sortedPortfolio}
@@ -361,6 +377,7 @@ const App: React.FC = () => {
                   onMarcoAnalysis={handleMarcoSale}
                   onAlert={handleAlertSale}
                   activeAlertIds={activeAlertIds}
+                  priceDirections={priceDirections}
                 />
               </>
             )}

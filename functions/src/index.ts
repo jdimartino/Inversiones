@@ -162,6 +162,8 @@ async function runCheckAlerts() {
     let watchlistAlerts: Record<string, WatchlistAlertRule[]> = {};
     let hasMigratedToGlobalAlertsArray = false;
 
+    let saleMeta: Record<string, { coin: string; usdtReceived: number; quantity: number }> = {};
+
     if (configSnap.exists) {
         const conf = configSnap.data()!;
         if (conf.minPNL !== undefined) minAlert = conf.minPNL;
@@ -178,17 +180,12 @@ async function runCheckAlerts() {
                 if (Array.isArray(arr)) watchlistAlerts[coin] = arr as WatchlistAlertRule[];
             }
         }
+        if (conf.saleMeta) {
+            saleMeta = conf.saleMeta as typeof saleMeta;
+        }
     }
 
     const snap = await db.collection("inversiones").get();
-
-    // Fetch previous notification snapshot to compute P&L delta per position
-    const prevLogSnap = await db.collection("notificationLogs")
-        .orderBy("sentAt", "desc")
-        .limit(1)
-        .get();
-    const prevSnapshot: Record<string, { pnl: number; roi: number }> =
-        prevLogSnap.empty ? {} : (prevLogSnap.docs[0].data().positionSnapshot || {});
 
     let totalInvested = 0;
     let totalCurrentValue = 0;
@@ -329,8 +326,10 @@ async function runCheckAlerts() {
     });
 
     // Cleanup orphaned alerts (IDs that no longer exist in 'inversiones')
+    // Skip sale_ prefixed IDs — those belong to closed positions in 'ventas', not 'inversiones'
     const activeInvIds = new Set(snap.docs.map(d => d.id));
     for (const invId of Object.keys(investmentAlerts)) {
+        if (invId.startsWith('sale_')) continue;
         if (!activeInvIds.has(invId)) {
             console.log(`[CLEANUP] Alerta huérfana detectada para inversion ID: ${invId}. Eliminando...`);
             delete investmentAlerts[invId];
@@ -338,21 +337,85 @@ async function runCheckAlerts() {
         }
     }
 
-    individualAssets.sort((a, b) => b.pnl - a.pnl);
-    const assetDetails = individualAssets.map(({ id, coin, pnl, roi }) => {
-        const prev = prevSnapshot[id];
-        let deltaStr = "";
-        if (prev !== undefined) {
-            const delta = pnl - prev.pnl;
-            if (Math.abs(delta) >= 1) {
-                const arrow = delta > 0 ? "▲" : "▼";
-                deltaStr = ` ${arrow} ${pnlSign(delta)}$${fmt(Math.abs(delta))}`;
+    // Process sale-based alerts (sale_ prefix) using saleMeta for context
+    for (const [saleKey, alertRules] of Object.entries(investmentAlerts)) {
+        if (!saleKey.startsWith('sale_')) continue;
+        const meta = saleMeta[saleKey];
+        if (!meta) continue;
+
+        const symbol = `${meta.coin}USDT`;
+        const currentPrice = prices[symbol] || 0;
+        if (currentPrice === 0) continue;
+
+        const roi = meta.usdtReceived > 0
+            ? ((meta.usdtReceived - meta.quantity * currentPrice) / meta.usdtReceived) * 100
+            : 0;
+
+        const remaining: AlertRule[] = [];
+        let hasChanged = false;
+
+        for (const rule of alertRules) {
+            const type = rule.type || 'price';
+            const direction = rule.direction || 'down';
+            let conditionMet = false;
+            const currentSide: 'above' | 'below' = type === 'pnl'
+                ? (roi >= (rule.targetPercent || 0) ? 'above' : 'below')
+                : (currentPrice >= (rule.targetValue || 0) ? 'above' : 'below');
+            const prevSide = rule._lastSide;
+
+            if (type === 'pnl') {
+                const target = rule.targetPercent || 0;
+                if (direction === 'up' && roi >= target) conditionMet = true;
+                else if (direction === 'down' && roi <= target) conditionMet = true;
             } else {
-                deltaStr = " ═";
+                const target = rule.targetValue || 0;
+                if (direction === 'up' && currentPrice >= target) conditionMet = true;
+                else if (direction === 'down' && currentPrice <= target) conditionMet = true;
+            }
+
+            const isTriggered = conditionMet && (!rule.isPersistent || (prevSide !== undefined && prevSide !== currentSide));
+
+            if (isTriggered) {
+                if (type === 'pnl') {
+                    const target = rule.targetPercent || 0;
+                    triggeredIndividualMessages.push(
+                        direction === 'up'
+                            ? `🚀 *${meta.coin}* (venta) subió a *${pnlSign(roi)}${roi.toFixed(1)}%* (Meta: 🔼 >= ${target}%)` + (rule.note ? `\n_📝 ${rule.note}_` : "")
+                            : `📉 *${meta.coin}* (venta) bajó a *${roi.toFixed(1)}%* (Límite: 🔽 <= ${target}%)` + (rule.note ? `\n_📝 ${rule.note}_` : "")
+                    );
+                } else {
+                    const target = rule.targetValue || 0;
+                    triggeredIndividualMessages.push(
+                        direction === 'up'
+                            ? `💰 *${meta.coin}* (venta) alcanzó *${fmtPrice(currentPrice)}* (Meta: 🔼 >= ${fmtPrice(target)})` + (rule.note ? `\n_📝 ${rule.note}_` : "")
+                            : `📉 *${meta.coin}* (venta) bajó a *${fmtPrice(currentPrice)}* (Límite: 🔽 <= ${fmtPrice(target)})` + (rule.note ? `\n_📝 ${rule.note}_` : "")
+                    );
+                }
+                console.log(`[SALE ALERT v3] ${meta.coin} (${saleKey}) — ${type.toUpperCase()}: ${type === 'pnl' ? roi.toFixed(2) + '%' : currentPrice} — Target: ${direction === 'up' ? '>=' : '<='} ${type === 'pnl' ? rule.targetPercent + '%' : rule.targetValue} — Tipo: ${rule.isPersistent ? 'PERMANENTE' : 'UNA VEZ'}`);
+                if (rule.isPersistent) {
+                    remaining.push({ ...rule, _lastSide: currentSide });
+                    hasChanged = true;
+                } else {
+                    hasChanged = true;
+                }
+            } else {
+                if (rule.isPersistent && prevSide !== currentSide) hasChanged = true;
+                remaining.push({ ...rule, _lastSide: currentSide });
             }
         }
-        return `${pnlEmoji(pnl)} *${coin}:* ${pnlSign(pnl)}$${fmt(pnl)} (${pnlSign(roi)}${roi.toFixed(1)}%)${deltaStr}`;
-    });
+
+        if (hasChanged) {
+            if (remaining.length === 0) {
+                delete investmentAlerts[saleKey];
+                dbUpdates[`investmentAlerts.${saleKey}`] = admin.firestore.FieldValue.delete();
+            } else {
+                investmentAlerts[saleKey] = remaining;
+                dbUpdates[`investmentAlerts.${saleKey}`] = remaining;
+            }
+        }
+    }
+
+    individualAssets.sort((a, b) => b.pnl - a.pnl);
 
     const globalPNL = totalCurrentValue - totalInvested;
     const triggeredGlobalMessages: string[] = [];
@@ -480,18 +543,7 @@ async function runCheckAlerts() {
         if (triggeredGlobalMessages.length > 0) message += `*🚨 Alertas Globales:*\n${triggeredGlobalMessages.join("\n")}\n\n`;
         if (triggeredIndividualMessages.length > 0) message += `${triggeredIndividualMessages.join("\n")}\n`;
         if (triggeredWatchlistMessages.length > 0) message += `${triggeredWatchlistMessages.join("\n")}\n`;
-        message += `${DIVIDER}\n*📊 Detalle del Portafolio:*\n`;
-
-        // Fix 1: Message truncation to prevent Telegram 4096 char limit errors
-        for (let i = 0; i < assetDetails.length; i++) {
-            const line = assetDetails[i] + "\n";
-            if (message.length + line.length > 3900) {
-                message += `... y ${assetDetails.length - i} activos más.`;
-                break;
-            }
-            message += line;
-        }
-        message += `${DIVIDER}\n*PNL Total:* ${pnlSign(globalPNL)}$${fmt(globalPNL)}\n*Invertido:* $${fmt(totalInvested)}\n*Valor Actual:* $${fmt(totalCurrentValue)}`;
+        message += `${DIVIDER}\n*PNL Total:* ${pnlSign(globalPNL)}$${fmt(globalPNL)} | *Invertido:* $${fmt(totalInvested)} | *Valor:* $${fmt(totalCurrentValue)}`;
 
         const sent = await sendTelegram(message);
         if (sent) {
@@ -849,17 +901,34 @@ async function runDailyReport() {
 
     const snap = await db.collection("inversiones").get();
 
-    // Aggregate per coin
-    const coinMap: Record<string, { invested: number; currentValue: number; currentPrice: number }> = {};
+    // Individual positions + aggregate per coin
+    interface CoinData { invested: number; currentValue: number; currentPrice: number; totalQty: number; positions: number; }
+    const coinMap: Record<string, CoinData> = {};
+    const individualPositions: { coin: string; pnl: number; roi: number; line: string }[] = [];
+
     snap.forEach((docSnap) => {
         const inv = docSnap.data();
         const symbol = SYMBOL_MAP[inv.coin] || `${inv.coin}USDT`;
         const currentPrice = prices[symbol] || 0;
-        const currentValue = currentPrice * (inv.quantity || 0);
-        if (!coinMap[inv.coin]) coinMap[inv.coin] = { invested: 0, currentValue: 0, currentPrice };
-        coinMap[inv.coin].invested += inv.invested || 0;
+        const qty = inv.quantity || 0;
+        const invested = inv.invested || 0;
+        const currentValue = currentPrice * qty;
+        const pnl = currentValue - invested;
+        const roi = invested > 0 ? (pnl / invested) * 100 : 0;
+
+        // individual line
+        individualPositions.push({
+            coin: inv.coin, pnl, roi,
+            line: `${pnlEmoji(pnl)} *${inv.coin}:* ${pnlSign(pnl)}$${fmt(pnl)} (${pnlSign(roi)}${roi.toFixed(1)}%) · ${fmtPrice(currentPrice)}`,
+        });
+
+        // aggregate
+        if (!coinMap[inv.coin]) coinMap[inv.coin] = { invested: 0, currentValue: 0, currentPrice, totalQty: 0, positions: 0 };
+        coinMap[inv.coin].invested += invested;
         coinMap[inv.coin].currentValue += currentValue;
         coinMap[inv.coin].currentPrice = currentPrice;
+        coinMap[inv.coin].totalQty += qty;
+        coinMap[inv.coin].positions += 1;
     });
 
     if (Object.keys(coinMap).length === 0) {
@@ -867,33 +936,88 @@ async function runDailyReport() {
         return;
     }
 
+    individualPositions.sort((a, b) => b.pnl - a.pnl);
+
     let totalInvested = 0;
     let totalCurrentValue = 0;
-    const assetLines: { pnl: number; line: string }[] = [];
+    const consolidatedLines: { pnl: number; line: string }[] = [];
 
     for (const [coin, data] of Object.entries(coinMap)) {
         const pnl = data.currentValue - data.invested;
         const roi = data.invested > 0 ? (pnl / data.invested) * 100 : 0;
+        const avgBuyPrice = data.totalQty > 0 ? data.invested / data.totalQty : 0;
         totalInvested += data.invested;
         totalCurrentValue += data.currentValue;
-        assetLines.push({
+        const posLabel = data.positions > 1 ? ` (${data.positions} pos)` : "";
+        consolidatedLines.push({
             pnl,
-            line: `${pnlEmoji(pnl)} *${coin}:* ${pnlSign(pnl)}$${fmt(pnl)} (${pnlSign(roi)}${roi.toFixed(1)}%) · ${fmtPrice(data.currentPrice)}`,
+            line: `${pnlEmoji(pnl)} *${coin}*${posLabel}: ${pnlSign(pnl)}$${fmt(pnl)} (${pnlSign(roi)}${roi.toFixed(1)}%)\n` +
+                  `    Prom: ${fmtPrice(avgBuyPrice)} · Actual: ${fmtPrice(data.currentPrice)}`,
         });
     }
-    assetLines.sort((a, b) => b.pnl - a.pnl);
+    consolidatedLines.sort((a, b) => b.pnl - a.pnl);
 
     const globalPNL = totalCurrentValue - totalInvested;
     const now = new Date();
     const dateStr = now.toLocaleDateString("es-ES", { weekday: "long", day: "2-digit", month: "short", year: "numeric" });
     const timeStr = now.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
 
-    let message = `🌅 *Resumen Diario del Portafolio*\n_${dateStr} — ${timeStr}_\n${DIVIDER}\n📊 *Detalle del Portafolio:*\n`;
-    for (const { line } of assetLines) {
-        if (message.length + line.length + 1 > 3900) break;
+    let message = `🌅 *Resumen Diario del Portafolio*\n_${dateStr} — ${timeStr}_\n${DIVIDER}\n`;
+
+    // Section 1: Consolidated per coin
+    message += `📊 *PNL Consolidado por Moneda:*\n`;
+    for (const { line } of consolidatedLines) {
+        if (message.length + line.length + 1 > 3200) break;
         message += line + "\n";
     }
-    message += `${DIVIDER}\n💰 *PNL Total:* ${pnlSign(globalPNL)}$${fmt(globalPNL)}\n📥 *Invertido:* $${fmt(totalInvested)}\n📈 *Valor Actual:* $${fmt(totalCurrentValue)}`;
+
+    // Section 2: Individual positions
+    message += `${DIVIDER}\n📋 *Detalle por Posición:*\n`;
+    for (const { line } of individualPositions) {
+        if (message.length + line.length + 1 > 3700) { message += `_(y más...)_`; break; }
+        message += line + "\n";
+    }
+
+    // Section 3: Ventas realizadas (en el mismo mensaje)
+    const ventasSnap = await db.collection("ventas").get();
+    if (!ventasSnap.empty) {
+        const ventas = ventasSnap.docs.map(d => d.data());
+        let totalRecibido = 0;
+        let totalRecompraPnl = 0;
+
+        const ventaLines: { date: number; line: string }[] = [];
+        for (const v of ventas) {
+            const symbol = SYMBOL_MAP[v.coin] || `${v.coin}USDT`;
+            const cp = prices[symbol] || 0;
+            const recompraPnl = cp > 0 ? v.usdtReceived - v.quantity * cp : null;
+            totalRecibido += v.usdtReceived;
+            if (recompraPnl !== null) totalRecompraPnl += recompraPnl;
+
+            const pnlStr = recompraPnl !== null
+                ? `${pnlSign(recompraPnl)}$${fmt(recompraPnl)} (${pnlSign(recompraPnl / v.usdtReceived * 100)}${Math.abs(recompraPnl / v.usdtReceived * 100).toFixed(1)}%)`
+                : "—";
+            const emoji = recompraPnl === null ? "⚪" : recompraPnl >= 0 ? "🟢" : "🔴";
+            const dateStr = v.date ? new Date(v.date).toLocaleDateString("es-ES", { day: "2-digit", month: "short" }) : "—";
+            ventaLines.push({
+                date: v.date || 0,
+                line: `${emoji} *${v.coin}* ${dateStr}: ${fmtPrice(v.sellPrice)} → ${cp > 0 ? fmtPrice(cp) : "—"} · ${pnlStr}`,
+            });
+        }
+        ventaLines.sort((a, b) => b.date - a.date);
+
+        message += `${DIVIDER}\n💼 *Ventas Realizadas (${ventas.length}):*\n`;
+        for (const { line } of ventaLines) {
+            if (message.length + line.length + 1 > 4000) { message += `_(y más...)_\n`; break; }
+            message += line + "\n";
+        }
+        message += `💵 Recibido: $${fmt(totalRecibido)}`;
+        if (totalRecibido > 0) {
+            message += ` | Recompra: ${pnlSign(totalRecompraPnl)}$${fmt(totalRecompraPnl)}`;
+        }
+        message += "\n";
+    }
+
+    message += `${DIVIDER}\n💰 *PNL Total:* ${pnlSign(globalPNL)}${fmt(globalPNL)}\n📥 *Invertido:* ${fmt(totalInvested)}\n📈 *Valor Actual:* ${fmt(totalCurrentValue)}`;
 
     await sendTelegram(message);
     console.log("[DailyReport] Enviado correctamente.");

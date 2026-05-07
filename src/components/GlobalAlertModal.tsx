@@ -142,7 +142,7 @@ export default function GlobalAlertModal({
                                     <div className="flex items-center gap-3">
                                         <div className="flex flex-col">
                                             <span className={`flex items-center gap-1 text-base font-bold ${alert.targetAmount >= totalPnl ? "text-green-400" : "text-red-400"}`}>
-                                                {alert.direction === 'up' ? '🔼' : '🔽'}
+                                                {alert.targetAmount >= totalPnl ? '🔼' : '🔽'}
                                                 {alert.targetAmount >= 0 ? "+" : "-"}{fmtUSD(Math.abs(alert.targetAmount))}
                                             </span>
                                             {alert.note && (

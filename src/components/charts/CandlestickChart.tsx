@@ -897,11 +897,6 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                             <span className={`font-mono font-bold text-xl leading-none tracking-tight ${priceColor}`}>
                                 {fmtPrice(price)}
                             </span>
-                            {change !== null && (
-                                <span className={`text-xs font-bold font-mono mt-0.5 ${changeUp ? "text-green-400" : "text-red-400"}`}>
-                                    {changeUp ? "▲" : "▼"} {Math.abs(change).toFixed(2)}%
-                                </span>
-                            )}
                         </div>
                     );
                 })()}

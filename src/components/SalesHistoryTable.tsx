@@ -3,6 +3,7 @@ import { TrendingDown, TrendingUp, Archive, Pencil, Trash2, Brain, Bell } from "
 import type { SaleRecord } from "../lib/constants";
 import { getCoinStyle, getCoinTextColor } from "../lib/constants";
 import { fmtUSD, fmtPrice, fmt } from "../lib/format";
+import type { PriceDirection } from "../hooks/usePrices";
 
 interface SalesHistoryTableProps {
     sales: SaleRecord[];
@@ -15,6 +16,7 @@ interface SalesHistoryTableProps {
     onMarcoAnalysis?: (sale: SaleRecord) => void;
     onAlert?: (sale: SaleRecord) => void;
     activeAlertIds?: string[];
+    priceDirections?: Record<string, PriceDirection>;
 }
 
 function fmtDate(ts: number): string {
@@ -26,8 +28,14 @@ function fmtDate(ts: number): string {
     });
 }
 
+function priceColor(dir?: PriceDirection): string {
+    if (dir === "up") return "text-green-400";
+    if (dir === "down") return "text-red-400";
+    return "text-yellow-300";
+}
+
 const SalesHistoryTable: React.FC<SalesHistoryTableProps> = React.memo(
-    ({ sales, loading, prices, onEdit, onDelete, onBuyEvaluate, onCloseVenta, onMarcoAnalysis, onAlert, activeAlertIds }) => {
+    ({ sales, loading, prices, onEdit, onDelete, onBuyEvaluate, onCloseVenta, onMarcoAnalysis, onAlert, activeAlertIds, priceDirections }) => {
         const sorted = useMemo(
             () => [...sales].sort((a, b) => b.date - a.date),
             [sales]
@@ -49,11 +57,6 @@ const SalesHistoryTable: React.FC<SalesHistoryTableProps> = React.memo(
                 <div className="text-xs font-bold text-slate-500 mb-4 uppercase tracking-widest flex items-center gap-2 border-b border-slate-800 pb-2">
                     <TrendingDown className="w-4 h-4 text-emerald-400" />
                     Ventas Realizadas ({loading ? "…" : sales.length})
-                    {!loading && sales.length > 0 && (
-                        <span className="ml-auto text-emerald-400 font-mono normal-case">
-                            {fmtUSD(totalUsdtReceived)} recuperados
-                        </span>
-                    )}
                 </div>
 
                 <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-xl">
@@ -78,7 +81,7 @@ const SalesHistoryTable: React.FC<SalesHistoryTableProps> = React.memo(
                                                     <span className={`font-bold text-sm ${getCoinTextColor(sale.coin)}`}>{sale.coin}</span>
                                                     <span className="text-[10px] text-slate-500 ml-2">{fmtDate(sale.date)}</span>
                                                 </div>
-                                                <span className="font-bold text-sm text-emerald-400 mr-2">
+                                                <span className="font-bold text-sm text-white mr-2">
                                                     {fmtUSD(sale.usdtReceived)}
                                                 </span>
                                                 {onMarcoAnalysis && (
@@ -137,11 +140,11 @@ const SalesHistoryTable: React.FC<SalesHistoryTableProps> = React.memo(
                                                 </div>
                                                 <div className="bg-slate-900/40 p-1.5 rounded-lg border border-slate-700/50 text-center">
                                                     <p className="text-[9px] text-slate-500 uppercase font-bold mb-0.5">Precio Venta</p>
-                                                    <p className="text-emerald-300 font-mono">{fmtPrice(sale.sellPrice)}</p>
+                                                    <p className="text-sky-400 font-mono">{fmtPrice(sale.sellPrice)}</p>
                                                 </div>
                                                 <div className="bg-slate-900/40 p-1.5 rounded-lg border border-slate-700/50 text-center">
                                                     <p className="text-[9px] text-slate-500 uppercase font-bold mb-0.5">Precio Actual</p>
-                                                    <p className="text-sky-400 font-mono">{cp > 0 ? fmtPrice(cp) : "—"}</p>
+                                                    <p className={`font-mono ${cp > 0 ? priceColor(priceDirections?.[sale.coin]) : "text-slate-500"}`}>{cp > 0 ? fmtPrice(cp) : "—"}</p>
                                                 </div>
                                                 <div className="bg-slate-900/40 p-1.5 rounded-lg border border-slate-700/50 text-center">
                                                     <p className="text-[9px] text-slate-500 uppercase font-bold mb-0.5">Si Recompras</p>
@@ -190,9 +193,9 @@ const SalesHistoryTable: React.FC<SalesHistoryTableProps> = React.memo(
                                                     </span>
                                                 </td>
                                                 <td className="p-5 text-right text-slate-300 font-mono">{fmt(sale.quantity)}</td>
-                                                <td className="p-5 text-right text-emerald-300 font-mono">{fmtPrice(sale.sellPrice)}</td>
-                                                <td className="p-5 text-right text-emerald-400 font-mono font-bold">{fmtUSD(sale.usdtReceived)}</td>
-                                                <td className="p-5 text-right text-sky-400 font-mono">
+                                                <td className="p-5 text-right text-sky-400 font-mono">{fmtPrice(sale.sellPrice)}</td>
+                                                <td className="p-5 text-right text-slate-300 font-mono font-bold">{fmtUSD(sale.usdtReceived)}</td>
+                                                <td className={`p-5 text-right font-mono ${cp > 0 ? priceColor(priceDirections?.[sale.coin]) : "text-slate-500"}`}>
                                                     {cp > 0 ? fmtPrice(cp) : "—"}
                                                 </td>
                                                 <td className="p-5 text-right">

@@ -167,8 +167,8 @@ export default function InvestmentAlertModal({
                                     <div key={index} className="flex items-center justify-between bg-slate-800 border border-slate-700 rounded-lg px-3 py-2">
                                         <div className="flex items-center gap-2 min-w-0">
                                             <div className="flex flex-col min-w-0">
-                                                <span className={`flex items-center gap-1 text-sm font-bold ${alert.type === 'price' ? 'text-yellow-400' : (alert.targetPercent >= 0 ? "text-green-400" : "text-red-400")}`}>
-                                                    {alert.direction === 'up' ? '🔼' : '🔽'}
+                                                <span className={`flex items-center gap-1 text-sm font-bold ${(isOnHold ? alert.direction !== 'up' : alert.direction === 'up') ? 'text-green-400' : 'text-red-400'}`}>
+                                                    {(isOnHold ? alert.direction !== 'up' : alert.direction === 'up') ? '🔼' : '🔽'}
                                                     {alert.type === 'price' ? fmtPrice(alert.targetValue || 0) : `${alert.targetPercent >= 0 ? "+" : ""}${alert.targetPercent}%`}
                                                 </span>
                                                 <span className="text-[9px] text-slate-500 uppercase font-bold tracking-tight">
@@ -179,7 +179,7 @@ export default function InvestmentAlertModal({
                                                 )}
                                             </div>
                                             {alert.isPersistent ? (
-                                                <span className={`flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap border ${isOnHold ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' : 'bg-green-500/20 text-green-400 border-green-500/30'}`}>
+                                                <span className={`flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap border ${isOnHold ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' : (alert.direction === 'up' ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30')}`}>
                                                     <Repeat className="w-2.5 h-2.5" /> {isOnHold ? 'En Pausa' : 'Armada'}
                                                 </span>
                                             ) : (
