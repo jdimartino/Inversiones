@@ -140,6 +140,7 @@ async function runCheckAlerts() {
             saleMeta = conf.saleMeta;
         }
     }
+    const dbUpdates = {};
     // Fill in any saleMeta entries missing from the config by reading the ventas collection.
     // This is a fallback for sales whose metadata was lost due to the overwrite bug.
     const hasMissingSaleMeta = Object.keys(investmentAlerts).some(k => k.startsWith('sale_') && !saleMeta[k]);
@@ -150,7 +151,9 @@ async function runCheckAlerts() {
             if (investmentAlerts[saleKey] && !saleMeta[saleKey]) {
                 const v = d.data();
                 saleMeta[saleKey] = { coin: v.coin, usdtReceived: v.usdtReceived, quantity: v.quantity };
-                console.log(`[FALLBACK] saleMeta recuperado de ventas para ${saleKey} (${v.coin})`);
+                // Persist the recovered entry so the fallback doesn't run every check
+                dbUpdates[`saleMeta.${saleKey}`] = saleMeta[saleKey];
+                console.log(`[FALLBACK] saleMeta recuperado y persistido para ${saleKey} (${v.coin})`);
             }
         });
     }
@@ -159,7 +162,6 @@ async function runCheckAlerts() {
     let totalCurrentValue = 0;
     const triggeredIndividualMessages = [];
     let hasGlobalAlertsToRemove = false;
-    const dbUpdates = {};
     const individualAssets = [];
     const debugData = [];
     snap.forEach((docSnap) => {
