@@ -61,7 +61,7 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
         return (
             <div className="mb-6 sm:mb-10">
                 <h2 className="text-xs font-bold text-slate-500 mb-4 uppercase tracking-widest hidden sm:flex items-center gap-2 border-b border-slate-800 pb-2">
-                    <Activity className="w-4 h-4 text-emerald-500" /> Detalle de Activos
+                    <Activity className="w-4 h-4 text-emerald-500" /> Compras Realizadas
                 </h2>
                 <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-xl">
                     {/* Mobile */}

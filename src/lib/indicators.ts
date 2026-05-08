@@ -99,6 +99,15 @@ export function calcMACD(closes: number[]): {
   return { line, signal, histogram: line - signal };
 }
 
+// ── Volume Ratio: current volume vs 20-period average ──────────
+export function calcVolumeRatio(klines: Kline[], period: number = 20): number {
+  if (klines.length < period + 1) return 1;
+  const volumes = klines.map(k => k.volume);
+  const avgVol = volumes.slice(-period - 1, -1).reduce((s, v) => s + v, 0) / period;
+  if (avgVol === 0) return 1;
+  return volumes[volumes.length - 1] / avgVol;
+}
+
 // ── Parse Binance kline response ────────────────────────────────
 export function parseKlines(raw: any[]): Kline[] {
   return raw.map((k) => ({
@@ -123,6 +132,8 @@ export function computeIndicators(klines: Kline[]): IndicatorSet {
   const ema12 = calcEMA(closes, 12);
   const ema26 = calcEMA(closes, 26);
   const macd = calcMACD(closes);
+  const prevMacd = closes.length > 1 ? calcMACD(closes.slice(0, -1)) : macd;
+  const volumeRatio = calcVolumeRatio(klines);
 
   return {
     rsi14,
@@ -133,6 +144,8 @@ export function computeIndicators(klines: Kline[]): IndicatorSet {
     macdLine: macd.line,
     macdSignal: macd.signal,
     macdHistogram: macd.histogram,
+    macdPrevHistogram: prevMacd.histogram,
     currentPrice,
+    volumeRatio,
   };
 }

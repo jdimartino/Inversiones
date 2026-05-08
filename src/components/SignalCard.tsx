@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { ChevronDown, ChevronUp, TrendingUp, TrendingDown, Minus, CheckCircle2 } from 'lucide-react';
 import { getCoinStyle } from '../lib/constants';
 import { fmtPrice } from '../lib/format';
 import type { CoinSignal } from '../lib/types/signals';
+import { SIGNAL_LABELS, SIGNAL_COLORS } from '../lib/types/signals';
 import SignalBadge from './SignalBadge';
 
 interface SignalCardProps {
@@ -15,14 +16,29 @@ function getRSIColor(rsi: number): string {
   return 'text-slate-300';
 }
 
-function getRSIBarWidth(rsi: number): string {
-  return `${Math.min(Math.max(rsi, 0), 100)}%`;
-}
-
 function getRSIBarColor(rsi: number): string {
   if (rsi < 30) return 'bg-green-500';
   if (rsi > 70) return 'bg-red-500';
   return 'bg-slate-400';
+}
+
+function getVolumeColor(ratio: number, price: number, sma20: number): string {
+  if (ratio < 0.5) return 'text-slate-500';
+  if (ratio < 1.5) return 'text-slate-400';
+  return price >= sma20 ? 'text-green-400' : 'text-red-400';
+}
+
+function getVolumeBadge(ratio: number): { label: string; cls: string } {
+  if (ratio >= 2.0) return { label: 'Muy alto', cls: 'bg-yellow-500/20 text-yellow-400' };
+  if (ratio >= 1.5) return { label: 'Elevado', cls: 'bg-blue-500/20 text-blue-400' };
+  if (ratio < 0.5) return { label: 'Bajo', cls: 'bg-slate-700/50 text-slate-500' };
+  return { label: 'Normal', cls: 'bg-slate-700/30 text-slate-500' };
+}
+
+function getConfidenceBarColor(pct: number): string {
+  if (pct >= 75) return '#22c55e';
+  if (pct >= 50) return '#3b82f6';
+  return '#f59e0b';
 }
 
 const ReasonIcon: React.FC<{ signal: 'bullish' | 'bearish' | 'neutral' }> = ({ signal }) => {
@@ -34,16 +50,26 @@ const ReasonIcon: React.FC<{ signal: 'bullish' | 'bearish' | 'neutral' }> = ({ s
 const SignalCard: React.FC<SignalCardProps> = ({ signal }) => {
   const [expanded, setExpanded] = useState(false);
   const { coin, indicators, confidence, reasons } = signal;
+  const volBadge = getVolumeBadge(indicators.volumeRatio);
 
   return (
-    <div className={`rounded-xl p-3 md:p-4 hover:border-slate-600 transition-colors border ${
+    <div className={`rounded-xl p-3 md:p-4 transition-colors border ${
       signal.inPortfolio
         ? 'border-yellow-500/40 bg-slate-800/90'
         : 'border-slate-700/60 bg-slate-800/80'
     }`}>
+
+      {/* Doble confirmación banner */}
+      {signal.timeframeAgree && (
+        <div className="mb-3 bg-blue-500/10 border border-blue-500/30 rounded-lg px-2.5 py-1.5 flex items-center gap-2">
+          <CheckCircle2 className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
+          <span className="text-[10px] font-bold text-blue-400">DOBLE CONFIRMACIÓN 1H + DIARIO</span>
+        </div>
+      )}
+
       {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
+      <div className="flex items-start justify-between mb-3 gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className={`border px-2 py-1 rounded-lg text-[10px] font-black ${getCoinStyle(coin)}`}>
             {coin}
           </span>
@@ -56,11 +82,25 @@ const SignalCard: React.FC<SignalCardProps> = ({ signal }) => {
             </span>
           )}
         </div>
-        <SignalBadge signal={signal.signal} />
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          <div className="flex items-center gap-1">
+            <span className="text-[8px] text-slate-600 font-bold">1H</span>
+            <SignalBadge signal={signal.signal} />
+          </div>
+          {signal.dailySignal && (
+            <div className="flex items-center gap-1">
+              <span className="text-[8px] text-slate-600 font-bold">1D</span>
+              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${SIGNAL_COLORS[signal.dailySignal]}`}>
+                {SIGNAL_LABELS[signal.dailySignal]}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Indicators */}
       <div className="space-y-2.5 mb-3">
+
         {/* RSI */}
         <div>
           <div className="flex justify-between text-[10px] mb-1">
@@ -72,9 +112,8 @@ const SignalCard: React.FC<SignalCardProps> = ({ signal }) => {
           <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden relative">
             <div
               className={`h-full rounded-full transition-all duration-500 ${getRSIBarColor(indicators.rsi14)}`}
-              style={{ width: getRSIBarWidth(indicators.rsi14) }}
+              style={{ width: `${Math.min(Math.max(indicators.rsi14, 0), 100)}%` }}
             />
-            {/* Overbought/oversold markers */}
             <div className="absolute top-0 bottom-0 w-px bg-green-800" style={{ left: '30%' }} />
             <div className="absolute top-0 bottom-0 w-px bg-red-800" style={{ left: '70%' }} />
           </div>
@@ -111,23 +150,44 @@ const SignalCard: React.FC<SignalCardProps> = ({ signal }) => {
           <span className="text-[10px] text-slate-500 font-bold uppercase">MACD</span>
           <span className={`text-[10px] font-bold ${indicators.macdHistogram >= 0 ? 'text-green-400' : 'text-red-400'}`}>
             {indicators.macdHistogram >= 0 ? '+' : ''}{indicators.macdHistogram.toFixed(4)}
+            {indicators.macdHistogram !== indicators.macdPrevHistogram &&
+              ((indicators.macdPrevHistogram < 0 && indicators.macdHistogram > 0) ||
+               (indicators.macdPrevHistogram > 0 && indicators.macdHistogram < 0)) && (
+              <span className="ml-1 text-yellow-400 text-[8px] font-bold">CRUCE</span>
+            )}
             <span className="text-slate-600 ml-1">
               ({indicators.macdHistogram >= 0 ? 'Alcista' : 'Bajista'})
             </span>
           </span>
         </div>
+
+        {/* Volume */}
+        <div className="flex justify-between items-center">
+          <span className="text-[10px] text-slate-500 font-bold uppercase">Volumen</span>
+          <div className="flex items-center gap-1.5">
+            <span className={`text-[10px] font-bold ${getVolumeColor(indicators.volumeRatio, indicators.currentPrice, indicators.sma20)}`}>
+              {indicators.volumeRatio.toFixed(1)}x
+            </span>
+            <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${volBadge.cls}`}>
+              {volBadge.label}
+            </span>
+          </div>
+        </div>
+
       </div>
 
-      {/* Confidence bar */}
+      {/* Agreement bar */}
       <div className="mb-3">
         <div className="flex justify-between text-[10px] mb-1">
-          <span className="text-slate-500">Confianza</span>
-          <span className="text-slate-300 font-bold">{confidence}%</span>
+          <span className="text-slate-500">Indicadores</span>
+          <span className="text-slate-300 font-bold">
+            {signal.agreementCount}/{signal.totalIndicators} de acuerdo ({confidence}%)
+          </span>
         </div>
         <div className="h-1 bg-slate-700 rounded-full overflow-hidden">
           <div
-            className="h-full rounded-full bg-blue-500 transition-all duration-500"
-            style={{ width: `${confidence}%` }}
+            className="h-full rounded-full transition-all duration-500"
+            style={{ width: `${confidence}%`, background: getConfidenceBarColor(confidence) }}
           />
         </div>
       </div>

@@ -217,10 +217,12 @@ async function runCheckAlerts() {
                         const target = rule.targetPercent || 0;
                         if (direction === 'up') {
                             triggeredIndividualMessages.push(`🚀 *${inv.coin}* subió a *${pnlSign(roiPercent)}${roiPercent.toFixed(1)}%* (Meta: 🔼 >= ${target}%)`
+                                + `\n${pnlEmoji(pnl)} PNL neto: ${pnlSign(pnl)}$${fmt(pnl)}`
                                 + (rule.note ? `\n_📝 ${rule.note}_` : ""));
                         }
                         else {
                             triggeredIndividualMessages.push(`📉 *${inv.coin}* cayó a *${roiPercent.toFixed(1)}%* (Límite: 🔽 <= ${target}%)`
+                                + `\n${pnlEmoji(pnl)} PNL neto: ${pnlSign(pnl)}$${fmt(pnl)}`
                                 + (rule.note ? `\n_📝 ${rule.note}_` : ""));
                         }
                     }
@@ -228,10 +230,12 @@ async function runCheckAlerts() {
                         const target = rule.targetValue || 0;
                         if (direction === 'up') {
                             triggeredIndividualMessages.push(`💰 *${inv.coin}* alcanzó *${fmtPrice(currentPrice)}* (Meta: 🔼 >= ${fmtPrice(target)})`
+                                + `\n${pnlEmoji(pnl)} PNL neto: ${pnlSign(pnl)}$${fmt(pnl)} (${pnlSign(roiPercent)}${roiPercent.toFixed(1)}%)`
                                 + (rule.note ? `\n_📝 ${rule.note}_` : ""));
                         }
                         else {
                             triggeredIndividualMessages.push(`📉 *${inv.coin}* bajó a *${fmtPrice(currentPrice)}* (Límite: 🔽 <= ${fmtPrice(target)})`
+                                + `\n${pnlEmoji(pnl)} PNL neto: ${pnlSign(pnl)}$${fmt(pnl)} (${pnlSign(roiPercent)}${roiPercent.toFixed(1)}%)`
                                 + (rule.note ? `\n_📝 ${rule.note}_` : ""));
                         }
                     }
@@ -309,6 +313,7 @@ async function runCheckAlerts() {
         const roi = meta.usdtReceived > 0
             ? ((meta.usdtReceived - meta.quantity * currentPrice) / meta.usdtReceived) * 100
             : 0;
+        const recompraPnl = meta.usdtReceived - meta.quantity * currentPrice;
         const remaining = [];
         let hasChanged = false;
         for (const rule of alertRules) {
@@ -338,14 +343,14 @@ async function runCheckAlerts() {
                 if (type === 'pnl') {
                     const target = rule.targetPercent || 0;
                     triggeredIndividualMessages.push(direction === 'up'
-                        ? `🚀 *${meta.coin}* (venta) subió a *${pnlSign(roi)}${roi.toFixed(1)}%* (Meta: 🔼 >= ${target}%)` + (rule.note ? `\n_📝 ${rule.note}_` : "")
-                        : `📉 *${meta.coin}* (venta) bajó a *${roi.toFixed(1)}%* (Límite: 🔽 <= ${target}%)` + (rule.note ? `\n_📝 ${rule.note}_` : ""));
+                        ? `🚀 *${meta.coin}* (venta) subió a *${pnlSign(roi)}${roi.toFixed(1)}%* (Meta: 🔼 >= ${target}%)\n${pnlEmoji(recompraPnl)} Si recompras: ${pnlSign(recompraPnl)}$${fmt(recompraPnl)}` + (rule.note ? `\n_📝 ${rule.note}_` : "")
+                        : `📉 *${meta.coin}* (venta) bajó a *${roi.toFixed(1)}%* (Límite: 🔽 <= ${target}%)\n${pnlEmoji(recompraPnl)} Si recompras: ${pnlSign(recompraPnl)}$${fmt(recompraPnl)}` + (rule.note ? `\n_📝 ${rule.note}_` : ""));
                 }
                 else {
                     const target = rule.targetValue || 0;
                     triggeredIndividualMessages.push(direction === 'up'
-                        ? `💰 *${meta.coin}* (venta) alcanzó *${fmtPrice(currentPrice)}* (Meta: 🔼 >= ${fmtPrice(target)})` + (rule.note ? `\n_📝 ${rule.note}_` : "")
-                        : `📉 *${meta.coin}* (venta) bajó a *${fmtPrice(currentPrice)}* (Límite: 🔽 <= ${fmtPrice(target)})` + (rule.note ? `\n_📝 ${rule.note}_` : ""));
+                        ? `💰 *${meta.coin}* (venta) alcanzó *${fmtPrice(currentPrice)}* (Meta: 🔼 >= ${fmtPrice(target)})\n${pnlEmoji(recompraPnl)} Si recompras: ${pnlSign(recompraPnl)}$${fmt(recompraPnl)} (${pnlSign(roi)}${roi.toFixed(1)}%)` + (rule.note ? `\n_📝 ${rule.note}_` : "")
+                        : `📉 *${meta.coin}* (venta) bajó a *${fmtPrice(currentPrice)}* (Límite: 🔽 <= ${fmtPrice(target)})\n${pnlEmoji(recompraPnl)} Si recompras: ${pnlSign(recompraPnl)}$${fmt(recompraPnl)} (${pnlSign(roi)}${roi.toFixed(1)}%)` + (rule.note ? `\n_📝 ${rule.note}_` : ""));
                 }
                 console.log(`[SALE ALERT v3] ${meta.coin} (${saleKey}) — ${type.toUpperCase()}: ${type === 'pnl' ? roi.toFixed(2) + '%' : currentPrice} — Target: ${direction === 'up' ? '>=' : '<='} ${type === 'pnl' ? rule.targetPercent + '%' : rule.targetValue} — Tipo: ${rule.isPersistent ? 'PERMANENTE' : 'UNA VEZ'}`);
                 if (rule.isPersistent) {
@@ -611,7 +616,7 @@ exports.testAlerts = functions
 exports.checkPNLAlerts = functions
     .region('europe-west1')
     .runWith({ secrets: ["TELEGRAM_TOKEN", "TELEGRAM_CHAT_ID"] })
-    .pubsub.schedule("every 15 minutes").onRun(async (_context) => {
+    .pubsub.schedule("every 10 minutes").onRun(async (_context) => {
     try {
         await runCheckAlerts();
     }
@@ -819,7 +824,7 @@ exports.testTradingSignals = functions
 exports.checkTradingSignals = functions
     .region('europe-west1')
     .runWith({ secrets: ["TELEGRAM_TOKEN", "TELEGRAM_CHAT_ID"] })
-    .pubsub.schedule("every 15 minutes").onRun(async (_context) => {
+    .pubsub.schedule("every 10 minutes").onRun(async (_context) => {
     try {
         await runTradingSignals();
     }

@@ -32,13 +32,14 @@ export default function SignalsTab({
 
   // Summary counts
   const summary = useMemo(() => {
-    let buys = 0, sells = 0, holds = 0;
+    let buys = 0, sells = 0, holds = 0, confirmed = 0;
     for (const s of signals) {
       if (s.signal === 'strong_buy' || s.signal === 'buy') buys++;
       else if (s.signal === 'strong_sell' || s.signal === 'sell') sells++;
       else holds++;
+      if (s.timeframeAgree) confirmed++;
     }
-    return { buys, sells, holds };
+    return { buys, sells, holds, confirmed };
   }, [signals]);
 
   const handleRefresh = onRefresh;
@@ -106,6 +107,13 @@ export default function SignalsTab({
               <span className="text-red-400 font-bold">{summary.sells}</span>
               <span className="text-slate-500 text-xs">Venta</span>
             </span>
+            {summary.confirmed > 0 && (
+              <span className="flex items-center gap-1.5 border-l border-slate-700 pl-4">
+                <span className="w-2 h-2 rounded-full bg-blue-500" />
+                <span className="text-blue-400 font-bold">{summary.confirmed}</span>
+                <span className="text-slate-500 text-xs">1H+1D</span>
+              </span>
+            )}
           </div>
         </div>
       )}

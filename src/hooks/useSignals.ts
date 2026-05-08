@@ -6,8 +6,8 @@ import type { CoinSignal, FearGreedData, Kline } from '../lib/types/signals';
 
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-async function fetchKlines(symbol: string, signal?: AbortSignal): Promise<any[]> {
-  const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1h&limit=100`;
+async function fetchKlines(symbol: string, interval: string = '1h', limit: number = 100, signal?: AbortSignal): Promise<any[]> {
+  const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
   const res = await fetch(url, { signal });
   if (!res.ok) throw new Error(`Binance klines ${res.status}`);
   return res.json();
@@ -43,9 +43,13 @@ export function useSignals() {
       const coins = Object.keys(SYMBOL_MAP);
       const results = await Promise.allSettled(
         coins.map((coin) =>
-          fetchKlines(SYMBOL_MAP[coin], controller.signal).then((raw) => ({
+          Promise.all([
+            fetchKlines(SYMBOL_MAP[coin], '1h', 100, controller.signal),
+            fetchKlines(SYMBOL_MAP[coin], '1d', 100, controller.signal),
+          ]).then(([rawHourly, rawDaily]) => ({
             coin,
-            klines: parseKlines(raw),
+            klinesHourly: parseKlines(rawHourly),
+            klinesDaily: parseKlines(rawDaily),
           }))
         )
       );
@@ -53,13 +57,29 @@ export function useSignals() {
       const coinSignals: CoinSignal[] = [];
       const newKlinesMap: Record<string, Kline[]> = {};
 
+      const signalDir = (s: string) =>
+        s === 'strong_buy' || s === 'buy' ? 'buy' :
+        s === 'strong_sell' || s === 'sell' ? 'sell' : 'hold';
+
       for (const result of results) {
         if (result.status === 'fulfilled') {
-          const { coin, klines } = result.value;
-          newKlinesMap[coin] = klines;
-          if (klines.length >= 50) {
-            const indicators = computeIndicators(klines);
+          const { coin, klinesHourly, klinesDaily } = result.value;
+          newKlinesMap[coin] = klinesHourly;
+          if (klinesHourly.length >= 50) {
+            const indicators = computeIndicators(klinesHourly);
             const signal = computeSignal(coin, indicators, fearGreed);
+
+            // Compute daily signal for dual-timeframe confirmation
+            if (klinesDaily.length >= 50) {
+              const dailyIndicators = computeIndicators(klinesDaily);
+              const daily = computeSignal(coin, dailyIndicators, fearGreed);
+              signal.dailySignal = daily.signal;
+              signal.dailyConfidence = daily.confidence;
+              const hDir = signalDir(signal.signal);
+              const dDir = signalDir(daily.signal);
+              signal.timeframeAgree = hDir !== 'hold' && dDir !== 'hold' && hDir === dDir;
+            }
+
             coinSignals.push(signal);
           }
         }
@@ -70,17 +90,16 @@ export function useSignals() {
         s.inPortfolio = portfolioCoins?.has(s.coin) ?? false;
       }
 
-      // Sort: portfolio first, then by signal strength
+      // Sort: portfolio first, confirmed first within group, then signal strength
       const signalOrder: Record<string, number> = {
         strong_buy: 0, strong_sell: 1, buy: 2, sell: 3, hold: 4,
       };
-      coinSignals.sort(
-        (a, b) => {
-          if (a.inPortfolio !== b.inPortfolio) return a.inPortfolio ? -1 : 1;
-          return (signalOrder[a.signal] ?? 5) - (signalOrder[b.signal] ?? 5) ||
-            b.confidence - a.confidence;
-        }
-      );
+      coinSignals.sort((a, b) => {
+        if (a.inPortfolio !== b.inPortfolio) return a.inPortfolio ? -1 : 1;
+        if ((a.timeframeAgree ?? false) !== (b.timeframeAgree ?? false)) return a.timeframeAgree ? -1 : 1;
+        return (signalOrder[a.signal] ?? 5) - (signalOrder[b.signal] ?? 5) ||
+          b.confidence - a.confidence;
+      });
 
       const now = Date.now();
       cacheRef.current = { data: coinSignals, klines: newKlinesMap, timestamp: now };

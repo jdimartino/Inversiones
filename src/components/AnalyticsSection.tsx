@@ -12,6 +12,8 @@ import InvestmentTimeline from "./charts/InvestmentTimeline";
 import CandlestickChart from "./charts/CandlestickChart";
 import TechnicalSummary from "./charts/TechnicalSummary";
 import FearGreedGauge from "./charts/FearGreedGauge";
+import PositionBubble from "./charts/PositionBubble";
+import LtvGauges from "./charts/LtvGauges";
 import SignalCard from "./SignalCard";
 import AITraderAnalysis from "./AITraderAnalysis";
 
@@ -42,6 +44,7 @@ interface AnalyticsSectionProps {
 const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
     aggregated,
     items,
+    loans,
     totalValue,
     signals = [],
     klinesMap = {},
@@ -89,8 +92,12 @@ const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
                     <PnlBarChart aggregated={aggregated} />
                     <PerformanceTreemap aggregated={aggregated} />
                     <IndividualTreemap items={items} />
+                    <PositionBubble aggregated={aggregated} signals={signals} />
                     <div className="md:col-span-2">
                         <InvestmentTimeline items={items} />
+                    </div>
+                    <div className="md:col-span-2">
+                        <LtvGauges loans={loans} />
                     </div>
                 </div>
             )}

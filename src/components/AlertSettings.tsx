@@ -70,7 +70,10 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                                         <span className="text-[9px] text-slate-500 font-bold">{alerts.length} alerta{alerts.length !== 1 ? "s" : ""}</span>
                                     </div>
                                     <div className="flex flex-wrap gap-1.5">
-                                        {(alerts as WatchlistAlert[]).sort((a, b) => b.targetValue - a.targetValue).map((alert, index) => {
+                                        {(alerts as WatchlistAlert[]).sort((a, b) => {
+                                            const cp = prices[coin] ?? 0;
+                                            return Math.abs(a.targetValue - cp) - Math.abs(b.targetValue - cp);
+                                        }).map((alert, index) => {
                                             const cp = prices[coin] ?? 0;
                                             const isOnHold = alert.isPersistent && (
                                                 alert.direction === 'up' ? cp >= alert.targetValue : cp <= alert.targetValue
@@ -160,6 +163,14 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                             const sale = !inv ? sales?.find((s) => s.id === realSaleId) : undefined;
                             const coinName = inv?.coin ?? sale?.coin ?? config.saleMeta?.[id]?.coin ?? "Desconocido";
                             const currentPrice = inv ? (prices[inv.coin] || inv.buyPrice) : (sale ? (prices[sale.coin] || sale.sellPrice) : 0);
+                            const pnlUsd = inv
+                                ? currentPrice * inv.quantity - inv.invested
+                                : sale ? sale.usdtReceived - sale.quantity * currentPrice : null;
+                            const pnlPct = inv && inv.invested > 0
+                                ? ((currentPrice * inv.quantity - inv.invested) / inv.invested) * 100
+                                : sale && sale.usdtReceived > 0
+                                    ? ((sale.usdtReceived - sale.quantity * currentPrice) / sale.usdtReceived) * 100
+                                    : null;
                             if (!Array.isArray(alerts) || alerts.length === 0) return null;
 
                             return (
@@ -170,6 +181,11 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                                             {currentPrice > 0 && (
                                                 <span className="text-base font-bold text-white font-mono">
                                                     {fmtPrice(currentPrice)}
+                                                </span>
+                                            )}
+                                            {pnlUsd !== null && pnlPct !== null && (
+                                                <span className={`text-xs font-bold font-mono ${pnlUsd >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                    {pnlUsd >= 0 ? '+' : ''}{fmtUSD(pnlUsd)} ({pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(1)}%)
                                                 </span>
                                             )}
                                             {id.startsWith('sale_') && sale && sale.sellPrice > 0 && (
@@ -184,9 +200,14 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                                     </div>
                                     <div className="flex flex-wrap gap-1.5">
                                         {[...alerts].sort((a, b) => {
-                                            const va = a.type === 'price' ? a.targetValue || 0 : -Infinity;
-                                            const vb = b.type === 'price' ? b.targetValue || 0 : -Infinity;
-                                            return vb - va;
+                                            const currentPct = pnlPct ?? 0;
+                                            const va = a.type === 'price'
+                                                ? Math.abs((a.targetValue || 0) - currentPrice)
+                                                : Math.abs((a.targetPercent || 0) - currentPct);
+                                            const vb = b.type === 'price'
+                                                ? Math.abs((b.targetValue || 0) - currentPrice)
+                                                : Math.abs((b.targetPercent || 0) - currentPct);
+                                            return va - vb;
                                         }).map((alert: InvestmentAlert, index: number) => {
                                             const originalIndex = (alerts as InvestmentAlert[]).indexOf(alert);
                                             const roi = inv

@@ -177,6 +177,11 @@ const App: React.FC = () => {
     setActiveTab("graficos");
   }, []);
 
+  const handleViewChartSale = useCallback((sale: SaleRecord) => {
+    setGraficoCoin(sale.coin);
+    setActiveTab("graficos");
+  }, []);
+
   const handleMarcoAsset = useCallback((item: ProcessedInvestment) => {
     setMarcoItem({
       coin: item.coin, operationType: "buy",
@@ -361,6 +366,7 @@ const App: React.FC = () => {
                   onAlert={handleAlertSale}
                   activeAlertIds={activeAlertIds}
                   priceDirections={priceDirections}
+                  onViewChart={handleViewChartSale}
                 />
                 <AssetTable
                   items={sortedPortfolio}
@@ -401,6 +407,7 @@ const App: React.FC = () => {
                   onAlert={handleAlertSale}
                   activeAlertIds={activeAlertIds}
                   priceDirections={priceDirections}
+                  onViewChart={handleViewChartSale}
                 />
               </>
             )}

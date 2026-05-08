@@ -75,6 +75,9 @@ const AITraderAnalysis: React.FC<AITraderAnalysisProps> = ({ coin, signal, fearG
                 signalStrength: signal.signal,
                 reasons: signal.reasons,
                 notes: notes.trim() || undefined,
+                volumeRatio: signal.indicators.volumeRatio,
+                dailySignal: signal.dailySignal,
+                timeframeAgree: signal.timeframeAgree,
             });
 
             const text = response.data.analysis;
@@ -111,6 +114,10 @@ const AITraderAnalysis: React.FC<AITraderAnalysisProps> = ({ coin, signal, fearG
                     <DataChip label={`MACD ${signal.indicators.macdLine > 0 ? "+" : ""}${signal.indicators.macdLine.toFixed(4)}`} />
                     <DataChip label={`SMA20/50`} />
                     {fearGreed && <DataChip label={`F&G ${fearGreed.value}`} />}
+                    {signal.indicators.volumeRatio !== undefined && (
+                        <DataChip label={`Vol ${signal.indicators.volumeRatio.toFixed(1)}x`} />
+                    )}
+                    {signal.timeframeAgree && <DataChip label="1H+1D ✓" />}
                 </div>
             )}
 

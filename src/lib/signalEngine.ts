@@ -91,25 +91,24 @@ function scoreSMACross(price: number, sma20: number, sma50: number): SignalReaso
   };
 }
 
-// ── MACD scoring ────────────────────────────────────────────────
-function scoreMACD(histogram: number, line: number, signal: number): SignalReason {
-  // Crossover detection: line just crossed above signal
-  const isBullishCross = line > signal && histogram > 0 && Math.abs(histogram) < Math.abs(line) * 0.3;
-  const isBearishCross = line < signal && histogram < 0 && Math.abs(histogram) < Math.abs(line) * 0.3;
+// ── MACD scoring — crossover by sign change ─────────────────────
+function scoreMACD(histogram: number, prevHistogram: number): SignalReason {
+  const crossedBullish = prevHistogram < 0 && histogram > 0;
+  const crossedBearish = prevHistogram > 0 && histogram < 0;
 
-  if (isBullishCross) {
+  if (crossedBullish) {
     return {
       indicator: 'MACD',
       signal: 'bullish',
-      detail: 'MACD cruce alcista — momentum comprando fuerza',
+      detail: 'MACD cruce alcista confirmado — momentum cambia a positivo',
       weight: 2,
     };
   }
-  if (isBearishCross) {
+  if (crossedBearish) {
     return {
       indicator: 'MACD',
       signal: 'bearish',
-      detail: 'MACD cruce bajista — momentum perdiendo fuerza',
+      detail: 'MACD cruce bajista confirmado — momentum cambia a negativo',
       weight: -2,
     };
   }
@@ -133,6 +132,43 @@ function scoreMACD(histogram: number, line: number, signal: number): SignalReaso
     indicator: 'MACD',
     signal: 'neutral',
     detail: 'MACD neutral',
+    weight: 0,
+  };
+}
+
+// ── Volume scoring ──────────────────────────────────────────────
+function scoreVolume(volumeRatio: number, price: number, sma20: number): SignalReason {
+  const trend = price >= sma20 ? 'bullish' : 'bearish';
+  const trendLabel = trend === 'bullish' ? 'alcista' : 'bajista';
+
+  if (volumeRatio >= 2.0) {
+    return {
+      indicator: 'Volumen',
+      signal: trend,
+      detail: `Volumen ${volumeRatio.toFixed(1)}x promedio — movimiento de alta convicción (${trendLabel})`,
+      weight: trend === 'bullish' ? 1.5 : -1.5,
+    };
+  }
+  if (volumeRatio >= 1.5) {
+    return {
+      indicator: 'Volumen',
+      signal: trend,
+      detail: `Volumen elevado (${volumeRatio.toFixed(1)}x) — confirma dirección del precio`,
+      weight: trend === 'bullish' ? 1 : -1,
+    };
+  }
+  if (volumeRatio < 0.5) {
+    return {
+      indicator: 'Volumen',
+      signal: 'neutral',
+      detail: `Volumen bajo (${volumeRatio.toFixed(1)}x) — movimiento sin respaldo`,
+      weight: 0,
+    };
+  }
+  return {
+    indicator: 'Volumen',
+    signal: 'neutral',
+    detail: `Volumen normal (${volumeRatio.toFixed(1)}x promedio)`,
     weight: 0,
   };
 }
@@ -188,28 +224,27 @@ export function computeSignal(
   const reasons: SignalReason[] = [
     scoreRSI(indicators.rsi14),
     scoreSMACross(indicators.currentPrice, indicators.sma20, indicators.sma50),
-    scoreMACD(indicators.macdHistogram, indicators.macdLine, indicators.macdSignal),
+    scoreMACD(indicators.macdHistogram, indicators.macdPrevHistogram),
+    scoreVolume(indicators.volumeRatio, indicators.currentPrice, indicators.sma20),
   ];
 
-  // Weights: RSI 25%, SMA 25%, MACD 30%, Fear&Greed 20%
-  const weights = [0.25, 0.25, 0.30];
-  let totalWeight = 0.80;
+  // Weights: RSI 22%, SMA 22%, MACD 26%, Volume 16% (= 86%) | + F&G 14% = 100%
+  const weights = [0.22, 0.22, 0.26, 0.16];
+  let totalWeight = 0.86;
 
   if (fearGreed) {
     const fgReason = scoreFearGreed(fearGreed);
     reasons.push(fgReason);
-    weights.push(0.20);
+    weights.push(0.14);
     totalWeight = 1.0;
   }
 
-  // Weighted average score
   let weightedSum = 0;
   for (let i = 0; i < reasons.length; i++) {
     weightedSum += reasons[i].weight * weights[i];
   }
   const score = weightedSum / totalWeight;
 
-  // Map score to signal strength
   let signal: SignalStrength;
   if (score >= 1.2) signal = 'strong_buy';
   else if (score >= 0.4) signal = 'buy';
@@ -217,8 +252,16 @@ export function computeSignal(
   else if (score > -1.2) signal = 'sell';
   else signal = 'strong_sell';
 
-  // Confidence: how far from neutral (0) the score is, scaled to 0-100
-  const confidence = Math.min(Math.round(Math.abs(score) / 2 * 100), 100);
+  // Confidence: % of indicators agreeing with signal direction
+  const isBullish = signal === 'strong_buy' || signal === 'buy';
+  const isBearish = signal === 'strong_sell' || signal === 'sell';
+  let agreementCount = 0;
+  for (const r of reasons) {
+    if (isBullish && r.signal === 'bullish') agreementCount++;
+    else if (isBearish && r.signal === 'bearish') agreementCount++;
+    else if (!isBullish && !isBearish && r.signal === 'neutral') agreementCount++;
+  }
+  const confidence = Math.round((agreementCount / reasons.length) * 100);
 
   return {
     coin,
@@ -228,5 +271,7 @@ export function computeSignal(
     reasons,
     timestamp: Date.now(),
     inPortfolio: false,
+    agreementCount,
+    totalIndicators: reasons.length,
   };
 }

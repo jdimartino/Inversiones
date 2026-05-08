@@ -199,6 +199,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
     const [measureStart, setMeasureStart] = useState<MeasureAnchor | null>(null);
     const [measureEnd, setMeasureEnd] = useState<MeasureAnchor | null>(null);
     const [measureStats, setMeasureStats] = useState<MeasureStats | null>(null);
+    const measureWasTouchRef = useRef(false);
 
     // Explorer popover state
     const [showExplorer, setShowExplorer] = useState(false);
@@ -269,6 +270,21 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
         window.addEventListener("keydown", fn);
         return () => window.removeEventListener("keydown", fn);
     }, [measureMode]);
+
+    // Auto-fetch 1h klines when klinesMap doesn't have data for the selected coin
+    useEffect(() => {
+        if (!selectedCoin) return;
+        if (klinesMap[selectedCoin] || extraKlines[selectedCoin]?.["1h"]) return;
+        setLoading(true);
+        fetchKlines(selectedCoin, "1h")
+            .then((klines) => {
+                setExtraKlines((prev) => ({
+                    ...prev,
+                    [selectedCoin]: { ...prev[selectedCoin], "1h": klines },
+                }));
+            })
+            .finally(() => setLoading(false));
+    }, [selectedCoin, klinesMap]);
 
     // Fetch non-1h klines on demand
     useEffect(() => {
@@ -597,6 +613,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
     const handleMeasureMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
         if (!measureOverlayRef.current) return;
         e.preventDefault();
+        measureWasTouchRef.current = false;
         const rect = measureOverlayRef.current.getBoundingClientRect();
         const anchor = { x: e.clientX - rect.left, y: e.clientY - rect.top };
         setMeasureStart(anchor); setMeasureEnd(anchor);
@@ -678,6 +695,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
     const handleMeasureTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
         if (!measureOverlayRef.current) return;
         e.preventDefault();
+        measureWasTouchRef.current = true;
         const touch = e.touches[0];
         const rect = measureOverlayRef.current.getBoundingClientRect();
         const anchor = { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
@@ -741,8 +759,15 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
         const containerH = mainContainerRef.current?.clientHeight ?? 420;
         const containerW = mainContainerRef.current?.clientWidth ?? 600;
         const ttH = 88, ttW = 160;
-        let top = measureRect.top + measureRect.height + 8;
-        if (top + ttH > containerH) top = measureRect.top - ttH - 8;
+        let top: number;
+        if (measureWasTouchRef.current) {
+            // On touch devices the finger covers the bottom — always prefer above
+            top = measureRect.top - ttH - 8;
+            if (top < 4) top = measureRect.top + measureRect.height + 8;
+        } else {
+            top = measureRect.top + measureRect.height + 8;
+            if (top + ttH > containerH) top = measureRect.top - ttH - 8;
+        }
         top = Math.max(4, top);
         let left = measureRect.left + measureRect.width / 2 - ttW / 2;
         left = Math.max(4, Math.min(left, containerW - ttW - 4));
@@ -884,13 +909,10 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                 {/* Price display — center */}
                 {(() => {
                     const klines = getCurrentKlines();
-                    const first = klines[0];
                     const last = klines[klines.length - 1];
                     const price = currentPrice || last?.close || 0;
-                    const change = first && last ? ((last.close - first.open) / first.open) * 100 : null;
                     const dir = priceDirections[selectedCoin];
                     const priceColor = dir === "up" ? "text-green-400" : dir === "down" ? "text-red-400" : "text-yellow-300";
-                    const changeUp = change !== null && change >= 0;
                     if (!price) return null;
                     return (
                         <div className="flex flex-col items-center">
