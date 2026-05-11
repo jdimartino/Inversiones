@@ -498,6 +498,8 @@ const App: React.FC = () => {
               fearGreedLoading={fgLoading}
               initialCoin={graficoCoin}
               priceDirections={priceDirections}
+              closedTrades={closedTrades}
+              sales={sales}
             />
           </div>
         )}

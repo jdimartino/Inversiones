@@ -7,7 +7,7 @@ import {
     IChartApi,
     ISeriesApi,
 } from "lightweight-charts";
-import { AggregatedAsset, ProcessedInvestment } from "../../lib/constants";
+import { AggregatedAsset, ProcessedInvestment, ClosedTrade, SaleRecord } from "../../lib/constants";
 import type { Kline, CoinSignal } from "../../lib/types/signals";
 import ChartCard from "./ChartCard";
 import { coinColor } from "./chartColors";
@@ -120,6 +120,8 @@ interface CandlestickChartProps {
     signals?: CoinSignal[];
     onCoinChange?: (coin: string) => void;
     priceDirections?: Record<string, "up" | "down" | "neutral">;
+    closedTrades?: ClosedTrade[];
+    sales?: SaleRecord[];
 }
 
 type Interval = "15m" | "1h" | "4h" | "1d" | "1M";
@@ -177,7 +179,7 @@ async function fetchKlines(coin: string, interval: Interval): Promise<Kline[]> {
 // ── Component ───────────────────────────────────────────────────────
 
 const CandlestickChart: React.FC<CandlestickChartProps> = ({
-    aggregated, klinesMap, items, initialCoin, signals = [], onCoinChange, priceDirections = {},
+    aggregated, klinesMap, items, initialCoin, signals = [], onCoinChange, priceDirections = {}, closedTrades = [], sales = [],
 }) => {
     const portfolioCoins = aggregated.filter((a) => a.currentValue > 0).map((a) => a.coin);
     const extraCoins = Object.keys(klinesMap).filter(c => !portfolioCoins.includes(c));
@@ -500,6 +502,23 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                 })
             );
         });
+        const allSellPrices = [
+            ...closedTrades.filter((t) => t.coin === selectedCoin).map((t) => t.sellPrice),
+            ...sales.filter((s) => s.coin === selectedCoin).map((s) => s.sellPrice),
+        ];
+        allSellPrices.forEach((price) => {
+            priceLinesRef.current.push(
+                candleSeriesRef.current!.createPriceLine({
+                    price,
+                    color: "#ef4444",
+                    lineWidth: 2,
+                    lineStyle: LineStyle.Dashed,
+                    axisLabelVisible: true,
+                    title: "Venta",
+                })
+            );
+        });
+
         if (asset?.avgBuyPrice && coinItems.length > 1) {
             priceLinesRef.current.push(
                 candleSeriesRef.current!.createPriceLine({
@@ -546,7 +565,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                 candleSeriesRef.current?.priceScale().applyOptions({ autoScale: false });
             });
         }
-    }, [selectedCoin, selectedInterval, extraKlines, klinesMap, aggregated, items]);
+    }, [selectedCoin, selectedInterval, extraKlines, klinesMap, aggregated, items, closedTrades, sales]);
 
     const currentPrice = aggregated.find(a => a.coin === selectedCoin)?.currentPrice ?? 0;
 
@@ -1015,6 +1034,10 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                 <span className="flex items-center gap-1">
                     <span className="w-5 h-px inline-block" style={{ background: "#22d3ee" }} />
                     Actual
+                </span>
+                <span className="flex items-center gap-1">
+                    <span className="w-5 border-t-2 border-dashed border-[#ef4444] inline-block" />
+                    Venta
                 </span>
             </div>
 
