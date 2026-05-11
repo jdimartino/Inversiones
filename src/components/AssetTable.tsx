@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Activity, Pencil, Bell, TrendingUp, LineChart, Archive, Brain } from "lucide-react";
 import { getCoinStyle, getCoinTextColor, ProcessedInvestment } from "../lib/constants";
 import { fmt, fmtUSD, fmtPrice } from "../lib/format";
@@ -56,6 +56,19 @@ const ActionBtn: React.FC<{
 
 const AssetTable: React.FC<AssetTableProps> = React.memo(
     ({ items, activeAlertIds, onDelete, onEdit, onAlert, onSellEvaluate, onViewChart, onClosePosition, onMarcoAnalysis, priceDirections = {} }) => {
+        const totals = useMemo(() => {
+            let invested = 0;
+            let currentValue = 0;
+            let profit = 0;
+            for (const item of items) {
+                invested += item.invested;
+                currentValue += item.currentValue;
+                profit += item.profit;
+            }
+            const roi = invested > 0 ? (profit / invested) * 100 : 0;
+            return { invested, currentValue, profit, roi };
+        }, [items]);
+
         if (items.length === 0) return null;
 
         return (
@@ -147,6 +160,32 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                                 </div>
                             </div>
                         ))}
+                        <div className="p-3 bg-slate-900/60 border-t-2 border-slate-600">
+                            <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-2">
+                                Total ({items.length} compra{items.length !== 1 ? "s" : ""})
+                            </p>
+                            <div className="grid grid-cols-3 gap-2 text-sm">
+                                <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50 text-center">
+                                    <p className="text-[10px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Invertido</p>
+                                    <p className="text-slate-400 font-mono text-[13px] font-bold">{fmtUSD(totals.invested)}</p>
+                                </div>
+                                <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50 text-center">
+                                    <p className="text-[10px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Valor</p>
+                                    <p className="text-slate-300 font-mono text-[13px] font-bold">{fmtUSD(totals.currentValue)}</p>
+                                </div>
+                                <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50 text-center">
+                                    <p className="text-[10px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">PNL Neto</p>
+                                    <div className="flex flex-col items-center">
+                                        <span className={`font-bold text-sm ${totals.profit >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                            {totals.profit >= 0 ? "+" : ""}{fmtUSD(totals.profit)}
+                                        </span>
+                                        <span className={`text-[11px] font-bold ${totals.profit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                            {totals.profit >= 0 ? "+" : ""}{totals.roi.toFixed(2)}%
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Desktop */}
@@ -245,6 +284,27 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                                 </tr>
                             ))}
                         </tbody>
+                        <tfoot>
+                            <tr className="bg-slate-900/60 border-t-2 border-slate-600">
+                                <td className="p-5 text-[10px] uppercase text-slate-500 font-black tracking-widest" colSpan={3}>
+                                    Total ({items.length} compra{items.length !== 1 ? "s" : ""})
+                                </td>
+                                <td className="p-5 text-right">
+                                    <div className="text-slate-300 font-mono font-bold">{fmtUSD(totals.currentValue)}</div>
+                                    <div className="text-[10px] text-slate-500 font-mono mt-0.5">Inv: {fmtUSD(totals.invested)}</div>
+                                </td>
+                                <td />
+                                <td className="p-5 text-right">
+                                    <div className={`font-bold ${totals.profit >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                        {totals.profit >= 0 ? "+" : ""}{fmtUSD(totals.profit)}
+                                    </div>
+                                    <div className={`text-xs font-bold ${totals.profit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                        {totals.profit >= 0 ? "+" : ""}{totals.roi.toFixed(2)}%
+                                    </div>
+                                </td>
+                                <td colSpan={2} />
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             </div>

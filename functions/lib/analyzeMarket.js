@@ -151,6 +151,15 @@ exports.analyzeMarket = functions
     const volumeLine = data.volume24h
         ? `📊 Volumen 24h: $${data.volume24h.toLocaleString("en-US", { maximumFractionDigits: 0 })}`
         : "";
+    const volumeRatioLine = data.volumeRatio !== undefined
+        ? `📊 Ratio volumen vs promedio 20p: ${data.volumeRatio.toFixed(2)}x${data.volumeRatio >= 2 ? " — alta convicción" : data.volumeRatio < 0.5 ? " — volumen bajo (movimiento sin respaldo)" : " — volumen normal"}`
+        : "";
+    const dailySignalLine = data.dailySignal
+        ? `📅 Señal DIARIA (1D): ${data.dailySignal.replace(/_/g, " ").toUpperCase()}`
+        : "";
+    const timeframeAgreeLine = data.timeframeAgree
+        ? `🔁 Doble confirmación 1H + 1D: señales alineadas en ambos timeframes — mayor fiabilidad`
+        : "";
     const target5 = data.price * 1.05;
     const target7 = data.price * 1.07;
     const target10 = data.price * 1.10;
@@ -266,6 +275,9 @@ ${data.notes ? `\n🗒️ INSTRUCCIÓN ESPECÍFICA DEL TRADER (PRIORITARIA — r
 ${fgLine ? `  ${fgLine}` : ""}
 ${range24h ? `  ${range24h}` : ""}
 ${volumeLine ? `  ${volumeLine}` : ""}
+${volumeRatioLine ? `  ${volumeRatioLine}` : ""}
+${dailySignalLine ? `  ${dailySignalLine}` : ""}
+${timeframeAgreeLine ? `  ${timeframeAgreeLine}` : ""}
 
 🟢 SEÑAL DE COMPRA del sistema: ${(data.signalStrength || "NEUTRAL").replace(/_/g, " ").toUpperCase()}
 Factores alcistas:

@@ -1072,3 +1072,117 @@ export const testDailyReport = functions
         res.status(500).send(e.message);
     }
 });
+
+// ─── Daily PNL Snapshot ───────────────────────────────────────────────────────
+
+const SNAPSHOT_SYMBOL_MAP: Record<string, string> = {
+    BTC: "BTCUSDT", ETH: "ETHUSDT", ADA: "ADAUSDT", DOGE: "DOGEUSDT",
+    LTC: "LTCUSDT", BNB: "BNBUSDT", SOL: "SOLUSDT", XRP: "XRPUSDT",
+    DOT: "DOTUSDT", MATIC: "MATICUSDT", SHIB: "SHIBUSDT", AVAX: "AVAXUSDT",
+    LINK: "LINKUSDT",
+};
+
+async function runDailyPnlSnapshot(): Promise<void> {
+    const today = new Date().toLocaleDateString("en-CA", {
+        timeZone: "America/Argentina/Buenos_Aires",
+    }); // YYYY-MM-DD en zona Argentina
+
+    // Idempotente: si ya existe el snapshot de hoy no hace nada
+    const existing = await db.collection("pnlSnapshots").doc(today).get();
+    if (existing.exists) {
+        console.log(`[snapshot] Ya existe para ${today}, salteando.`);
+        return;
+    }
+
+    // Leer portfolio y ventas en paralelo
+    const [portfolioSnap, salesSnap] = await Promise.all([
+        db.collection("inversiones").get(),
+        db.collection("ventas").get(),
+    ]);
+
+    const portfolio = portfolioSnap.docs.map(d => d.data());
+    const sales = salesSnap.docs.map(d => d.data());
+
+    if (!portfolio.length && !sales.length) {
+        console.log("[snapshot] Sin datos, salteando.");
+        return;
+    }
+
+    // Obtener precios de Binance
+    const symbols = Object.values(SNAPSHOT_SYMBOL_MAP);
+    const { data: tickerData } = await axios.get<{ symbol: string; price: string }[]>(
+        `https://api.binance.com/api/v3/ticker/price?symbols=${encodeURIComponent(JSON.stringify(symbols))}`
+    );
+    const reverseMap = Object.fromEntries(
+        Object.entries(SNAPSHOT_SYMBOL_MAP).map(([coin, sym]) => [sym, coin])
+    );
+    const prices: Record<string, number> = { USDT: 1 };
+    for (const item of tickerData) {
+        const coin = reverseMap[item.symbol];
+        if (coin) prices[coin] = parseFloat(item.price);
+    }
+
+    // Calcular PNL de compras (portfolio activo)
+    let portfolioInvested = 0;
+    let portfolioValue = 0;
+    for (const item of portfolio) {
+        const currentPrice = prices[item.coin as string] || Number(item.buyPrice) || 0;
+        portfolioInvested += Number(item.invested) || 0;
+        portfolioValue += Number(item.quantity) * currentPrice;
+    }
+    const portfolioPnl = portfolioValue - portfolioInvested;
+    const portfolioRoi = portfolioInvested > 0 ? (portfolioPnl / portfolioInvested) * 100 : 0;
+
+    // Calcular recompra PNL de ventas (cuánto cobré vs cuánto cuesta recomprar hoy)
+    let salesReceived = 0;
+    let salesCost = 0;
+    for (const sale of sales) {
+        const currentPrice = prices[sale.coin as string] || 0;
+        salesReceived += Number(sale.usdtReceived) || 0;
+        salesCost += Number(sale.quantity) * currentPrice;
+    }
+    const salesPnl = salesReceived - salesCost;
+    const salesRoi = salesReceived > 0 ? (salesPnl / salesReceived) * 100 : 0;
+
+    await db.collection("pnlSnapshots").doc(today).set({
+        date: today,
+        timestamp: Date.now(),
+        portfolioInvested,
+        portfolioValue,
+        portfolioPnl,
+        portfolioRoi,
+        salesReceived,
+        salesCost,
+        salesPnl,
+        salesRoi,
+    });
+
+    console.log(
+        `[snapshot] Guardado para ${today}: portfolio PNL=$${portfolioPnl.toFixed(2)} (${portfolioRoi.toFixed(2)}%), ventas PNL=$${salesPnl.toFixed(2)} (${salesRoi.toFixed(2)}%)`
+    );
+}
+
+/** Corre automáticamente a medianoche hora Argentina */
+export const dailyPnlSnapshot = functions
+    .region("europe-west1")
+    .pubsub.schedule("0 0 * * *")
+    .timeZone("America/Argentina/Buenos_Aires")
+    .onRun(async () => {
+        try {
+            await runDailyPnlSnapshot();
+        } catch (e) {
+            console.error("[snapshot] Error:", e);
+        }
+    });
+
+/** Endpoint HTTP para disparar manualmente (testing) */
+export const testDailyPnlSnapshot = functions
+    .region("europe-west1")
+    .https.onRequest(async (_req, res) => {
+        try {
+            await runDailyPnlSnapshot();
+            res.json({ ok: true });
+        } catch (e: any) {
+            res.status(500).send(e.message);
+        }
+    });

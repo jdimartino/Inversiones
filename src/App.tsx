@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { Activity, RefreshCw } from "lucide-react";
 import {
   RISK_PARAMS,
@@ -39,6 +39,8 @@ import InvestmentAlertModal from "./components/InvestmentAlertModal";
 import GlobalAlertModal from "./components/GlobalAlertModal";
 import WatchlistAlertModal from "./components/WatchlistAlertModal";
 import MarcoAnalysisModal, { MarcoAnalysisModalProps } from "./components/MarcoAnalysisModal";
+import { usePortfolioSnapshots } from "./hooks/usePortfolioSnapshots";
+import DailyPnlChart from "./components/charts/DailyPnlChart";
 
 const App: React.FC = () => {
   const { portfolio, addInvestment, removeInvestment, updateInvestment } = usePortfolio();
@@ -49,6 +51,8 @@ const App: React.FC = () => {
   const { prices, priceDirections, loading, refresh } = usePrices();
   const { signals, klinesMap, loading: signalsLoading, error: signalsError, lastUpdated: signalsLastUpdated, fetchSignals, forceRefresh: forceRefreshSignals } = useSignals();
   const { data: fearGreed, loading: fgLoading } = useFearGreed();
+  const { snapshots, saveSnapshot, loading: snapshotsLoading } = usePortfolioSnapshots();
+  const hasSavedTodayRef = useRef(false);
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
   const [graficoCoin, setGraficoCoin] = useState<string | undefined>(undefined);
   const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
@@ -93,11 +97,37 @@ const App: React.FC = () => {
       .sort((a, b) => b.profit - a.profit);
   }, [portfolio, prices]);
 
-  // ── Computed: totals (single-pass reduce) ────────────────────────
+  // ── Computed: processed sales (open ventas) ──────────────────────
+  const processedSales = useMemo<ProcessedInvestment[]>(() => {
+    return sales.map((sale) => {
+      const currentPrice = prices[sale.coin] || 0;
+      const currentValue = sale.quantity * currentPrice;
+      const profit = sale.usdtReceived - currentValue;
+      const roi = sale.usdtReceived > 0 ? (profit / sale.usdtReceived) * 100 : 0;
+      return {
+        id: `sale_${sale.id}`,
+        coin: sale.coin,
+        buyPrice: sale.sellPrice,
+        quantity: sale.quantity,
+        invested: sale.usdtReceived,
+        date: sale.date,
+        currentPrice,
+        currentValue,
+        profit,
+        roi,
+      };
+    });
+  }, [sales, prices]);
+
+  // ── Computed: totals (single-pass reduce, includes open sales) ──
   const { totalInvested, totalValue, totalPnl, totalRoi } = useMemo(() => {
     let inv = 0;
     let val = 0;
     for (const item of sortedPortfolio) {
+      inv += item.invested;
+      val += item.currentValue;
+    }
+    for (const item of processedSales) {
       inv += item.invested;
       val += item.currentValue;
     }
@@ -108,7 +138,44 @@ const App: React.FC = () => {
       totalPnl: pnl,
       totalRoi: inv > 0 ? (pnl / inv) * 100 : 0,
     };
-  }, [sortedPortfolio]);
+  }, [sortedPortfolio, processedSales]);
+
+  // ── Daily PNL snapshot (once per day, when data is ready) ────────
+  useEffect(() => {
+    if (hasSavedTodayRef.current) return;
+    if (!sortedPortfolio.length || loading || snapshotsLoading) return;
+
+    const today = new Date().toISOString().slice(0, 10);
+    if (snapshots.some((s) => s.date === today)) {
+      hasSavedTodayRef.current = true;
+      return;
+    }
+
+    const portfolioInvested = sortedPortfolio.reduce((s, i) => s + i.invested, 0);
+    const portfolioValue = sortedPortfolio.reduce((s, i) => s + i.currentValue, 0);
+    const portfolioPnl = portfolioValue - portfolioInvested;
+    const portfolioRoi = portfolioInvested > 0 ? (portfolioPnl / portfolioInvested) * 100 : 0;
+
+    // processedSales: item.invested = usdtReceived, item.currentValue = qty × currentPrice
+    const salesReceived = processedSales.reduce((s, i) => s + i.invested, 0);
+    const salesCost = processedSales.reduce((s, i) => s + i.currentValue, 0);
+    const salesPnl = salesReceived - salesCost;
+    const salesRoi = salesReceived > 0 ? (salesPnl / salesReceived) * 100 : 0;
+
+    saveSnapshot({
+      date: today,
+      timestamp: Date.now(),
+      portfolioInvested,
+      portfolioValue,
+      portfolioPnl,
+      portfolioRoi,
+      salesReceived,
+      salesCost,
+      salesPnl,
+      salesRoi,
+    });
+    hasSavedTodayRef.current = true;
+  }, [sortedPortfolio, processedSales, snapshots, loading, snapshotsLoading, saveSnapshot]);
 
   // ── Computed: aggregated averages per coin ────────────────────────
   const aggregatedList = useMemo<AggregatedAsset[]>(() => {
@@ -432,6 +499,13 @@ const App: React.FC = () => {
               initialCoin={graficoCoin}
               priceDirections={priceDirections}
             />
+          </div>
+        )}
+
+        {/* ── RENDIMIENTO ───────────────────────────────────────────── */}
+        {activeTab === "rendimiento" && (
+          <div key="rendimiento" className={tabClass}>
+            <DailyPnlChart snapshots={snapshots} />
           </div>
         )}
 
