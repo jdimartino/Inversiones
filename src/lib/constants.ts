@@ -56,19 +56,6 @@ export interface SaleRecord {
     date: number;
 }
 
-export interface PnlSnapshot {
-    date: string;               // YYYY-MM-DD (también doc ID en Firestore)
-    timestamp: number;
-    portfolioInvested: number;
-    portfolioValue: number;
-    portfolioPnl: number;
-    portfolioRoi: number;
-    salesReceived: number;
-    salesCost: number;
-    salesPnl: number;
-    salesRoi: number;
-}
-
 export interface AggregatedAsset {
     coin: string;
     totalQty: number;
