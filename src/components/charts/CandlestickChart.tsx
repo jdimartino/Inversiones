@@ -498,7 +498,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
             priceLinesRef.current.push(
                 candleSeriesRef.current!.createPriceLine({
                     price: inv.buyPrice, color: "#60a5fa", lineWidth: 1,
-                    lineStyle: LineStyle.Dotted, axisLabelVisible: false, title: "Compra",
+                    lineStyle: LineStyle.Dotted, axisLabelVisible: true, title: "Compra",
                 })
             );
         });

@@ -32,6 +32,7 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
     return (
         <div className="space-y-3 md:space-y-4">
 
+
             {/* ── Watchlist Alerts ──────────────────── */}
             <div className="bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 md:p-4">
                 <div className="flex items-center justify-between mb-3">
@@ -482,6 +483,7 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                     </div>
                 )}
             </div>
+
         </div>
     );
 }
