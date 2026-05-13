@@ -194,6 +194,11 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
                                                     venta @ {fmtPrice(sale.sellPrice)}
                                                 </span>
                                             )}
+                                            {!id.startsWith('sale_') && inv && inv.buyPrice > 0 && (
+                                                <span className="text-[9px] text-slate-400 bg-slate-800 border border-slate-700 px-1.5 py-0.5 rounded font-bold">
+                                                    compra @ {fmtPrice(inv.buyPrice)}
+                                                </span>
+                                            )}
                                         </div>
                                         <span className="text-[9px] text-slate-500 font-bold">
                                             {alerts.length} alerta{alerts.length !== 1 ? "s" : ""}
