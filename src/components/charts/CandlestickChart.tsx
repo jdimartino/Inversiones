@@ -7,7 +7,7 @@ import {
     IChartApi,
     ISeriesApi,
 } from "lightweight-charts";
-import { AggregatedAsset, ProcessedInvestment, ClosedTrade, SaleRecord } from "../../lib/constants";
+import { AggregatedAsset, ProcessedInvestment, SaleRecord } from "../../lib/constants";
 import type { Kline, CoinSignal } from "../../lib/types/signals";
 import ChartCard from "./ChartCard";
 import { coinColor } from "./chartColors";
@@ -120,7 +120,6 @@ interface CandlestickChartProps {
     signals?: CoinSignal[];
     onCoinChange?: (coin: string) => void;
     priceDirections?: Record<string, "up" | "down" | "neutral">;
-    closedTrades?: ClosedTrade[];
     sales?: SaleRecord[];
 }
 
@@ -179,7 +178,7 @@ async function fetchKlines(coin: string, interval: Interval): Promise<Kline[]> {
 // ── Component ───────────────────────────────────────────────────────
 
 const CandlestickChart: React.FC<CandlestickChartProps> = ({
-    aggregated, klinesMap, items, initialCoin, signals = [], onCoinChange, priceDirections = {}, closedTrades = [], sales = [],
+    aggregated, klinesMap, items, initialCoin, signals = [], onCoinChange, priceDirections = {}, sales = [],
 }) => {
     const portfolioCoins = aggregated.filter((a) => a.currentValue > 0).map((a) => a.coin);
     const extraCoins = Object.keys(klinesMap).filter(c => !portfolioCoins.includes(c));
@@ -503,7 +502,6 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
             );
         });
         const allSellPrices = [
-            ...closedTrades.filter((t) => t.coin === selectedCoin).map((t) => t.sellPrice),
             ...sales.filter((s) => s.coin === selectedCoin).map((s) => s.sellPrice),
         ];
         allSellPrices.forEach((price) => {
@@ -565,7 +563,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                 candleSeriesRef.current?.priceScale().applyOptions({ autoScale: false });
             });
         }
-    }, [selectedCoin, selectedInterval, extraKlines, klinesMap, aggregated, items, closedTrades, sales]);
+    }, [selectedCoin, selectedInterval, extraKlines, klinesMap, aggregated, items, sales]);
 
     const currentPrice = aggregated.find(a => a.coin === selectedCoin)?.currentPrice ?? 0;
 

@@ -1,0 +1,34 @@
+[debug] [2026-05-14T16:34:35.625Z] ----------------------------------------------------------------------
+[debug] [2026-05-14T16:34:35.627Z] Command:       /opt/homebrew/Cellar/node/25.6.0/bin/node /opt/homebrew/bin/firebase deploy --project micriptoapp
+[debug] [2026-05-14T16:34:35.627Z] CLI Version:   15.5.1
+[debug] [2026-05-14T16:34:35.627Z] Platform:      darwin
+[debug] [2026-05-14T16:34:35.627Z] Node Version:  v25.6.0
+[debug] [2026-05-14T16:34:35.627Z] Time:          Thu May 14 2026 12:34:35 GMT-0400 (Venezuela Time)
+[debug] [2026-05-14T16:34:35.627Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-05-14T16:34:36.473Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-05-14T16:34:36.474Z] > authorizing via signed-in user (dimartinoj@gmail.com)
+[debug] [2026-05-14T16:34:36.474Z] [iam] checking project micriptoapp for permissions ["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2026-05-14T16:34:36.474Z] Checked if tokens are valid: true, expires at: 1778779929917
+[debug] [2026-05-14T16:34:36.474Z] Checked if tokens are valid: true, expires at: 1778779929917
+[debug] [2026-05-14T16:34:36.475Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/micriptoapp:testIamPermissions [none]
+[debug] [2026-05-14T16:34:36.475Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/micriptoapp:testIamPermissions  x-goog-user-project=micriptoapp
+[debug] [2026-05-14T16:34:36.475Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/micriptoapp:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-05-14T16:34:37.148Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/micriptoapp:testIamPermissions 200
+[debug] [2026-05-14T16:34:37.149Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/micriptoapp:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-05-14T16:34:37.149Z] Checked if tokens are valid: true, expires at: 1778779929917
+[debug] [2026-05-14T16:34:37.149Z] Checked if tokens are valid: true, expires at: 1778779929917
+[debug] [2026-05-14T16:34:37.149Z] >>> [apiv2][query] POST https://iam.googleapis.com/v1/projects/micriptoapp/serviceAccounts/micriptoapp@appspot.gserviceaccount.com:testIamPermissions [none]
+[debug] [2026-05-14T16:34:37.149Z] >>> [apiv2][body] POST https://iam.googleapis.com/v1/projects/micriptoapp/serviceAccounts/micriptoapp@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[debug] [2026-05-14T16:34:37.758Z] <<< [apiv2][status] POST https://iam.googleapis.com/v1/projects/micriptoapp/serviceAccounts/micriptoapp@appspot.gserviceaccount.com:testIamPermissions 200
+[debug] [2026-05-14T16:34:37.758Z] <<< [apiv2][body] POST https://iam.googleapis.com/v1/projects/micriptoapp/serviceAccounts/micriptoapp@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[debug] [2026-05-14T16:34:37.759Z] Checked if tokens are valid: true, expires at: 1778779929917
+[debug] [2026-05-14T16:34:37.759Z] Checked if tokens are valid: true, expires at: 1778779929917
+[debug] [2026-05-14T16:34:37.759Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/micriptoapp [none]
+[debug] [2026-05-14T16:34:38.282Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/micriptoapp 200
+[debug] [2026-05-14T16:34:38.282Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/micriptoapp {"projectId":"micriptoapp","projectNumber":"1094343839118","displayName":"Portafolio Inversiones","name":"projects/micriptoapp","resources":{"hostingSite":"micriptoapp"},"state":"ACTIVE","etag":"1_337fcd9b-5aa5-4000-974a-deb2a3ee5a15"}
+[info] 
+[info] === Deploying to 'micriptoapp'...
+[info] 
+[info] i  deploying functions, hosting 
+[info] Running command: npm --prefix "$RESOURCE_DIR" run build

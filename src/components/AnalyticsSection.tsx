@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { BarChart2, TrendingUp } from "lucide-react";
-import { AggregatedAsset, ProcessedInvestment, ProcessedLoan, ClosedTrade, SaleRecord } from "../lib/constants";
+import { AggregatedAsset, ProcessedInvestment, ProcessedLoan, SaleRecord } from "../lib/constants";
 import type { CoinSignal, FearGreedData, Kline } from "../lib/types/signals";
 
 // Chart components
@@ -39,7 +39,6 @@ interface AnalyticsSectionProps {
     fearGreedLoading?: boolean;
     initialCoin?: string;
     priceDirections?: Record<string, "up" | "down" | "neutral">;
-    closedTrades?: ClosedTrade[];
     sales?: SaleRecord[];
 }
 
@@ -54,7 +53,6 @@ const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
     fearGreedLoading = false,
     initialCoin,
     priceDirections = {},
-    closedTrades = [],
     sales = [],
 }) => {
     const [subTab, setSubTab] = useState<SubTab>("mercado");
@@ -111,7 +109,7 @@ const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fadeIn">
                     {hasKlines && (
                         <div className="md:col-span-2">
-                            <CandlestickChart aggregated={aggregated} klinesMap={klinesMap} items={items} initialCoin={initialCoin} signals={signals} onCoinChange={setActiveCoin} priceDirections={priceDirections} closedTrades={closedTrades} sales={sales} />
+                            <CandlestickChart aggregated={aggregated} klinesMap={klinesMap} items={items} initialCoin={initialCoin} signals={signals} onCoinChange={setActiveCoin} priceDirections={priceDirections} sales={sales} />
                             {signals.find(s => s.coin === activeCoin) && (
                                 <div className="mt-3">
                                     <SignalCard signal={signals.find(s => s.coin === activeCoin)!} />

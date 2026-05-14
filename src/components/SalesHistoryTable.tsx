@@ -37,10 +37,15 @@ function priceColor(dir?: PriceDirection): string {
 
 const SalesHistoryTable: React.FC<SalesHistoryTableProps> = React.memo(
     ({ sales, loading, prices, onEdit, onDelete, onBuyEvaluate, onCloseVenta, onMarcoAnalysis, onAlert, activeAlertIds, priceDirections, onViewChart }) => {
-        const sorted = useMemo(
-            () => [...sales].sort((a, b) => b.date - a.date),
-            [sales]
-        );
+        const sorted = useMemo(() => {
+            return [...sales].sort((a, b) => {
+                const cpA = prices[a.coin] || 0;
+                const cpB = prices[b.coin] || 0;
+                const roiA = cpA > 0 && a.usdtReceived > 0 ? (a.usdtReceived - a.quantity * cpA) / a.usdtReceived * 100 : -Infinity;
+                const roiB = cpB > 0 && b.usdtReceived > 0 ? (b.usdtReceived - b.quantity * cpB) / b.usdtReceived * 100 : -Infinity;
+                return roiB - roiA;
+            });
+        }, [sales, prices]);
 
         const { totalUsdtReceived, totalRecompraPnl } = useMemo(() => {
             let usdt = 0;

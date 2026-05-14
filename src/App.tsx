@@ -437,7 +437,7 @@ const App: React.FC = () => {
                 />
               </>
             )}
-            <AggregatedTable items={aggregatedList} priceDirections={priceDirections} />
+            <AggregatedTable items={aggregatedList} priceDirections={priceDirections} openPositions={sortedPortfolio} openSales={sales} closedTrades={closedTrades} />
             <ClosedTradesTable trades={closedTrades} loading={closedTradesLoading} onMarcoAnalysis={handleMarcoClosed} />
           </div>
         )}
@@ -457,7 +457,6 @@ const App: React.FC = () => {
               fearGreedLoading={fgLoading}
               initialCoin={graficoCoin}
               priceDirections={priceDirections}
-              closedTrades={closedTrades}
               sales={sales}
             />
           </div>

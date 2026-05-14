@@ -29,7 +29,7 @@ const ClosedTradesTable: React.FC<ClosedTradesTableProps> = React.memo(
         const [open, setOpen] = useState(false);
 
         const sorted = useMemo(
-            () => [...trades].sort((a, b) => b.sellDate - a.sellDate),
+            () => [...trades].sort((a, b) => b.pnlPercent - a.pnlPercent),
             [trades]
         );
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Calculator, AlertCircle, ShieldCheck, Settings,
   ArrowLeft, TrendingUp, TrendingDown, AlertTriangle,
-  Monitor, Smartphone, CheckCircle2,
+  Monitor, CheckCircle2,
   Save, FolderOpen, X, ShoppingCart
 } from 'lucide-react';
 import { usePrices } from '../hooks/usePrices';
@@ -35,27 +35,6 @@ const STATUS_ICONS: Record<AnalysisStatus, React.ReactElement> = {
 };
 
 // --- COMPONENTES UI REUTILIZABLES ---
-const DeviceToggle = ({ isMobile, setIsMobile }: { isMobile: boolean; setIsMobile: (v: boolean) => void }) => (
-  <div className="flex bg-slate-800 rounded-lg p-1 border border-slate-700">
-    <button
-      onClick={() => setIsMobile(false)}
-      className={`p-1.5 md:p-2 rounded-md flex items-center gap-1 md:gap-2 transition-colors ${!isMobile ? 'bg-slate-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
-      title="Vista PC"
-    >
-      <Monitor className="w-4 h-4 md:w-5 md:h-5" />
-      <span className="text-xs font-medium hidden sm:block">PC</span>
-    </button>
-    <button
-      onClick={() => setIsMobile(true)}
-      className={`p-1.5 md:p-2 rounded-md flex items-center gap-1 md:gap-2 transition-colors ${isMobile ? 'bg-slate-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
-      title="Vista Móvil"
-    >
-      <Smartphone className="w-4 h-4 md:w-5 md:h-5" />
-      <span className="text-xs font-medium hidden sm:block">Móvil</span>
-    </button>
-  </div>
-);
-
 const SaveModal = ({ isOpen, onClose, onSave, defaultName }: { isOpen: boolean; onClose: () => void; onSave: (name: string) => void; defaultName: string }) => {
   const [name, setName] = useState(defaultName || '');
 
@@ -218,15 +197,11 @@ const SellReplicaTrailing = ({ secureTrigger, quantity, coin, trailingDrop, setT
 
 // --- MÓDULO PRINCIPAL: CALCULADORA DE VENTA ---
 const SellCalculator = ({
-  isMobile,
-  setIsMobile,
   onOpenSaved,
   onSaveStrategy,
   loadedData,
   strategyCount
 }: {
-  isMobile: boolean;
-  setIsMobile: (v: boolean) => void;
   onOpenSaved: () => void;
   onSaveStrategy: (name: string, data: SellStrategyData) => void;
   loadedData: SellStrategy | null;
@@ -316,7 +291,7 @@ const SellCalculator = ({
   };
 
   return (
-    <div className={`animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6 ${isMobile ? 'max-w-md mx-auto' : 'max-w-6xl mx-auto'}`}>
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6 max-w-6xl mx-auto">
       <SaveModal isOpen={isSaveModalOpen} onClose={() => setIsSaveModalOpen(false)} onSave={handleSave} defaultName={`${coin} Protección Venta`} />
 
       <div className="flex items-center justify-between border-b border-red-900/50 pb-4">
@@ -340,12 +315,11 @@ const SellCalculator = ({
           <button onClick={() => setIsSaveModalOpen(true)} className="flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors shadow-md active:scale-95">
             <Save className="w-4 h-4" /> <span className="hidden sm:inline">Guardar</span>
           </button>
-          <DeviceToggle isMobile={isMobile} setIsMobile={setIsMobile} />
         </div>
       </div>
 
-      <div className={`grid grid-cols-1 ${isMobile ? '' : 'lg:grid-cols-12'} gap-6 md:gap-8`}>
-        <div className={`${isMobile ? '' : 'lg:col-span-5'} space-y-6`}>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
+        <div className="lg:col-span-5 space-y-6">
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 md:p-5 shadow-lg border-t-4 border-t-red-500 transition-all hover:shadow-red-500/5">
             <h2 className="text-sm md:text-lg font-semibold flex items-center space-x-2 text-white mb-4">
               <Settings className="w-4 h-4 md:w-5 md:h-5 text-red-400" />
@@ -411,7 +385,7 @@ const SellCalculator = ({
           </div>
         </div>
 
-        <div className={`${isMobile ? '' : 'lg:col-span-7'} bg-slate-900 border border-slate-800 rounded-xl p-4 md:p-5 shadow-lg relative`}>
+        <div className="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-xl p-4 md:p-5 shadow-lg relative">
           <div className="flex items-center justify-between mb-4 md:mb-6">
             <h2 className="text-sm md:text-lg font-semibold flex items-center space-x-2 text-white">
               <ShieldCheck className="w-4 h-4 md:w-5 md:h-5 text-blue-400" />
@@ -502,14 +476,10 @@ const SavedStrategiesView = ({
 
 // --- MÓDULO: CALCULADORA DE RECOMPRA ---
 const BuyCalculator = ({
-  isMobile,
-  setIsMobile,
   loadedCoin,
   loadedUsdt,
   loadedSellPrice,
 }: {
-  isMobile: boolean;
-  setIsMobile: (v: boolean) => void;
   loadedCoin?: string;
   loadedUsdt?: number;
   loadedSellPrice?: number;
@@ -605,7 +575,7 @@ const BuyCalculator = ({
   const textColor = { idle: 'text-slate-400', success: 'text-green-400', warning: 'text-yellow-400', danger: 'text-red-400' }[analysisStatus];
 
   return (
-    <div className={`animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6 ${isMobile ? 'max-w-md mx-auto' : 'max-w-6xl mx-auto'}`}>
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between border-b border-green-900/50 pb-4">
         <div className="flex items-center gap-4">
           <div className="p-2 md:p-3 bg-green-600/20 rounded-lg hidden sm:block">
@@ -618,12 +588,11 @@ const BuyCalculator = ({
             <p className="text-slate-400 text-xs md:text-sm">¿Cuánto ganás si recomprás más barato de lo que vendiste?</p>
           </div>
         </div>
-        <DeviceToggle isMobile={isMobile} setIsMobile={setIsMobile} />
       </div>
 
-      <div className={`grid grid-cols-1 ${isMobile ? '' : 'lg:grid-cols-12'} gap-6 md:gap-8`}>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
         {/* Panel izquierdo — inputs */}
-        <div className={`${isMobile ? '' : 'lg:col-span-5'} space-y-6`}>
+        <div className="lg:col-span-5 space-y-6">
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 md:p-5 shadow-lg border-t-4 border-t-green-500">
             <h2 className="text-sm md:text-lg font-semibold flex items-center space-x-2 text-white mb-4">
               <Settings className="w-4 h-4 md:w-5 md:h-5 text-green-400" />
@@ -701,7 +670,7 @@ const BuyCalculator = ({
         </div>
 
         {/* Panel derecho — orden límite de compra */}
-        <div className={`${isMobile ? '' : 'lg:col-span-7'} bg-slate-900 border border-slate-800 rounded-xl p-4 md:p-5 shadow-lg`}>
+        <div className="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-xl p-4 md:p-5 shadow-lg">
           <h2 className="text-sm md:text-lg font-semibold flex items-center space-x-2 text-white mb-6">
             <ShieldCheck className="w-4 h-4 md:w-5 md:h-5 text-green-400" />
             <span>Resumen de la Maniobra</span>
@@ -781,7 +750,6 @@ const BuyCalculator = ({
 export default function SellSuite({ preload, buyPreload }: { preload?: ProcessedInvestment | null; buyPreload?: BuyPreload | null }) {
   const [mode, setMode] = useState<'sell' | 'buy'>('sell');
   const [view, setView] = useState<'sell' | 'saved'>('sell');
-  const [isMobile, setIsMobile] = useState(false);
   const [loadedData, setLoadedData] = useState<SellStrategy | null>(null);
   const [toastMessage, setToastMessage] = useState('');
   const { strategies, addStrategy, removeStrategy } = useSellStrategies();
@@ -864,16 +832,12 @@ export default function SellSuite({ preload, buyPreload }: { preload?: Processed
 
       {mode === 'buy' ? (
         <BuyCalculator
-          isMobile={isMobile}
-          setIsMobile={setIsMobile}
           loadedCoin={buyPreload?.coin}
           loadedUsdt={buyPreload?.usdtAmount}
           loadedSellPrice={buyPreload?.sellPrice}
         />
       ) : (
         <SellCalculator
-          isMobile={isMobile}
-          setIsMobile={setIsMobile}
           onOpenSaved={() => setView('saved')}
           onSaveStrategy={handleSaveStrategy}
           loadedData={loadedData}

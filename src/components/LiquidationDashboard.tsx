@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ShieldAlert, TrendingDown, AlertTriangle, Trash2, Plus, Download, Clock, RefreshCw, CheckCircle, XCircle, FlaskConical } from 'lucide-react';
+import { ShieldAlert, TrendingDown, AlertTriangle, Trash2, Plus, Clock, RefreshCw, CheckCircle, XCircle, FlaskConical } from 'lucide-react';
 import { useLiquidationData, DebtItem, CollateralItem } from '../hooks/useLiquidationData';
 
 const generateId = () => {
@@ -75,16 +75,6 @@ export default function LiquidationDashboard({ prices, pricesLoading, refreshPri
 
   const currentData = liveExchangeData[activeTab];
   const theme = THEMES[currentData.themeKey];
-
-  const exportData = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(liveExchangeData, null, 2));
-    const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", "simulador_prestamos_backup.json");
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
-  };
 
   const handleLTVChange = (value: string) => {
     saveExchangeData(prev => ({
@@ -225,13 +215,6 @@ export default function LiquidationDashboard({ prices, pricesLoading, refreshPri
             >
               <FlaskConical size={16} />
               <span className="hidden sm:inline">{showSimulator ? 'Cerrar Simulación' : 'Simular Caída'}</span>
-            </button>
-            <button
-              onClick={exportData}
-              title="Exportar copia de seguridad JSON"
-              className="px-2.5 py-1.5 rounded-md bg-[#181A20] border border-gray-700 hover:bg-gray-800 text-gray-300 flex items-center gap-2 transition-colors"
-            >
-              <Download size={16} /> <span className="hidden sm:inline text-sm">Respaldo (JSON)</span>
             </button>
             <div className="flex bg-[#181A20] p-1 rounded-lg border border-gray-800">
               <button 
