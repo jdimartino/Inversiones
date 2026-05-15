@@ -127,7 +127,12 @@ export const COIN_COLORS: Record<string, string> = {
 export const getCoinStyle = (coin: string): string =>
     COIN_COLORS[coin] || COIN_COLORS.DEFAULT;
 
-export const getCoinTextColor = (coin: string): string => {
-    const style = COIN_COLORS[coin] || COIN_COLORS.DEFAULT;
-    return style.split(' ').find((c) => c.startsWith('text-')) ?? 'text-slate-400';
-};
+const COIN_TEXT_COLORS: Record<string, string> = Object.fromEntries(
+    Object.entries(COIN_COLORS).map(([coin, style]) => [
+        coin,
+        style.split(' ').find(c => c.startsWith('text-')) || 'text-slate-400',
+    ])
+);
+
+export const getCoinTextColor = (coin: string): string =>
+    COIN_TEXT_COLORS[coin] ?? COIN_TEXT_COLORS.DEFAULT ?? 'text-slate-400';

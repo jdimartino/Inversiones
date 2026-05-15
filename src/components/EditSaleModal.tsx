@@ -15,6 +15,7 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({ sale, onSave, onClose }) 
     const [sellPrice, setSellPrice] = useState(String(sale.sellPrice));
     const [usdtReceived, setUsdtReceived] = useState(String(sale.usdtReceived));
     const [saving, setSaving] = useState(false);
+    const [saveError, setSaveError] = useState("");
 
     const handleSave = useCallback(
         async (e: React.FormEvent) => {
@@ -22,8 +23,11 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({ sale, onSave, onClose }) 
             if (!quantity || !sellPrice || !usdtReceived || saving) return;
             setSaving(true);
             try {
+                setSaveError("");
                 await onSave(sale.id, coin, parseFloat(quantity), parseFloat(sellPrice), parseFloat(usdtReceived));
                 onClose();
+            } catch {
+                setSaveError("Error al guardar. Intenta de nuevo.");
             } finally {
                 setSaving(false);
             }
@@ -110,6 +114,9 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({ sale, onSave, onClose }) 
                             {saving ? "Guardando..." : "Guardar"}
                         </button>
                     </div>
+                    {saveError && (
+                        <p className="text-red-400 text-[10px] text-center mt-1">{saveError}</p>
+                    )}
                 </form>
             </div>
         </div>

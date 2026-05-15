@@ -11,7 +11,7 @@ import { AggregatedAsset, ProcessedInvestment, SaleRecord } from "../../lib/cons
 import type { Kline, CoinSignal } from "../../lib/types/signals";
 import ChartCard from "./ChartCard";
 import { coinColor } from "./chartColors";
-import { fmtPrice } from "../../lib/format";
+import { fmtPrice, fmt } from "../../lib/format";
 import { Maximize2, Minimize2, Bell, Ruler, Plus, X } from "lucide-react";
 import { useAlerts, WatchlistAlert } from "../../hooks/useAlerts";
 
@@ -193,6 +193,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
     const [loading, setLoading] = useState(false);
     const [expanded, setExpanded] = useState(false);
     const [legend, setLegend] = useState<OhlcvLegend | null>(null);
+    const [klinesRange, setKlinesRange] = useState<{ min: number; max: number } | null>(null);
 
     // Measure tool state
     const [measureMode, setMeasureMode] = useState(false);
@@ -455,6 +456,9 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
 
         const times = klines.map((k) => Math.floor(k.openTime / 1000) as any);
         const closes = klines.map((k) => k.close);
+        if (closes.length > 0) {
+            setKlinesRange({ min: Math.min(...closes), max: Math.max(...closes) });
+        }
 
         // Candles
         candleSeriesRef.current.setData(
@@ -558,7 +562,6 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
             // Solo fitContent en el chart principal — el sync de tiempo propaga el rango a RSI y MACD
             candleSeriesRef.current?.priceScale().applyOptions({ autoScale: true });
             mainChartRef.current?.timeScale().fitContent();
-            // Deshabilitar autoScale tras el render inicial para que zoom no reajuste el eje Y
             requestAnimationFrame(() => {
                 candleSeriesRef.current?.priceScale().applyOptions({ autoScale: false });
             });
@@ -566,6 +569,8 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
     }, [selectedCoin, selectedInterval, extraKlines, klinesMap, aggregated, items, sales]);
 
     const currentPrice = aggregated.find(a => a.coin === selectedCoin)?.currentPrice ?? 0;
+    const coinItems = items.filter((inv) => inv.coin === selectedCoin);
+    const coinSales = sales.filter((s) => s.coin === selectedCoin);
 
     const handleSelectExplorerCoin = useCallback(async (coin: string) => {
         const upper = coin.toUpperCase().trim();
@@ -1038,6 +1043,32 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                     Venta
                 </span>
             </div>
+
+            {/* Precios de referencia para la moneda seleccionada */}
+            {(coinSales.length > 0 || coinItems.length > 0) && (
+                <div className="flex items-center gap-x-4 gap-y-0.5 text-[9px] flex-wrap">
+                    {coinSales.map((s, i) => {
+                        const aboveRange = klinesRange && s.sellPrice > klinesRange.max * 1.05;
+                        const belowRange = klinesRange && s.sellPrice < klinesRange.min * 0.95;
+                        const outOfRange = aboveRange || belowRange;
+                        return (
+                            <span key={s.id} className="flex items-center gap-1 text-red-400 font-mono font-bold">
+                                Venta{coinSales.length > 1 ? ` ${i + 1}` : ""}: {fmtPrice(s.sellPrice)} · {fmt(s.quantity)} {s.coin}
+                                {outOfRange && (
+                                    <span className="text-yellow-400 font-normal text-[8px]">
+                                        {aboveRange ? "↑" : "↓"} fuera del gráfico
+                                    </span>
+                                )}
+                            </span>
+                        );
+                    })}
+                    {coinItems.map((inv, i) => (
+                        <span key={inv.id} className="text-sky-400 font-mono">
+                            Compra{coinItems.length > 1 ? ` ${i + 1}` : ""}: {fmtPrice(inv.buyPrice)}
+                        </span>
+                    ))}
+                </div>
+            )}
 
             {/* Inline alert form */}
             {showAlertForm && (

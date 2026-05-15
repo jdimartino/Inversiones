@@ -4,7 +4,16 @@ import { parseKlines, computeIndicators } from '../lib/indicators';
 import { computeSignal } from '../lib/signalEngine';
 import type { CoinSignal, FearGreedData, Kline } from '../lib/types/signals';
 
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+
+async function fetchWithLimit<T>(tasks: (() => Promise<T>)[], limit: number): Promise<PromiseSettledResult<T>[]> {
+  const results: PromiseSettledResult<T>[] = [];
+  for (let i = 0; i < tasks.length; i += limit) {
+    const batch = await Promise.allSettled(tasks.slice(i, i + limit).map(fn => fn()));
+    results.push(...batch);
+  }
+  return results;
+}
 
 async function fetchKlines(symbol: string, interval: string = '1h', limit: number = 100, signal?: AbortSignal): Promise<any[]> {
   const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
@@ -40,19 +49,21 @@ export function useSignals() {
     setError(null);
 
     try {
-      const coins = Object.keys(SYMBOL_MAP);
-      const results = await Promise.allSettled(
-        coins.map((coin) =>
-          Promise.all([
-            fetchKlines(SYMBOL_MAP[coin], '1h', 100, controller.signal),
-            fetchKlines(SYMBOL_MAP[coin], '1d', 100, controller.signal),
-          ]).then(([rawHourly, rawDaily]) => ({
-            coin,
-            klinesHourly: parseKlines(rawHourly),
-            klinesDaily: parseKlines(rawDaily),
-          }))
-        )
+      const allCoins = Object.keys(SYMBOL_MAP);
+      const coins = portfolioCoins && portfolioCoins.size > 0
+        ? allCoins.filter(c => portfolioCoins.has(c))
+        : allCoins;
+      const tasks = coins.map(coin => () =>
+        Promise.all([
+          fetchKlines(SYMBOL_MAP[coin], '1h', 100, controller.signal),
+          fetchKlines(SYMBOL_MAP[coin], '1d', 100, controller.signal),
+        ]).then(([rawHourly, rawDaily]) => ({
+          coin,
+          klinesHourly: parseKlines(rawHourly),
+          klinesDaily: parseKlines(rawDaily),
+        }))
       );
+      const results = await fetchWithLimit(tasks, 5);
 
       const coinSignals: CoinSignal[] = [];
       const newKlinesMap: Record<string, Kline[]> = {};

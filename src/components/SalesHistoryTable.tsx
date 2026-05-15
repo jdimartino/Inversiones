@@ -154,8 +154,8 @@ const SalesHistoryTable: React.FC<SalesHistoryTableProps> = React.memo(
                                                     <p className="text-white font-mono">{fmt(sale.quantity)}</p>
                                                 </div>
                                                 <div className="bg-slate-900/40 p-1.5 rounded-lg border border-slate-700/50 text-center">
-                                                    <p className="text-[9px] text-slate-500 uppercase font-bold mb-0.5">Precio Venta</p>
-                                                    <p className="text-sky-400 font-mono">{fmtPrice(sale.sellPrice)}</p>
+                                                    <p className="text-[9px] text-slate-500 uppercase font-bold mb-0.5">USDT Recibido</p>
+                                                    <p className="text-slate-300 font-mono font-bold">{fmtUSD(sale.usdtReceived)}</p>
                                                 </div>
                                                 <div
                                                     className={`bg-slate-900/40 p-1.5 rounded-lg border border-slate-700/50 text-center ${onViewChart && cp > 0 ? 'cursor-pointer hover:border-slate-500' : ''}`}
@@ -192,8 +192,8 @@ const SalesHistoryTable: React.FC<SalesHistoryTableProps> = React.memo(
                                     <tr>
                                         <th className="p-5">Activo</th>
                                         <th className="p-5 text-right">Cantidad</th>
-                                        <th className="p-5 text-right">Precio Venta</th>
                                         <th className="p-5 text-right">USDT Recibido</th>
+                                        <th className="p-5 text-right">Precio Venta</th>
                                         <th className="p-5 text-right">Precio Actual</th>
                                         <th className="p-5 text-right">Si Recompras Ahora</th>
                                         <th className="p-5 text-center">Fecha</th>
@@ -212,8 +212,8 @@ const SalesHistoryTable: React.FC<SalesHistoryTableProps> = React.memo(
                                                     </span>
                                                 </td>
                                                 <td className="p-5 text-right text-slate-300 font-mono">{fmt(sale.quantity)}</td>
-                                                <td className="p-5 text-right text-sky-400 font-mono">{fmtPrice(sale.sellPrice)}</td>
                                                 <td className="p-5 text-right text-slate-300 font-mono font-bold">{fmtUSD(sale.usdtReceived)}</td>
+                                                <td className="p-5 text-right text-sky-400 font-mono">{fmtPrice(sale.sellPrice)}</td>
                                                 <td
                                                     className={`p-5 text-right font-mono ${cp > 0 ? priceColor(priceDirections?.[sale.coin]) : "text-slate-500"} ${onViewChart && cp > 0 ? 'cursor-pointer hover:underline' : ''}`}
                                                     onClick={() => onViewChart && cp > 0 && onViewChart(sale)}

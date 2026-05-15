@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, memo } from "react";
 import { BarChart2, TrendingUp } from "lucide-react";
 import { AggregatedAsset, ProcessedInvestment, ProcessedLoan, SaleRecord } from "../lib/constants";
 import type { CoinSignal, FearGreedData, Kline } from "../lib/types/signals";
@@ -139,4 +139,4 @@ const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
     );
 };
 
-export default AnalyticsSection;
+export default memo(AnalyticsSection);

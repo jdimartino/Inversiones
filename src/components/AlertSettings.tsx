@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, memo } from "react";
 import { Trash2, Edit2, Repeat, Clock, History, CheckCircle, AlertTriangle, TrendingUp, TrendingDown, Loader2, Eye, Plus, Sun, Send } from "lucide-react";
 import { AlertConfig, GlobalAlert, InvestmentAlert, WatchlistAlert } from "../hooks/useAlerts";
 import type { SaleRecord } from "../lib/constants";
@@ -18,7 +18,7 @@ interface AlertSettingsProps {
     totalPnl?: number;
 }
 
-export default function AlertSettings({ config, saveConfig, onEditGlobal, onEditInvestment, onOpenWatchlist, onEditWatchlistAlert, sales, totalPnl = 0 }: AlertSettingsProps) {
+function AlertSettings({ config, saveConfig, onEditGlobal, onEditInvestment, onOpenWatchlist, onEditWatchlistAlert, sales, totalPnl = 0 }: AlertSettingsProps) {
     const { portfolio } = usePortfolio();
     const { prices } = usePrices();
     const { logs, loading: logsLoading } = useNotificationLogs(15);
@@ -492,3 +492,5 @@ export default function AlertSettings({ config, saveConfig, onEditGlobal, onEdit
         </div>
     );
 }
+
+export default memo(AlertSettings);

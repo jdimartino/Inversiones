@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef, Suspense } from "react";
 import { Activity, RefreshCw } from "lucide-react";
 import {
   RISK_PARAMS,
@@ -25,20 +25,21 @@ import AnalyticsSection from "./components/AnalyticsSection";
 import InvestmentForm from "./components/InvestmentForm";
 import SaleForm from "./components/SaleForm";
 import SalesHistoryTable from "./components/SalesHistoryTable";
-import LiquidationDashboard from "./components/LiquidationDashboard";
-import SellSuite from "./components/SellSuite";
 import SignalsTab from "./components/SignalsTab";
 import EditLoanModal from "./components/EditLoanModal";
 import ClosePositionModal from "./components/ClosePositionModal";
 import CloseVentaModal from "./components/CloseVentaModal";
 import ClosedTradesTable from "./components/ClosedTradesTable";
 import EditSaleModal from "./components/EditSaleModal";
-import AlertSettings from "./components/AlertSettings";
 import EditInvestmentModal from "./components/EditInvestmentModal";
 import InvestmentAlertModal from "./components/InvestmentAlertModal";
 import GlobalAlertModal from "./components/GlobalAlertModal";
 import WatchlistAlertModal from "./components/WatchlistAlertModal";
 import MarcoAnalysisModal, { MarcoAnalysisModalProps } from "./components/MarcoAnalysisModal";
+
+const LiquidationDashboard = React.lazy(() => import("./components/LiquidationDashboard"));
+const SellSuite = React.lazy(() => import("./components/SellSuite"));
+const AlertSettings = React.lazy(() => import("./components/AlertSettings"));
 
 const App: React.FC = () => {
   const { portfolio, addInvestment, removeInvestment, updateInvestment } = usePortfolio();
@@ -47,6 +48,8 @@ const App: React.FC = () => {
   const { loans, addLoan, updateLoan, removeLoan } = useLoans();
   const { config, saveConfig } = useAlerts();
   const { prices, priceDirections, loading, refresh } = usePrices();
+  const pricesRef = useRef(prices);
+  pricesRef.current = prices;
   const { signals, klinesMap, loading: signalsLoading, error: signalsError, lastUpdated: signalsLastUpdated, fetchSignals, forceRefresh: forceRefreshSignals } = useSignals();
   const { data: fearGreed, loading: fgLoading } = useFearGreed();
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
@@ -68,12 +71,10 @@ const App: React.FC = () => {
   const [marcoItem, setMarcoItem] = useState<Omit<MarcoAnalysisModalProps, "fearGreed" | "onClose"> | null>(null);
 
   // ── Computed: unique coins in portfolio ──────────────────────────
-  const portfolioCoins = useMemo(() => {
-    return Array.from(new Set(portfolio.map(item => item.coin)));
+  const { portfolioCoins, portfolioSet } = useMemo(() => {
+    const coins = Array.from(new Set(portfolio.map(item => item.coin)));
+    return { portfolioCoins: coins, portfolioSet: new Set(coins) };
   }, [portfolio]);
-
-  // ── Fetch signals when Fear & Greed data and portfolio coins are ready ──
-  const portfolioSet = useMemo(() => new Set(portfolioCoins), [portfolioCoins]);
   useEffect(() => {
     fetchSignals(fearGreed ?? undefined, portfolioSet);
   }, [fearGreed, fetchSignals, portfolioSet]);
@@ -218,7 +219,7 @@ const App: React.FC = () => {
   }, []);
 
   const handleAlertSale = useCallback((sale: SaleRecord) => {
-    const cp = prices[sale.coin] || 0;
+    const cp = pricesRef.current[sale.coin] || 0;
     // profit/roi desde la perspectiva del vendedor: positivo = precio bajó (puedes recomprar más barato)
     const profit = sale.usdtReceived - sale.quantity * cp;
     const roi = sale.usdtReceived > 0 ? (profit / sale.usdtReceived) * 100 : 0;
@@ -235,16 +236,16 @@ const App: React.FC = () => {
       profit,
       roi,
     });
-  }, [prices]);
+  }, []);
 
   const handleMarcoSale = useCallback((sale: SaleRecord) => {
     setMarcoItem({
       coin: sale.coin, operationType: "sell",
       sellPrice: sale.sellPrice, quantity: sale.quantity,
       usdtReceived: sale.usdtReceived,
-      currentPrice: prices[sale.coin] || 0,
+      currentPrice: pricesRef.current[sale.coin] || 0,
     });
-  }, [prices]);
+  }, []);
 
   const handleMarcoClosed = useCallback((trade: ClosedTrade) => {
     setMarcoItem({
@@ -252,9 +253,9 @@ const App: React.FC = () => {
       buyPrice: trade.buyPrice, sellPrice: trade.sellPrice,
       quantity: trade.quantity,
       closedPnl: trade.pnl, closedPnlPct: trade.pnlPercent,
-      currentPrice: prices[trade.coin] || 0,
+      currentPrice: pricesRef.current[trade.coin] || 0,
     });
-  }, [prices]);
+  }, []);
   const handleCloseAlertModal = useCallback(() => {
     setAlertingInvestment(null);
     setAlertingSale(null);
@@ -271,7 +272,7 @@ const App: React.FC = () => {
       const saleId = investmentId.slice(5);
       const sale = sales.find(s => s.id === saleId);
       if (!sale) return;
-      const cp = prices[sale.coin] || 0;
+      const cp = pricesRef.current[sale.coin] || 0;
       const profit = sale.usdtReceived - sale.quantity * cp;
       const roi = sale.usdtReceived > 0 ? (profit / sale.usdtReceived) * 100 : 0;
       setAlertingSale(sale);
@@ -294,7 +295,7 @@ const App: React.FC = () => {
     const inv = portfolio.find(i => i.id === investmentId);
     if (!inv) return;
 
-    const currentPrice = prices[inv.coin] || inv.buyPrice;
+    const currentPrice = pricesRef.current[inv.coin] || inv.buyPrice;
     const currentValue = inv.quantity * currentPrice;
     const profit = currentValue - inv.invested;
     const roi = inv.invested > 0 ? (profit / inv.invested) * 100 : 0;
@@ -303,7 +304,7 @@ const App: React.FC = () => {
 
     setInvestmentEditIndex(index);
     setAlertingInvestment(processedInv);
-  }, [portfolio, prices, sales]);
+  }, [portfolio, sales]);
 
   const handleSaveGlobalAlerts = useCallback(async (alerts: GlobalAlert[]) => {
     await saveConfig({ ...config, globalAlerts: alerts });
@@ -348,6 +349,38 @@ const App: React.FC = () => {
   // ── Tab fade animation helper ────────────────────────────────────
   const tabClass = "animate-fadeIn";
 
+  // ── Pre-built table nodes to avoid JSX duplication ───────────────
+  const salesTableNode = (
+    <SalesHistoryTable
+      sales={sales}
+      loading={salesLoading}
+      prices={prices}
+      onEdit={setEditingSale}
+      onDelete={deleteSale}
+      onBuyEvaluate={handleBuyEvaluate}
+      onCloseVenta={handleCloseVenta}
+      onMarcoAnalysis={handleMarcoSale}
+      onAlert={handleAlertSale}
+      activeAlertIds={activeAlertIds}
+      priceDirections={priceDirections}
+      onViewChart={handleViewChartSale}
+    />
+  );
+  const assetTableNode = (
+    <AssetTable
+      items={sortedPortfolio}
+      activeAlertIds={activeAlertIds}
+      onDelete={removeInvestment}
+      onEdit={handleEditInvestment}
+      onAlert={handleAlertInvestment}
+      onSellEvaluate={handleSellEvaluate}
+      onViewChart={handleViewChart}
+      onClosePosition={handleClosePosition}
+      onMarcoAnalysis={handleMarcoAsset}
+      priceDirections={priceDirections}
+    />
+  );
+
   // ── Render ───────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 font-sans">
@@ -378,65 +411,10 @@ const App: React.FC = () => {
               hasActiveGlobalAlerts={(config.globalAlerts || []).length > 0}
               onOpenGlobalAlerts={() => setIsGlobalAlertModalOpen(true)}
             />
-            {sales.length > 0 ? (
-              <>
-                <SalesHistoryTable
-                  sales={sales}
-                  loading={salesLoading}
-                  prices={prices}
-                  onEdit={setEditingSale}
-                  onDelete={deleteSale}
-                  onBuyEvaluate={handleBuyEvaluate}
-                  onCloseVenta={handleCloseVenta}
-                  onMarcoAnalysis={handleMarcoSale}
-                  onAlert={handleAlertSale}
-                  activeAlertIds={activeAlertIds}
-                  priceDirections={priceDirections}
-                  onViewChart={handleViewChartSale}
-                />
-                <AssetTable
-                  items={sortedPortfolio}
-                  activeAlertIds={activeAlertIds}
-                  onDelete={removeInvestment}
-                  onEdit={handleEditInvestment}
-                  onAlert={handleAlertInvestment}
-                  onSellEvaluate={handleSellEvaluate}
-                  onViewChart={handleViewChart}
-                  onClosePosition={handleClosePosition}
-                  onMarcoAnalysis={handleMarcoAsset}
-                  priceDirections={priceDirections}
-                />
-              </>
-            ) : (
-              <>
-                <AssetTable
-                  items={sortedPortfolio}
-                  activeAlertIds={activeAlertIds}
-                  onDelete={removeInvestment}
-                  onEdit={handleEditInvestment}
-                  onAlert={handleAlertInvestment}
-                  onSellEvaluate={handleSellEvaluate}
-                  onViewChart={handleViewChart}
-                  onClosePosition={handleClosePosition}
-                  onMarcoAnalysis={handleMarcoAsset}
-                  priceDirections={priceDirections}
-                />
-                <SalesHistoryTable
-                  sales={sales}
-                  loading={salesLoading}
-                  prices={prices}
-                  onEdit={setEditingSale}
-                  onDelete={deleteSale}
-                  onBuyEvaluate={handleBuyEvaluate}
-                  onCloseVenta={handleCloseVenta}
-                  onMarcoAnalysis={handleMarcoSale}
-                  onAlert={handleAlertSale}
-                  activeAlertIds={activeAlertIds}
-                  priceDirections={priceDirections}
-                  onViewChart={handleViewChartSale}
-                />
-              </>
-            )}
+            {sales.length > 0
+              ? <>{salesTableNode}{assetTableNode}</>
+              : <>{assetTableNode}{salesTableNode}</>
+            }
             <AggregatedTable items={aggregatedList} priceDirections={priceDirections} openPositions={sortedPortfolio} openSales={sales} closedTrades={closedTrades} />
             <ClosedTradesTable trades={closedTrades} loading={closedTradesLoading} onMarcoAnalysis={handleMarcoClosed} />
           </div>
@@ -465,14 +443,18 @@ const App: React.FC = () => {
         {/* ── PRÉSTAMOS ─────────────────────────────────────────────── */}
         {activeTab === "prestamos" && (
           <div key="prestamos" className={tabClass}>
-            <LiquidationDashboard prices={prices} pricesLoading={loading} refreshPrices={refresh} />
+            <Suspense fallback={<div className="py-20 text-center text-slate-500 text-sm">Cargando...</div>}>
+              <LiquidationDashboard prices={prices} pricesLoading={loading} refreshPrices={refresh} />
+            </Suspense>
           </div>
         )}
 
         {/* ── VENTA ─────────────────────────────────────────────────── */}
         {activeTab === "venta" && (
           <div key="venta" className={tabClass}>
-            <SellSuite preload={sellPreload} buyPreload={buyPreload} />
+            <Suspense fallback={<div className="py-20 text-center text-slate-500 text-sm">Cargando...</div>}>
+              <SellSuite preload={sellPreload} buyPreload={buyPreload} />
+            </Suspense>
           </div>
         )}
 
@@ -505,16 +487,18 @@ const App: React.FC = () => {
         {/* ── CONFIGURACIÓN (TELEGRAM) ─────────────────────────────────────────── */}
         {activeTab === "configuracion" && (
           <div key="configuracion" className={tabClass}>
-            <AlertSettings
-              config={config}
-              saveConfig={saveConfig}
-              onEditGlobal={handleEditGlobalAlert}
-              onEditInvestment={handleEditInvestmentAlert}
-              onOpenWatchlist={() => setIsWatchlistModalOpen(true)}
-              onEditWatchlistAlert={(coin, index) => { setWatchlistEditTarget({ coin, index }); setIsWatchlistModalOpen(true); }}
-              sales={sales}
-              totalPnl={totalPnl}
-            />
+            <Suspense fallback={<div className="py-20 text-center text-slate-500 text-sm">Cargando...</div>}>
+              <AlertSettings
+                config={config}
+                saveConfig={saveConfig}
+                onEditGlobal={handleEditGlobalAlert}
+                onEditInvestment={handleEditInvestmentAlert}
+                onOpenWatchlist={() => setIsWatchlistModalOpen(true)}
+                onEditWatchlistAlert={(coin, index) => { setWatchlistEditTarget({ coin, index }); setIsWatchlistModalOpen(true); }}
+                sales={sales}
+                totalPnl={totalPnl}
+              />
+            </Suspense>
           </div>
         )}
         {/* ── Footer ────────────────────────────────────────────── */}

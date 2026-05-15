@@ -52,7 +52,19 @@ export function useSales() {
 
     const updateSale = useCallback(
         async (id: string, coin: string, quantity: number, sellPrice: number, usdtReceived: number) => {
-            await updateDoc(doc(db, "ventas", id), { coin, quantity, sellPrice, usdtReceived });
+            let rollback: SaleRecord[] | null = null;
+            setSales(prev => {
+                rollback = prev;
+                return prev.map(s =>
+                    s.id === id ? { ...s, coin, quantity, sellPrice, usdtReceived } : s
+                );
+            });
+            try {
+                await updateDoc(doc(db, "ventas", id), { coin, quantity, sellPrice, usdtReceived });
+            } catch (e) {
+                if (rollback) setSales(rollback);
+                throw e;
+            }
         },
         []
     );
