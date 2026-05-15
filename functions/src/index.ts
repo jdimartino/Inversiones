@@ -155,21 +155,15 @@ async function runCheckAlerts() {
     }
 
     const configSnap = await db.collection("config").doc("alerts").get();
-    let minAlert = -40000;
-    let maxAlert = 10000;
     let investmentAlerts: Record<string, AlertRule[]> = {};
     let globalAlerts: GlobalAlertRule[] = [];
     let watchlistAlerts: Record<string, WatchlistAlertRule[]> = {};
-    let hasMigratedToGlobalAlertsArray = false;
 
     let saleMeta: Record<string, { coin: string; usdtReceived: number; quantity: number }> = {};
 
     if (configSnap.exists) {
         const conf = configSnap.data()!;
-        if (conf.minPNL !== undefined) minAlert = conf.minPNL;
-        if (conf.maxPNL !== undefined) maxAlert = conf.maxPNL;
         if (conf.globalAlerts !== undefined) {
-            hasMigratedToGlobalAlertsArray = true;
             globalAlerts = normalizeGlobalAlerts(conf.globalAlerts);
         }
         if (conf.investmentAlerts) {
@@ -214,8 +208,6 @@ async function runCheckAlerts() {
     let hasGlobalAlertsToRemove = false;
     const individualAssets: { id: string, coin: string, pnl: number, roi: number }[] = [];
 
-    const debugData: any[] = [];
-
     snap.forEach((docSnap) => {
         const inv = docSnap.data();
         const symbol = `${inv.coin}USDT`;
@@ -225,7 +217,7 @@ async function runCheckAlerts() {
         totalInvested += inv.invested || 0;
         totalCurrentValue += currentValue;
         const pnl = currentValue - (inv.invested || 0);
-        
+
         const alertRules = investmentAlerts[docSnap.id];
         const roiPercent = (inv.invested && inv.invested > 0) ? (pnl / inv.invested) * 100 : 0;
 
@@ -243,34 +235,26 @@ async function runCheckAlerts() {
                     : (currentPrice >= (rule.targetValue || 0) ? 'above' : 'below');
                 const prevSide = rule._lastSide;
 
-                const debugRule = {
-                    coin: inv.coin,
-                    type,
-                    direction,
-                    current: type === 'pnl' ? roiPercent : currentPrice,
-                    target: type === 'pnl' ? rule.targetPercent : rule.targetValue,
-                    triggered: false
-                };
-
-                // Base condition check (same logic as before)
+                // Base condition check
                 let conditionMet = false;
                 if (type === 'pnl' && inv.invested > 0) {
                     const target = rule.targetPercent || 0;
                     if (direction === 'up' && roiPercent >= target) conditionMet = true;
                     else if (direction === 'down' && roiPercent <= target) conditionMet = true;
+                } else if (type === 'pnl' && !(inv.invested > 0)) {
+                    console.warn(`[SKIP] Alerta PNL ignorada — invested=0 para ${inv.coin} (${docSnap.id})`);
                 } else if (type === 'price') {
                     const target = rule.targetValue || 0;
                     if (direction === 'up' && currentPrice >= target) conditionMet = true;
                     else if (direction === 'down' && currentPrice <= target) conditionMet = true;
                 }
 
-                // Persistent alerts only fire on crossing; one-shot alerts fire whenever condition is met
+                // Persistent alerts fire on crossing OR on first evaluation (prevSide undefined) if condition is already met
                 const isTriggered = conditionMet && (
-                    !rule.isPersistent || (prevSide !== undefined && prevSide !== currentSide)
+                    !rule.isPersistent || prevSide === undefined || prevSide !== currentSide
                 );
 
                 if (isTriggered) {
-                    // Build message (same text as before)
                     if (type === 'pnl' && inv.invested > 0) {
                         const target = rule.targetPercent || 0;
                         if (direction === 'up') {
@@ -303,7 +287,6 @@ async function runCheckAlerts() {
                         }
                     }
 
-                    debugRule.triggered = true;
                     const tipo = rule.isPersistent ? "PERMANENTE" : "UNA VEZ";
                     const targetVal = type === 'pnl' ? `${rule.targetPercent}%` : `${rule.targetValue}`;
                     console.log(`[ALERTA v3] ${inv.coin} (${docSnap.id}) — ${type.toUpperCase()}: ${type === 'pnl' ? roiPercent.toFixed(2) + '%' : currentPrice} — Target: ${direction === 'up' ? '>=' : '<='} ${targetVal} — Tipo: ${tipo}`);
@@ -324,7 +307,6 @@ async function runCheckAlerts() {
                         remaining.push(rule);
                     }
                 }
-                debugData.push({ ...debugRule, invId: docSnap.id });
             }
 
             if (remaining.length === 0) {
@@ -334,19 +316,9 @@ async function runCheckAlerts() {
                 investmentAlerts[docSnap.id] = remaining;
                 dbUpdates[`investmentAlerts.${docSnap.id}`] = remaining;
             }
-        } else {
-            // Fix 5: Ensure debugData has entries for assets without alerts
-            debugData.push({
-                coin: inv.coin,
-                invId: docSnap.id,
-                type: 'none',
-                current: currentPrice,
-                target: 0,
-                triggered: false
-            });
         }
 
-    individualAssets.push({ id: docSnap.id, coin: inv.coin, pnl, roi: roiPercent || 0 });
+        individualAssets.push({ id: docSnap.id, coin: inv.coin, pnl, roi: roiPercent || 0 });
     });
 
     // Cleanup orphaned alerts (IDs that no longer exist in 'inversiones')
@@ -365,7 +337,10 @@ async function runCheckAlerts() {
     for (const [saleKey, alertRules] of Object.entries(investmentAlerts)) {
         if (!saleKey.startsWith('sale_')) continue;
         const meta = saleMeta[saleKey];
-        if (!meta) continue;
+        if (!meta) {
+            console.warn(`[SKIP] Alerta de venta ignorada — saleMeta faltante para ${saleKey}. Verificar colección ventas.`);
+            continue;
+        }
 
         const symbol = `${meta.coin}USDT`;
         const currentPrice = prices[symbol] || 0;
@@ -398,7 +373,7 @@ async function runCheckAlerts() {
                 else if (direction === 'down' && currentPrice <= target) conditionMet = true;
             }
 
-            const isTriggered = conditionMet && (!rule.isPersistent || (prevSide !== undefined && prevSide !== currentSide));
+            const isTriggered = conditionMet && (!rule.isPersistent || prevSide === undefined || prevSide !== currentSide);
 
             if (isTriggered) {
                 if (type === 'pnl') {
@@ -445,12 +420,6 @@ async function runCheckAlerts() {
     const globalPNL = totalCurrentValue - totalInvested;
     const triggeredGlobalMessages: string[] = [];
     let remainingGlobalAlerts: GlobalAlertRule[] = [];
-    const isLegacyGlobalAlertTriggered = (!hasMigratedToGlobalAlertsArray) && (globalPNL <= minAlert || globalPNL >= maxAlert);
-
-    if (isLegacyGlobalAlertTriggered) {
-        const reason = globalPNL <= minAlert ? "⬇️ Límite inferior alcanzado" : "⬆️ Meta superior alcanzada";
-        triggeredGlobalMessages.push(`🚨 *Alerta Global Legacy:* ${reason} (${pnlSign(globalPNL)}$${fmt(globalPNL)})`);
-    }
 
     let hasGlobalChanged = false;
     for (const rule of globalAlerts) {
@@ -465,7 +434,7 @@ async function runCheckAlerts() {
         else if (direction === 'down' && globalPNL <= target) conditionMet = true;
 
         const isTriggered = conditionMet && (
-            !rule.isPersistent || (prevSide !== undefined && prevSide !== currentSide)
+            !rule.isPersistent || prevSide === undefined || prevSide !== currentSide
         );
 
         if (isTriggered) {
@@ -519,9 +488,9 @@ async function runCheckAlerts() {
             if (rule.direction === 'up' && currentPrice >= rule.targetValue) conditionMet = true;
             else if (rule.direction === 'down' && currentPrice <= rule.targetValue) conditionMet = true;
 
-            // Persistent: only fire on crossing; one-shot: fire whenever condition is met
+            // Persistent: fire on crossing or first evaluation; one-shot: fire whenever condition is met
             const isTriggered = conditionMet && (
-                !rule.isPersistent || (prevSide !== undefined && prevSide !== currentSide)
+                !rule.isPersistent || prevSide === undefined || prevSide !== currentSide
             );
 
             if (isTriggered) {
@@ -553,7 +522,7 @@ async function runCheckAlerts() {
         }
     }
 
-    const shouldAlert = isLegacyGlobalAlertTriggered || triggeredGlobalMessages.length > 0 || triggeredIndividualMessages.length > 0 || triggeredWatchlistMessages.length > 0;
+    const shouldAlert = triggeredGlobalMessages.length > 0 || triggeredIndividualMessages.length > 0 || triggeredWatchlistMessages.length > 0;
 
     // ── Always clean legacy assetAlerts field if present (no Telegram needed) ──
     const legacyCleanup: any = {};
@@ -586,7 +555,7 @@ async function runCheckAlerts() {
 
             await db.collection("notificationLogs").add({
                 sentAt: new Date(),
-                globalAlertTriggered: triggeredGlobalMessages.length > 0 || isLegacyGlobalAlertTriggered,
+                globalAlertTriggered: triggeredGlobalMessages.length > 0,
                 globalPNL: Math.round(globalPNL),
                 triggeredAssets: triggeredIndividualMessages,
                 triggeredGlobalAlerts: triggeredGlobalMessages,
@@ -597,10 +566,10 @@ async function runCheckAlerts() {
                     individualAssets.map(a => [a.id, { coin: a.coin, pnl: a.pnl, roi: a.roi }])
                 ),
             });
-            return { sent: true, summary: "Alerta enviada", debug: debugData };
+            return { sent: true, summary: "Alerta enviada" };
         } else {
             console.error("[ERROR] Telegram falló. Las alertas UNA VEZ NO se eliminan para reintentarlo en la próxima ejecución.");
-            return { sent: false, summary: "Fallo envío Telegram", debug: debugData };
+            return { sent: false, summary: "Fallo envío Telegram" };
         }
     } else {
         // No alerts triggered — still update _lastSide for position tracking and remove orphans.
@@ -610,7 +579,7 @@ async function runCheckAlerts() {
             await db.collection("config").doc("alerts").update(allUpdatesNoAlert);
         }
         console.log("Todo dentro de los límites.");
-        return { sent: false, summary: "Sin alertas", debug: debugData };
+        return { sent: false, summary: "Sin alertas" };
     }
 }
 

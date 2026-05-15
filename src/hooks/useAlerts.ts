@@ -14,6 +14,7 @@ export interface InvestmentAlert {
     isPersistent?: boolean;
     direction?: 'up' | 'down';
     note?: string;
+    _lastSide?: 'above' | 'below'; // set by Cloud Function to track crossing state
 }
 
 export interface GlobalAlert {

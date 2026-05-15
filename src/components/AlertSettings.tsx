@@ -153,11 +153,16 @@ function AlertSettings({ config, saveConfig, onEditGlobal, onEditInvestment, onO
                                 const inv = portfolio.find((i) => i.id === id);
                                 const realSaleId = id.startsWith('sale_') ? id.slice(5) : id;
                                 const sale = !inv ? sales?.find((s) => s.id === realSaleId) : undefined;
-                                const p = inv ? (prices[inv.coin] || inv.buyPrice) : (sale ? (prices[sale.coin] || sale.sellPrice) : 0);
-                                return { id, alerts, price: p };
+                                const cp = inv ? (prices[inv.coin] || inv.buyPrice) : (sale ? (prices[sale.coin] || sale.sellPrice) : 0);
+                                const pnlPct = inv && inv.invested > 0
+                                    ? ((cp * inv.quantity - inv.invested) / inv.invested) * 100
+                                    : sale && sale.usdtReceived > 0
+                                        ? ((sale.usdtReceived - sale.quantity * cp) / sale.usdtReceived) * 100
+                                        : null;
+                                return { id, alerts, pnlPct };
                             })
                             .filter(({ alerts }) => Array.isArray(alerts) && alerts.length > 0)
-                            .sort((a, b) => b.price - a.price)
+                            .sort((a, b) => (b.pnlPct ?? -Infinity) - (a.pnlPct ?? -Infinity))
                             .map(({ id, alerts }) => {
                             const inv = portfolio.find((i) => i.id === id);
                             const realSaleId = id.startsWith('sale_') ? id.slice(5) : id;
@@ -220,9 +225,11 @@ function AlertSettings({ config, saveConfig, onEditGlobal, onEditInvestment, onO
                                                 ? (inv.invested > 0 ? ((currentPrice * inv.quantity - inv.invested) / inv.invested) * 100 : 0)
                                                 : (sale && sale.usdtReceived > 0 ? ((sale.usdtReceived - sale.quantity * currentPrice) / sale.usdtReceived) * 100 : 0);
                                             const isOnHold = alert.isPersistent && (
-                                                alert.type === 'price'
-                                                    ? (alert.direction === 'up' ? currentPrice >= (alert.targetValue || 0) : currentPrice <= (alert.targetValue || 0))
-                                                    : (alert.direction === 'up' ? roi >= (alert.targetPercent || 0) : roi <= (alert.targetPercent || 0))
+                                                alert._lastSide !== undefined
+                                                    ? (alert.direction === 'up' ? alert._lastSide === 'above' : alert._lastSide === 'below')
+                                                    : (alert.type === 'price'
+                                                        ? (alert.direction === 'up' ? currentPrice >= (alert.targetValue || 0) : currentPrice <= (alert.targetValue || 0))
+                                                        : (alert.direction === 'up' ? roi >= (alert.targetPercent || 0) : roi <= (alert.targetPercent || 0)))
                                             );
                                             return (
                                             <div key={index} className="flex flex-col bg-slate-800/60 px-2 py-1.5 rounded-md">
@@ -279,6 +286,34 @@ function AlertSettings({ config, saveConfig, onEditGlobal, onEditInvestment, onO
                                                         );
                                                     })()
                                                 )}
+                                                {!id.startsWith('sale_') && alert.type === 'pnl' && inv && inv.invested > 0 && inv.quantity > 0 && (
+                                                    (() => {
+                                                        const tp = inv.invested * (1 + (alert.targetPercent || 0) / 100) / inv.quantity;
+                                                        return (
+                                                            <span className="text-[9px] text-slate-500 mt-0.5">
+                                                                @ {fmtPrice(tp)}
+                                                            </span>
+                                                        );
+                                                    })()
+                                                )}
+                                                {!isOnHold && (() => {
+                                                    let gap: number | null = null;
+                                                    if (alert.type === 'pnl') {
+                                                        gap = alert.direction === 'up'
+                                                            ? (alert.targetPercent || 0) - roi
+                                                            : roi - (alert.targetPercent || 0);
+                                                    } else if (alert.type === 'price' && currentPrice > 0) {
+                                                        gap = alert.direction === 'up'
+                                                            ? ((alert.targetValue || 0) - currentPrice) / currentPrice * 100
+                                                            : (currentPrice - (alert.targetValue || 0)) / currentPrice * 100;
+                                                    }
+                                                    if (gap === null || gap <= 0) return null;
+                                                    return (
+                                                        <span className="text-[9px] text-blue-400/70 mt-0.5">
+                                                            falta {gap.toFixed(1)}%
+                                                        </span>
+                                                    );
+                                                })()}
                                             </div>
                                             );
                                         })}
