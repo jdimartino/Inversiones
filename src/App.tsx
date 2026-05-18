@@ -14,7 +14,7 @@ import { useClosedTrades } from "./hooks/useClosedTrades";
 import { useSales } from "./hooks/useSales";
 import { useLoans } from "./hooks/useLoans";
 import { usePrices } from "./hooks/usePrices";
-import { useAlerts, InvestmentAlert, GlobalAlert, WatchlistAlert } from "./hooks/useAlerts";
+import { useAlerts, InvestmentAlert, GlobalAlert, WatchlistAlert, cleanupInvestmentAlerts, cleanupSaleAlerts } from "./hooks/useAlerts";
 import { useSignals } from "./hooks/useSignals";
 import { useFearGreed } from "./hooks/useFearGreed";
 import NavBar, { TabId } from "./components/NavBar";
@@ -546,6 +546,7 @@ const App: React.FC = () => {
               sellDate: sale.date,
             });
             await deleteSale(sale.id);
+            await cleanupSaleAlerts(sale.id);
             setClosingVenta(null);
           }}
           onClose={() => setClosingVenta(null)}
@@ -571,6 +572,7 @@ const App: React.FC = () => {
               sellDate: Date.now(),
             });
             await removeInvestment(inv.id);
+            await cleanupInvestmentAlerts(inv.id);
             setClosingInvestment(null);
           }}
           onClose={() => setClosingInvestment(null)}

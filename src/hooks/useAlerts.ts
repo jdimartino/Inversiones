@@ -187,3 +187,26 @@ export function useAlerts() {
 
     return { config, loading, saveConfig };
 }
+
+export async function cleanupInvestmentAlerts(investmentId: string) {
+    try {
+        const ref = doc(db, "config", "alerts");
+        await updateDoc(ref, {
+            [`investmentAlerts.${investmentId}`]: deleteField(),
+        } as any);
+    } catch (e) {
+        console.error("Error cleaning up investment alerts:", e);
+    }
+}
+
+export async function cleanupSaleAlerts(saleId: string) {
+    try {
+        const ref = doc(db, "config", "alerts");
+        await updateDoc(ref, {
+            [`investmentAlerts.sale_${saleId}`]: deleteField(),
+            [`saleMeta.sale_${saleId}`]: deleteField(),
+        } as any);
+    } catch (e) {
+        console.error("Error cleaning up sale alerts:", e);
+    }
+}
