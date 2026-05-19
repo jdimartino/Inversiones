@@ -344,6 +344,15 @@ const App: React.FC = () => {
     }
   }, [config, saveConfig]);
 
+  const handleDeleteSale = useCallback(async (id: string) => {
+    try {
+      await deleteSale(id);
+      await cleanupSaleAlerts(id);
+    } catch (err) {
+      console.error("Error al eliminar la venta o sus alertas:", err);
+    }
+  }, [deleteSale]);
+
   const activeAlertIds = useMemo(() => Object.keys(config.investmentAlerts || {}), [config.investmentAlerts]);
 
   // ── Tab fade animation helper ────────────────────────────────────
@@ -356,7 +365,7 @@ const App: React.FC = () => {
       loading={salesLoading}
       prices={prices}
       onEdit={setEditingSale}
-      onDelete={deleteSale}
+      onDelete={handleDeleteSale}
       onBuyEvaluate={handleBuyEvaluate}
       onCloseVenta={handleCloseVenta}
       onMarcoAnalysis={handleMarcoSale}
@@ -545,8 +554,7 @@ const App: React.FC = () => {
               buyDate: 0,
               sellDate: sale.date,
             });
-            await deleteSale(sale.id);
-            await cleanupSaleAlerts(sale.id);
+            await handleDeleteSale(sale.id);
             setClosingVenta(null);
           }}
           onClose={() => setClosingVenta(null)}

@@ -181,13 +181,16 @@ async function runCheckAlerts() {
 
     const dbUpdates: any = {};
 
-    // Fill in any saleMeta entries missing from the config by reading the ventas collection.
+    // Get active sales from the "ventas" collection for fallback and cleanup
+    const ventasSnap = await db.collection("ventas").get();
+    const activeSaleIds = new Set(ventasSnap.docs.map(d => `sale_${d.id}`));
+
+    // Fill in any saleMeta entries missing from the config by reading the active sales.
     // This is a fallback for sales whose metadata was lost due to the overwrite bug.
     const hasMissingSaleMeta = Object.keys(investmentAlerts).some(
-        k => k.startsWith('sale_') && !saleMeta[k]
+        k => k.startsWith('sale_') && activeSaleIds.has(k) && !saleMeta[k]
     );
     if (hasMissingSaleMeta) {
-        const ventasSnap = await db.collection("ventas").get();
         ventasSnap.forEach(d => {
             const saleKey = `sale_${d.id}`;
             if (investmentAlerts[saleKey] && !saleMeta[saleKey]) {
@@ -321,15 +324,34 @@ async function runCheckAlerts() {
         individualAssets.push({ id: docSnap.id, coin: inv.coin, pnl, roi: roiPercent || 0 });
     });
 
-    // Cleanup orphaned alerts (IDs that no longer exist in 'inversiones')
-    // Skip sale_ prefixed IDs — those belong to closed positions in 'ventas', not 'inversiones'
+    // Cleanup orphaned alerts (IDs that no longer exist in 'inversiones' or 'ventas')
     const activeInvIds = new Set(snap.docs.map(d => d.id));
-    for (const invId of Object.keys(investmentAlerts)) {
-        if (invId.startsWith('sale_')) continue;
-        if (!activeInvIds.has(invId)) {
-            console.log(`[CLEANUP] Alerta huérfana detectada para inversion ID: ${invId}. Eliminando...`);
-            delete investmentAlerts[invId];
-            dbUpdates[`investmentAlerts.${invId}`] = admin.firestore.FieldValue.delete();
+    for (const alertKey of Object.keys(investmentAlerts)) {
+        if (alertKey.startsWith('sale_')) {
+            if (!activeSaleIds.has(alertKey)) {
+                console.log(`[CLEANUP] Alerta de venta huérfana detectada para ${alertKey}. Eliminando...`);
+                delete investmentAlerts[alertKey];
+                dbUpdates[`investmentAlerts.${alertKey}`] = admin.firestore.FieldValue.delete();
+                if (saleMeta[alertKey]) {
+                    delete saleMeta[alertKey];
+                    dbUpdates[`saleMeta.${alertKey}`] = admin.firestore.FieldValue.delete();
+                }
+            }
+        } else {
+            if (!activeInvIds.has(alertKey)) {
+                console.log(`[CLEANUP] Alerta huérfana detectada para inversion ID: ${alertKey}. Eliminando...`);
+                delete investmentAlerts[alertKey];
+                dbUpdates[`investmentAlerts.${alertKey}`] = admin.firestore.FieldValue.delete();
+            }
+        }
+    }
+
+    // Also clean up any orphaned saleMeta entries that don't have corresponding active sale IDs
+    for (const metaKey of Object.keys(saleMeta)) {
+        if (!activeSaleIds.has(metaKey)) {
+            console.log(`[CLEANUP] saleMeta huérfano detectado para ${metaKey}. Eliminando...`);
+            delete saleMeta[metaKey];
+            dbUpdates[`saleMeta.${metaKey}`] = admin.firestore.FieldValue.delete();
         }
     }
 
