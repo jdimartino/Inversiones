@@ -89,7 +89,7 @@ const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
 
             {/* ── PORTAFOLIO ──────────────────────────────────── */}
             {subTab === "portafolio" && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fadeIn">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fadeIn overflow-x-hidden">
                     <PortfolioDonut aggregated={aggregated} totalValue={totalValue} />
                     <PnlBarChart aggregated={aggregated} />
                     <PerformanceTreemap aggregated={aggregated} />
@@ -106,7 +106,7 @@ const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
 
             {/* ── MERCADO ─────────────────────────────────────── */}
             {subTab === "mercado" && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fadeIn">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fadeIn overflow-x-hidden">
                     {hasKlines && (
                         <div className="md:col-span-2">
                             <CandlestickChart aggregated={aggregated} klinesMap={klinesMap} items={items} initialCoin={initialCoin} signals={signals} onCoinChange={setActiveCoin} priceDirections={priceDirections} sales={sales} />

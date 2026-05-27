@@ -164,6 +164,7 @@ const SalesHistoryTable: React.FC<SalesHistoryTableProps> = React.memo(
                                                 >
                                                     <p className="text-[9px] text-slate-500 uppercase font-bold mb-0.5">Precio Actual</p>
                                                     <p className={`font-mono ${cp > 0 ? priceColor(priceDirections?.[sale.coin]) : "text-slate-500"}`}>{cp > 0 ? fmtPrice(cp) : "—"}</p>
+                                                    <p className="text-[9px] text-sky-400 font-mono mt-0.5">Venta: {fmtPrice(sale.sellPrice)}</p>
                                                 </div>
                                                 <div className="bg-slate-900/40 p-1.5 rounded-lg border border-slate-700/50 text-center">
                                                     <p className="text-[9px] text-slate-500 uppercase font-bold mb-0.5">Si Recompras</p>
