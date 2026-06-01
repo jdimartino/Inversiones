@@ -1,6 +1,6 @@
 import { useState, memo } from "react";
-import { Trash2, Edit2, Repeat, Clock, History, CheckCircle, AlertTriangle, TrendingUp, TrendingDown, Loader2, Eye, Plus, Sun, Send } from "lucide-react";
-import { AlertConfig, GlobalAlert, InvestmentAlert, WatchlistAlert } from "../hooks/useAlerts";
+import { Trash2, Edit2, Repeat, Clock, History, CheckCircle, AlertTriangle, TrendingUp, TrendingDown, Loader2, Eye, Plus, Sun, Send, BarChart2 } from "lucide-react";
+import { AlertConfig, GlobalAlert, InvestmentAlert, WatchlistAlert, CandleAlert } from "../hooks/useAlerts";
 import type { SaleRecord } from "../lib/constants";
 import { usePortfolio } from "../hooks/usePortfolio";
 import { usePrices } from "../hooks/usePrices";
@@ -14,11 +14,13 @@ interface AlertSettingsProps {
     onEditInvestment?: (investmentId: string, index: number) => void;
     onOpenWatchlist?: () => void;
     onEditWatchlistAlert?: (coin: string, index: number) => void;
+    onOpenCandleAlert?: () => void;
+    onEditCandleAlert?: (coin: string, index: number) => void;
     sales?: SaleRecord[];
     totalPnl?: number;
 }
 
-function AlertSettings({ config, saveConfig, onEditGlobal, onEditInvestment, onOpenWatchlist, onEditWatchlistAlert, sales, totalPnl = 0 }: AlertSettingsProps) {
+function AlertSettings({ config, saveConfig, onEditGlobal, onEditInvestment, onOpenWatchlist, onEditWatchlistAlert, onOpenCandleAlert, onEditCandleAlert, sales, totalPnl = 0 }: AlertSettingsProps) {
     const { portfolio } = usePortfolio();
     const { prices } = usePrices();
     const { logs, loading: logsLoading } = useNotificationLogs(15);
@@ -132,6 +134,96 @@ function AlertSettings({ config, saveConfig, onEditGlobal, onEditInvestment, onO
                 ) : (
                     <p className="text-[11px] text-slate-600 italic text-center py-3 bg-slate-900/40 rounded-lg border border-slate-700/30">
                         Sin alertas watchlist. Usa "+ Nueva" para monitorear precios.
+                    </p>
+                )}
+            </div>
+
+            {/* ── Candle Alerts ─────────────────────────── */}
+            <div className="bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 md:p-4">
+                <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-bold text-slate-200 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                        <BarChart2 className="w-3.5 h-3.5 text-purple-400" /> Alertas de Vela
+                    </h3>
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-slate-500 bg-slate-900/80 px-2 py-0.5 rounded-full border border-slate-700/50 font-bold">
+                            {Object.values(config.candleAlerts || {}).reduce((sum, a) => sum + a.length, 0)}
+                        </span>
+                        {onOpenCandleAlert && (
+                            <button
+                                onClick={onOpenCandleAlert}
+                                className="flex items-center gap-1 text-[10px] font-bold text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-1 rounded-lg hover:bg-purple-500/20 transition-colors"
+                            >
+                                <Plus className="w-3 h-3" /> Nueva
+                            </button>
+                        )}
+                    </div>
+                </div>
+                {config.candleAlerts && Object.keys(config.candleAlerts).length > 0 ? (
+                    <div className="space-y-2">
+                        {Object.entries(config.candleAlerts).map(([coin, alerts]) => {
+                            if (!Array.isArray(alerts) || alerts.length === 0) return null;
+                            return (
+                                <div key={coin} className="bg-slate-900/60 border border-slate-700/40 rounded-lg p-2.5">
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-bold text-purple-400 text-sm">{coin}</span>
+                                        </div>
+                                        <span className="text-[9px] text-slate-500 font-bold">{alerts.length} alerta{alerts.length !== 1 ? "s" : ""}</span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {(alerts as CandleAlert[]).map((alert, index) => {
+                                            const directionEmoji = alert.direction === 'up' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />;
+                                            return (
+                                            <div key={index} className="flex flex-col bg-slate-800/60 px-2 py-1.5 rounded-md">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className={`text-[11px] font-bold flex items-center gap-0.5 ${alert.direction === 'up' ? 'text-green-400' : 'text-red-400'}`}>
+                                                        {directionEmoji}
+                                                        {alert.targetPercent}% ({alert.interval})
+                                                    </span>
+                                                    {alert.isPersistent ? (
+                                                        <span className="text-[8px] px-1 py-0.5 rounded-full font-bold bg-green-500/20 text-green-400">
+                                                            P
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-[8px] bg-slate-700/50 text-slate-500 px-1 py-0.5 rounded-full font-bold">1×</span>
+                                                    )}
+                                                    {onEditCandleAlert && (
+                                                        <button
+                                                            onClick={() => onEditCandleAlert(coin, index)}
+                                                            className="p-1 rounded text-slate-500 hover:text-blue-400 hover:bg-blue-500/10 transition-colors"
+                                                        >
+                                                            <Edit2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (savingId) return;
+                                                            setSavingId(`candle-${coin}-${index}`);
+                                                            const newCandleAlerts = { ...(config.candleAlerts || {}) };
+                                                            const updated = (newCandleAlerts[coin] || []).filter((_, i) => i !== index);
+                                                            if (updated.length === 0) delete newCandleAlerts[coin];
+                                                            else newCandleAlerts[coin] = updated;
+                                                            await saveConfig({ ...config, candleAlerts: newCandleAlerts });
+                                                            setSavingId(null);
+                                                        }}
+                                                        disabled={savingId === `candle-${coin}-${index}`}
+                                                        className="p-1 rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                                                    >
+                                                        {savingId === `candle-${coin}-${index}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                                                    </button>
+                                                </div>
+                                                {alert.note && <span className="text-[9px] text-slate-400 italic mt-0.5">📝 {alert.note}</span>}
+                                            </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <p className="text-[11px] text-slate-600 italic text-center py-3 bg-slate-900/40 rounded-lg border border-slate-700/30">
+                        Sin alertas de vela. Usa "+ Nueva" para monitorear variaciones.
                     </p>
                 )}
             </div>
@@ -514,6 +606,13 @@ function AlertSettings({ config, saveConfig, onEditGlobal, onEditInvestment, onO
                                         <div className="space-y-0.5 mt-0.5">
                                             {log.triggeredWatchlistAlerts.map((msg, i) => (
                                                 <p key={i} className="text-[11px] font-bold text-blue-300 bg-blue-900/30 px-2 py-1 rounded-md">{msg}</p>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {(log as any).triggeredCandleAlerts?.length > 0 && (
+                                        <div className="space-y-0.5 mt-0.5">
+                                            {(log as any).triggeredCandleAlerts.map((msg: string, i: number) => (
+                                                <p key={i} className="text-[11px] font-bold text-purple-300 bg-purple-900/30 px-2 py-1 rounded-md">{msg}</p>
                                             ))}
                                         </div>
                                     )}

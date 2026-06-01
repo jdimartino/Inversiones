@@ -31,12 +31,24 @@ export interface WatchlistAlert {
     note?: string;
 }
 
+export interface CandleAlert {
+    type: 'candle_change';
+    interval: '4h' | '1d';
+    targetPercent: number;
+    direction: 'up' | 'down';
+    isPersistent?: boolean;
+    note?: string;
+    _lastSide?: 'above' | 'below';
+    _lastCandleOpenTime?: number;
+}
+
 export interface AlertConfig {
     minPNL?: number; // Legacy
     maxPNL?: number; // Legacy
     globalAlerts?: GlobalAlert[];
     investmentAlerts?: Record<string, InvestmentAlert[]>;
     watchlistAlerts?: Record<string, WatchlistAlert[]>;
+    candleAlerts?: Record<string, CandleAlert[]>;
     dailyReportEnabled?: boolean;
     saleMeta?: Record<string, { coin: string; usdtReceived: number; quantity: number }>;
 }
@@ -96,18 +108,28 @@ export function useAlerts() {
                         }
                     }
 
+                    // ── Normalize candle alerts ───────────────────────────
+                    const rawCandleAlerts = data.candleAlerts ?? {};
+                    const normalizedCandleAlerts: Record<string, CandleAlert[]> = {};
+                    for (const [coin, value] of Object.entries(rawCandleAlerts)) {
+                        if (Array.isArray(value)) {
+                            normalizedCandleAlerts[coin] = value as CandleAlert[];
+                        }
+                    }
+
                     setConfig({
                         minPNL: data.minPNL ?? -40000,
                         maxPNL: data.maxPNL ?? 10000,
                         investmentAlerts: normalizedAlerts,
                         globalAlerts: normalizedGlobalAlerts,
                         watchlistAlerts: normalizedWatchlist,
+                        candleAlerts: normalizedCandleAlerts,
                         dailyReportEnabled: data.dailyReportEnabled ?? false,
                         saleMeta: data.saleMeta ?? {},
                     });
                 } else {
                     // Si no existe, inicializamos con defecto o limpiamos
-                    setConfig({ minPNL: -40000, maxPNL: 10000, investmentAlerts: {}, globalAlerts: [], watchlistAlerts: {} });
+                    setConfig({ minPNL: -40000, maxPNL: 10000, investmentAlerts: {}, globalAlerts: [], watchlistAlerts: {}, candleAlerts: {} });
                 }
                 setLoading(false);
             },
@@ -172,6 +194,19 @@ export function useAlerts() {
                 for (const id of Object.keys(config.investmentAlerts ?? {})) {
                     if (!(id in investmentAlerts)) {
                         updates[`investmentAlerts.${id}`] = deleteField();
+                    }
+                }
+            }
+
+            // candleAlerts: per-coin dotted paths
+            const candleAlertsData = (cleanConfig as any).candleAlerts;
+            if (candleAlertsData && typeof candleAlertsData === 'object') {
+                for (const [coin, rules] of Object.entries(candleAlertsData)) {
+                    updates[`candleAlerts.${coin}`] = rules;
+                }
+                for (const coin of Object.keys(config.candleAlerts ?? {})) {
+                    if (!(coin in candleAlertsData)) {
+                        updates[`candleAlerts.${coin}`] = deleteField();
                     }
                 }
             }

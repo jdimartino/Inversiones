@@ -155,6 +155,36 @@ interface TrailingProps {
   setTrailingDrop: (v: number) => void;
 }
 
+const SellReplicaLimit = ({ limitPrice, quantity, coin }: { limitPrice: number; quantity: number; coin: string }) => (
+  <div className="bg-[#111217] p-5 rounded-xl border border-slate-800 shadow-xl font-sans max-w-sm mx-auto w-full">
+    <div className="flex justify-between items-center mb-6 text-slate-300 text-sm">
+      <span className="font-semibold text-white">Límite <span className="text-yellow-500">▼</span> &nbsp; Mercado &nbsp; OCO &nbsp; Trailing</span>
+    </div>
+    <div className="text-right text-xs text-slate-400 mb-2">
+      Disponible <span className="text-white font-mono ml-2">{quantity} {coin} ⊕</span>
+    </div>
+    <div className="space-y-4">
+      <div className="relative">
+        <label className="absolute left-3 top-2 text-[10px] text-slate-500">Precio Límite</label>
+        <span className="absolute right-3 top-4 text-xs text-white">USDT</span>
+        <input readOnly value={formatDec(limitPrice)} className="w-full bg-[#1e2025] border-none rounded-lg pt-6 pb-2 px-3 text-yellow-400 font-mono focus:outline-none" />
+      </div>
+      <div className="relative">
+        <label className="absolute left-3 top-2 text-[10px] text-slate-500">Cant.</label>
+        <span className="absolute right-3 top-4 text-xs text-white">{coin}</span>
+        <input readOnly value={quantity} className="w-full bg-[#1e2025] border-none rounded-lg pt-6 pb-2 px-3 text-white font-mono focus:outline-none" />
+      </div>
+      <button
+        disabled
+        title="Solo referencia visual — coloca la orden manualmente en el exchange"
+        className="w-full bg-[#f1435f]/40 cursor-not-allowed text-white/50 font-bold py-3 rounded-lg mt-4 shadow-lg"
+      >
+        Vender {coin} (referencia)
+      </button>
+    </div>
+  </div>
+);
+
 const SellReplicaTrailing = ({ secureTrigger, quantity, coin, trailingDrop, setTrailingDrop }: TrailingProps) => (
   <div className="bg-[#111217] p-5 rounded-xl border border-slate-800 shadow-xl font-sans max-w-sm mx-auto w-full">
     <div className="flex justify-between items-center mb-6 text-slate-300 text-sm">
@@ -195,6 +225,149 @@ const SellReplicaTrailing = ({ secureTrigger, quantity, coin, trailingDrop, setT
   </div>
 );
 
+// --- RÉPLICAS DE ÓRDENES DE COMPRA (RECOMPRA) ---
+interface BuyLimitProps {
+  targetRebuy: number;
+  usdtAmount: number;
+  rebuyQty: number;
+  coin: string;
+  sellPrice: number;
+  extraQty: number;
+  maniobra_pnl: number;
+  discountPct: number;
+}
+
+const BuyReplicaLimit = ({ targetRebuy, usdtAmount, rebuyQty, coin, sellPrice, extraQty, maniobra_pnl, discountPct }: BuyLimitProps) => (
+  <div className="bg-[#111217] p-5 rounded-xl border border-slate-800 shadow-xl font-sans max-w-sm mx-auto w-full">
+    <div className="flex justify-between items-center mb-6 text-slate-300 text-sm">
+      <span className="font-semibold text-white">Límite <span className="text-green-500">▼</span> &nbsp; OCO &nbsp; Trailing</span>
+    </div>
+    <div className="text-right text-xs text-slate-400 mb-2">
+      Disponible <span className="text-white font-mono ml-2">{formatDec(usdtAmount)} USDT ⊕</span>
+    </div>
+    <div className="space-y-3">
+      <div className="relative">
+        <label className="absolute left-3 top-2 text-[10px] text-slate-500">Vendiste a (Referencia)</label>
+        <span className="absolute right-3 top-4 text-xs text-white">USDT</span>
+        <input readOnly value={sellPrice > 0 ? formatDec(sellPrice) : '—'} className="w-full bg-[#1e2025] border-none rounded-lg pt-6 pb-2 px-3 text-red-400 font-mono focus:outline-none" />
+      </div>
+      <div className="relative">
+        <label className="absolute left-3 top-2 text-[10px] text-slate-500">Precio Recompra (Límite)</label>
+        <span className="absolute right-3 top-4 text-xs text-white">USDT</span>
+        <input readOnly value={targetRebuy > 0 ? formatDec(targetRebuy) : '—'} className="w-full bg-[#1e2025] border-none rounded-lg pt-6 pb-2 px-3 text-green-400 font-mono focus:outline-none" />
+      </div>
+      <div className="relative">
+        <label className="absolute left-3 top-2 text-[10px] text-slate-500">Cant. a Comprar</label>
+        <span className="absolute right-3 top-4 text-xs text-white">{coin}</span>
+        <input readOnly value={rebuyQty > 0 ? formatDec(rebuyQty) : '—'} className="w-full bg-[#1e2025] border-none rounded-lg pt-6 pb-2 px-3 text-white font-mono focus:outline-none" />
+      </div>
+    </div>
+    <div className="h-px w-full bg-slate-800/50 my-3"></div>
+    <div className="grid grid-cols-2 gap-2 text-xs">
+      <div className="bg-slate-800/60 rounded-lg p-2 border border-slate-700/40">
+        <p className="text-slate-500 uppercase tracking-wider font-bold text-[9px] mb-1">Descuento</p>
+        <p className={`font-mono font-bold ${discountPct > 0 ? 'text-green-400' : 'text-red-400'}`}>
+          {discountPct > 0 ? '−' : '+'}{Math.abs(discountPct).toFixed(2)}%
+        </p>
+      </div>
+      <div className={`rounded-lg p-2 border ${extraQty >= 0 ? 'bg-green-900/20 border-green-800/40' : 'bg-red-900/20 border-red-800/40'}`}>
+        <p className="text-slate-500 uppercase tracking-wider font-bold text-[9px] mb-1">{extraQty >= 0 ? 'Ganás extra' : 'Perdés'}</p>
+        <p className={`font-mono font-bold ${extraQty >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+          {extraQty >= 0 ? '+' : ''}{formatDec(extraQty)} {coin}
+        </p>
+      </div>
+    </div>
+    <div className={`rounded-lg p-2.5 flex justify-between items-center border mt-2 ${maniobra_pnl >= 0 ? 'bg-green-900/20 border-green-800/40' : 'bg-red-900/20 border-red-800/40'}`}>
+      <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Maniobra</span>
+      <span className={`font-mono font-bold text-sm ${maniobra_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+        {maniobra_pnl >= 0 ? '+' : ''}{formatDec(maniobra_pnl)} USDT
+      </span>
+    </div>
+    <button
+      disabled
+      title="Solo referencia visual — coloca la orden manualmente en el exchange"
+      className="w-full bg-green-600/40 cursor-not-allowed text-white/50 font-bold py-3 rounded-lg mt-4 shadow-lg"
+    >
+      Comprar {coin} (referencia)
+    </button>
+  </div>
+);
+
+interface BuyOCOProps {
+  targetRebuy: number;
+  stopPrice: number;
+  limitPrice: number;
+  usdtAmount: number;
+  rebuyQty: number;
+  coin: string;
+  sellPrice: number;
+  extraQty: number;
+  currentPrice: number;
+}
+
+const BuyReplicaOCO = ({ targetRebuy, stopPrice, limitPrice, usdtAmount, rebuyQty, coin, sellPrice, extraQty, currentPrice }: BuyOCOProps) => (
+  <div className="bg-[#111217] p-5 rounded-xl border border-slate-800 shadow-xl font-sans max-w-sm mx-auto w-full">
+    <div className="flex justify-between items-center mb-6 text-slate-300 text-sm">
+      <span className="font-semibold text-white">Límite &nbsp; Mercado &nbsp; <span className="text-green-500">OCO ▼</span></span>
+    </div>
+    <div className="text-right text-xs text-slate-400 mb-2">
+      Disponible <span className="text-white font-mono ml-2">{formatDec(usdtAmount)} USDT ⊕</span>
+    </div>
+    <div className="space-y-3">
+      <div className="relative">
+        <label className="absolute left-3 top-2 text-[10px] text-slate-500">Vendiste a (Referencia)</label>
+        <span className="absolute right-3 top-4 text-xs text-white">USDT</span>
+        <input readOnly value={sellPrice > 0 ? formatDec(sellPrice) : '—'} className="w-full bg-[#1e2025] border-none rounded-lg pt-6 pb-2 px-3 text-red-400 font-mono focus:outline-none" />
+      </div>
+      <div className="h-px w-full bg-slate-700/50 my-1"></div>
+      <div className="relative">
+        <label className="absolute left-3 top-2 text-[10px] text-slate-500">Precio Recompra (Límite Activación)</label>
+        <span className="absolute right-3 top-4 text-xs text-white">USDT</span>
+        <input readOnly value={targetRebuy > 0 ? formatDec(targetRebuy) : '—'} className="w-full bg-[#1e2025] border-none rounded-lg pt-6 pb-2 px-3 text-green-400 font-mono focus:outline-none" />
+      </div>
+      <div className="relative flex gap-2">
+        <div className="relative flex-grow">
+          <label className="absolute left-3 top-2 text-[10px] text-slate-500">Precio (Límite)</label>
+          <input readOnly value={limitPrice > 0 ? formatDec(limitPrice) : '—'} className="w-full bg-[#1e2025] border-none rounded-lg pt-6 pb-2 px-3 text-green-400 font-mono focus:outline-none" />
+        </div>
+        <div className="bg-[#1e2025] rounded-lg px-4 flex items-center justify-center min-w-[80px]"><span className="text-sm text-slate-300">Límite ▼</span></div>
+      </div>
+      <div className="h-px w-full bg-slate-700/50 my-1"></div>
+      <div className="relative">
+        <label className="absolute left-3 top-2 text-[10px] text-slate-500">Stop Compra (Activación)</label>
+        <span className="absolute right-3 top-4 text-xs text-white">USDT</span>
+        <input readOnly value={stopPrice > 0 ? formatDec(stopPrice) : '—'} className="w-full bg-[#1e2025] border-none rounded-lg pt-6 pb-2 px-3 text-yellow-400 font-mono focus:outline-none" />
+      </div>
+      <div className="relative flex gap-2">
+        <div className="relative flex-grow">
+          <label className="absolute left-3 top-2 text-[10px] text-slate-500">Precio (Stop)</label>
+          <input readOnly value={limitPrice > 0 ? formatDec(limitPrice) : '—'} className="w-full bg-[#1e2025] border-none rounded-lg pt-6 pb-2 px-3 text-yellow-400 font-mono focus:outline-none" />
+        </div>
+        <div className="bg-[#1e2025] rounded-lg px-4 flex items-center justify-center min-w-[80px]"><span className="text-sm text-slate-300">Stop ▼</span></div>
+      </div>
+      <div className="relative">
+        <label className="absolute left-3 top-2 text-[10px] text-slate-500">Cant.</label>
+        <span className="absolute right-3 top-4 text-xs text-white">{coin}</span>
+        <input readOnly value={rebuyQty > 0 ? formatDec(rebuyQty) : '—'} className="w-full bg-[#1e2025] border-none rounded-lg pt-6 pb-2 px-3 text-white font-mono focus:outline-none" />
+      </div>
+    </div>
+    <div className="h-px w-full bg-slate-800/50 my-3"></div>
+    <div className={`rounded-lg p-2.5 flex justify-between items-center border ${extraQty >= 0 ? 'bg-green-900/20 border-green-800/40' : 'bg-red-900/20 border-red-800/40'}`}>
+      <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">{extraQty >= 0 ? 'Ganás extra' : 'Perdés'}</span>
+      <span className={`font-mono font-bold text-sm ${extraQty >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+        {extraQty >= 0 ? '+' : ''}{formatDec(extraQty)} {coin}
+      </span>
+    </div>
+    <button
+      disabled
+      title="Solo referencia visual — coloca la orden manualmente en el exchange"
+      className="w-full bg-green-600/40 cursor-not-allowed text-white/50 font-bold py-3 rounded-lg mt-4 shadow-lg"
+    >
+      Comprar {coin} (referencia)
+    </button>
+  </div>
+);
+
 // --- MÓDULO PRINCIPAL: CALCULADORA DE VENTA ---
 const SellCalculator = ({
   onOpenSaved,
@@ -215,7 +388,7 @@ const SellCalculator = ({
   const [securePercent, setSecurePercent] = useState(1);
   const [slPercent, setSlPercent] = useState(1);
   const [trailingDrop, setTrailingDrop] = useState(1);
-  const [activeTab, setActiveTab] = useState<'oco' | 'trailing'>('oco');
+  const [activeTab, setActiveTab] = useState<'limit' | 'oco' | 'trailing'>('oco');
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
 
   const currentPrice = prices[coin] || 0;
@@ -389,10 +562,13 @@ const SellCalculator = ({
           <div className="flex items-center justify-between mb-4 md:mb-6">
             <h2 className="text-sm md:text-lg font-semibold flex items-center space-x-2 text-white">
               <ShieldCheck className="w-4 h-4 md:w-5 md:h-5 text-blue-400" />
-              <span>Configuración para Vender</span>
+              <span>Orden de Venta</span>
             </h2>
           </div>
           <div className="flex border-b border-slate-800 mb-6 overflow-x-auto no-scrollbar">
+            <button onClick={() => setActiveTab('limit')} className={`whitespace-nowrap pb-3 px-4 text-xs md:text-sm font-medium transition-all border-b-2 flex items-center gap-2 ${activeTab === 'limit' ? 'border-yellow-500 text-white' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>
+              Límite
+            </button>
             <button onClick={() => setActiveTab('oco')} className={`whitespace-nowrap pb-3 px-4 text-xs md:text-sm font-medium transition-all border-b-2 flex items-center gap-2 ${activeTab === 'oco' ? 'border-blue-500 text-white' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>
               OCO {analysis.bestTool === 'oco' && <span className="flex w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>}
             </button>
@@ -401,7 +577,9 @@ const SellCalculator = ({
             </button>
           </div>
           <div className="flex justify-center transition-all duration-500">
-            {activeTab === 'oco'
+            {activeTab === 'limit'
+              ? <SellReplicaLimit limitPrice={tpLimit} quantity={quantity} coin={coin} />
+              : activeTab === 'oco'
               ? <SellReplicaOCO tpLimit={tpLimit} slTrig={analysis.ocoConfig.slTrig} slLim={analysis.ocoConfig.slLim} quantity={quantity} coin={coin} />
               : <SellReplicaTrailing secureTrigger={secureTrigger} quantity={quantity} coin={coin} trailingDrop={trailingDrop} setTrailingDrop={setTrailingDrop} />
             }
@@ -492,6 +670,8 @@ const BuyCalculator = ({
   const [discountPct, setDiscountPct] = useState(0);
   const [rebuyPriceStr, setRebuyPriceStr] = useState('');
   const [discountPctStr, setDiscountPctStr] = useState('');
+  const [activeBuyTab, setActiveBuyTab] = useState<'limit' | 'oco'>('limit');
+  const [buyStopPct, setBuyStopPct] = useState(5); // % above rebuy target to trigger stop
 
   useEffect(() => { if (loadedCoin) setCoin(loadedCoin); }, [loadedCoin]);
   useEffect(() => { if (loadedUsdt) setUsdtAmount(loadedUsdt); }, [loadedUsdt]);
@@ -669,77 +849,71 @@ const BuyCalculator = ({
           </div>
         </div>
 
-        {/* Panel derecho — orden límite de compra */}
+        {/* Panel derecho — orden de recompra con tabs */}
         <div className="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-xl p-4 md:p-5 shadow-lg">
-          <h2 className="text-sm md:text-lg font-semibold flex items-center space-x-2 text-white mb-6">
-            <ShieldCheck className="w-4 h-4 md:w-5 md:h-5 text-green-400" />
-            <span>Resumen de la Maniobra</span>
-          </h2>
-          <div className="bg-[#111217] p-5 rounded-xl border border-slate-800 shadow-xl font-sans max-w-sm mx-auto w-full space-y-4">
-            <div className="text-right text-xs text-slate-400">
-              Disponible <span className="text-white font-mono ml-2">{formatDec(usdtAmount)} USDT ⊕</span>
-            </div>
-            {/* Precio de venta (referencia) */}
-            <div className="relative">
-              <label className="absolute left-3 top-2 text-[10px] text-slate-500">Vendiste a (Referencia)</label>
-              <span className="absolute right-3 top-4 text-xs text-slate-400">USDT</span>
-              <input readOnly value={sellPrice > 0 ? formatDec(sellPrice) : '—'} className="w-full bg-[#1e2025] border-none rounded-lg pt-6 pb-2 px-3 text-red-400 font-mono focus:outline-none" />
-            </div>
-            {/* Orden límite de compra */}
-            <div className="relative">
-              <label className="absolute left-3 top-2 text-[10px] text-slate-500">Precio de Recompra (Límite)</label>
-              <span className="absolute right-3 top-4 text-xs text-white">USDT</span>
-              <input readOnly value={targetRebuy > 0 ? formatDec(targetRebuy) : '—'} className="w-full bg-[#1e2025] border-none rounded-lg pt-6 pb-2 px-3 text-green-400 font-mono focus:outline-none" />
-            </div>
-            <div className="relative">
-              <label className="absolute left-3 top-2 text-[10px] text-slate-500">Cantidad a Comprar</label>
-              <span className="absolute right-3 top-4 text-xs text-white">{coin}</span>
-              <input readOnly value={rebuyQty > 0 ? formatDec(rebuyQty) : '—'} className="w-full bg-[#1e2025] border-none rounded-lg pt-6 pb-2 px-3 text-white font-mono focus:outline-none" />
-            </div>
-            <div className="h-px w-full bg-slate-800/50" />
-            {/* Resultado de la maniobra */}
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="bg-slate-800/60 rounded-lg p-3 border border-slate-700/40">
-                <p className="text-slate-500 uppercase tracking-wider font-bold text-[9px] mb-1">Tenías antes</p>
-                <p className="text-slate-300 font-mono font-bold">{originalQty > 0 ? formatDec(originalQty) : '—'} {coin}</p>
-              </div>
-              <div className={`rounded-lg p-3 border ${extraQty >= 0 ? 'bg-green-900/20 border-green-800/40' : 'bg-red-900/20 border-red-800/40'}`}>
-                <p className="text-slate-500 uppercase tracking-wider font-bold text-[9px] mb-1">{extraQty >= 0 ? 'Ganás extra' : 'Perdés'}</p>
-                <p className={`font-mono font-bold ${extraQty >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {extraQty >= 0 ? '+' : ''}{formatDec(extraQty)} {coin}
-                </p>
-              </div>
-            </div>
-            <div className={`rounded-lg p-3 flex justify-between items-center border ${isProfit ? 'bg-green-900/20 border-green-800/40' : 'bg-red-900/20 border-red-800/40'}`}>
-              <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Ganancia de la maniobra</span>
-              <span className={`font-mono font-bold text-sm ${isProfit ? 'text-green-400' : 'text-red-400'}`}>
-                {maniobra_pnl >= 0 ? '+' : ''}{formatDec(maniobra_pnl)} USDT
-              </span>
-            </div>
-            {sellPrice > 0 && targetRebuy > 0 && (
-              <div className="bg-slate-800/60 rounded-lg p-3 flex justify-between items-center border border-slate-700/40">
-                <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Descuento vs venta</span>
-                <span className={`font-mono font-bold text-sm ${discountPct > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {discountPct > 0 ? '−' : '+'}{Math.abs(discountPct).toFixed(2)}%
-                </span>
-              </div>
-            )}
-            {currentPrice > 0 && targetRebuy > 0 && targetRebuy !== currentPrice && (
-              <div className="bg-slate-800/60 rounded-lg p-3 flex justify-between items-center border border-slate-700/40">
-                <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Objetivo vs precio actual</span>
-                <span className={`font-mono font-bold text-sm ${vsCurrent > 0 ? 'text-green-400' : 'text-yellow-400'}`}>
-                  {vsCurrent > 0 ? '−' : '+'}{Math.abs(vsCurrent).toFixed(2)}% {vsCurrent > 0 ? 'por debajo' : 'por encima'}
-                </span>
-              </div>
-            )}
-            <button
-              disabled
-              title="Solo referencia visual — coloca la orden manualmente en el exchange"
-              className="w-full bg-green-600/40 cursor-not-allowed text-white/50 font-bold py-3 rounded-lg mt-2 shadow-lg"
-            >
-              Comprar {coin} (referencia)
+          <div className="flex items-center justify-between mb-4 md:mb-6">
+            <h2 className="text-sm md:text-lg font-semibold flex items-center space-x-2 text-white">
+              <ShieldCheck className="w-4 h-4 md:w-5 md:h-5 text-green-400" />
+              <span>Orden de Compra</span>
+            </h2>
+          </div>
+          <div className="flex border-b border-slate-800 mb-6 overflow-x-auto no-scrollbar">
+            <button onClick={() => setActiveBuyTab('limit')} className={`whitespace-nowrap pb-3 px-4 text-xs md:text-sm font-medium transition-all border-b-2 flex items-center gap-2 ${activeBuyTab === 'limit' ? 'border-green-500 text-white' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>
+              Límite
+            </button>
+            <button onClick={() => setActiveBuyTab('oco')} className={`whitespace-nowrap pb-3 px-4 text-xs md:text-sm font-medium transition-all border-b-2 flex items-center gap-2 ${activeBuyTab === 'oco' ? 'border-blue-500 text-white' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>
+              OCO
+            </button>
+            <button disabled className="whitespace-nowrap pb-3 px-4 text-xs md:text-sm font-medium border-b-2 border-transparent text-slate-700 cursor-not-allowed flex items-center gap-2" title="No disponible para recompras">
+              Trailing Stop
             </button>
           </div>
+          <div className="space-y-3">
+            {activeBuyTab === 'limit' && (
+              <BuyReplicaLimit
+                targetRebuy={targetRebuy}
+                usdtAmount={usdtAmount}
+                rebuyQty={rebuyQty}
+                coin={coin}
+                sellPrice={sellPrice}
+                extraQty={extraQty}
+                maniobra_pnl={maniobra_pnl}
+                discountPct={discountPct}
+              />
+            )}
+            {activeBuyTab === 'oco' && (
+              <>
+                <div className="bg-slate-800/60 rounded-lg p-3 border border-slate-700/40 mb-3">
+                  <label className="block text-[10px] text-slate-400 mb-1">Stop de Compra (% por encima del límite)</label>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setBuyStopPct(Math.max(0.5, buyStopPct - 0.5))} className="w-8 h-8 bg-slate-700 rounded flex items-center justify-center text-white font-bold">−</button>
+                    <input type="number" value={buyStopPct} onChange={e => setBuyStopPct(Number(e.target.value))} className="w-20 bg-slate-950 border border-slate-700 rounded p-1.5 text-center text-white text-sm font-mono" />
+                    <button onClick={() => setBuyStopPct(buyStopPct + 0.5)} className="w-8 h-8 bg-slate-700 rounded flex items-center justify-center text-white font-bold">+</button>
+                    <span className="text-xs text-slate-400">%</span>
+                  </div>
+                </div>
+                <BuyReplicaOCO
+                  targetRebuy={targetRebuy}
+                  stopPrice={targetRebuy > 0 ? targetRebuy * (1 + buyStopPct / 100) : 0}
+                  limitPrice={targetRebuy}
+                  usdtAmount={usdtAmount}
+                  rebuyQty={rebuyQty}
+                  coin={coin}
+                  sellPrice={sellPrice}
+                  extraQty={extraQty}
+                  currentPrice={currentPrice}
+                />
+              </>
+            )}
+          </div>
+          {currentPrice > 0 && targetRebuy > 0 && targetRebuy !== currentPrice && (
+            <div className="bg-slate-800/60 rounded-lg p-3 flex justify-between items-center border border-slate-700/40 mt-4">
+              <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Objetivo vs precio actual</span>
+              <span className={`font-mono font-bold text-sm ${vsCurrent > 0 ? 'text-green-400' : 'text-yellow-400'}`}>
+                {vsCurrent > 0 ? '−' : '+'}{Math.abs(vsCurrent).toFixed(2)}% {vsCurrent > 0 ? 'por debajo' : 'por encima'}
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </div>

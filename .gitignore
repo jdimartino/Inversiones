@@ -5,3 +5,7 @@ history/
 **/.env
 **/.env.local
 **/.env.*
+
+# Firebase hosting cache
+.firebase/
+firebase-debug.log

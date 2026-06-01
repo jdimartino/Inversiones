@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.testDailyPnlSnapshot = exports.dailyPnlSnapshot = exports.testDailyReport = exports.dailyPortfolioReport = exports.checkTradingSignals = exports.testTradingSignals = exports.checkPNLAlerts = exports.testAlerts = exports.setupTestAlerts = exports.debugLogs = exports.debugInversiones = exports.debugAlerts = exports.analyzeMarket = void 0;
+exports.testDailyPnlSnapshot = exports.dailyPnlSnapshot = exports.testDailyReport = exports.dailyPortfolioReport = exports.checkIntervalTasks = exports.testTradingSignals = exports.testAlerts = exports.setupTestAlerts = exports.debugLogs = exports.debugInversiones = exports.debugAlerts = exports.analyzeMarket = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const axios_1 = require("axios");
@@ -113,6 +113,7 @@ async function runCheckAlerts() {
     let investmentAlerts = {};
     let globalAlerts = [];
     let watchlistAlerts = {};
+    let candleAlerts = {};
     let saleMeta = {};
     if (configSnap.exists) {
         const conf = configSnap.data();
@@ -126,6 +127,12 @@ async function runCheckAlerts() {
             for (const [coin, arr] of Object.entries(conf.watchlistAlerts)) {
                 if (Array.isArray(arr))
                     watchlistAlerts[coin] = arr;
+            }
+        }
+        if (conf.candleAlerts) {
+            for (const [coin, arr] of Object.entries(conf.candleAlerts)) {
+                if (Array.isArray(arr))
+                    candleAlerts[coin] = arr;
             }
         }
         if (conf.saleMeta) {
@@ -469,7 +476,76 @@ async function runCheckAlerts() {
             watchlistDbUpdates[`watchlistAlerts.${coin}`] = remaining;
         }
     }
-    const shouldAlert = triggeredGlobalMessages.length > 0 || triggeredIndividualMessages.length > 0 || triggeredWatchlistMessages.length > 0;
+    // ── Candle alerts (4h / 1d percentage change) ────────────────────────────
+    const triggeredCandleMessages = [];
+    const candleDbUpdates = {};
+    for (const [coin, rules] of Object.entries(candleAlerts)) {
+        const symbol = `${coin}USDT`;
+        const currentPrice = prices[symbol] || 0;
+        if (currentPrice === 0)
+            continue;
+        for (const rule of rules) {
+            if (rule.type !== 'candle_change')
+                continue;
+            let klineData;
+            try {
+                const { data } = await axios_1.default.get(`https://api.binance.com/api/v3/klines`, {
+                    params: { symbol, interval: rule.interval, limit: 2 },
+                });
+                klineData = data;
+            }
+            catch (e) {
+                console.error(`[CandleAlert] Error fetching klines for ${coin}:`, e.message);
+                continue;
+            }
+            const currentKline = klineData[klineData.length - 1];
+            const openTime = currentKline[0];
+            const open = parseFloat(currentKline[1]);
+            const close = parseFloat(currentKline[4]);
+            const changePct = ((close - open) / open) * 100;
+            if (rule._lastCandleOpenTime === openTime) {
+                continue;
+            }
+            const threshold = rule.targetPercent;
+            const currentSide = changePct >= threshold ? 'above' : 'below';
+            const prevSide = rule._lastSide;
+            let conditionMet = rule.direction === 'up'
+                ? changePct >= threshold
+                : changePct <= -threshold;
+            const isTriggered = conditionMet && (!rule.isPersistent || prevSide === undefined || prevSide !== currentSide);
+            if (isTriggered) {
+                const emoji = changePct >= 0 ? '📈' : '📉';
+                const directionEmoji = rule.direction === 'up' ? '🔼' : '🔽';
+                triggeredCandleMessages.push(`${emoji} *${coin}* — Vela ${rule.interval.toUpperCase()}: *${pnlSign(changePct)}${changePct.toFixed(2)}%*\n` +
+                    `   ${rule.direction === 'up' ? 'Open' : 'Open'}: ${fmtPrice(open)} → Close: ${fmtPrice(close)}\n` +
+                    `   Meta: ${directionEmoji} Variación ${rule.direction === 'up' ? '>=' : '<='} ${threshold}%` +
+                    (rule.note ? `\n   _📝 ${rule.note}_` : ''));
+                console.log(`[CANDLE ALERT] ${coin} ${rule.interval}: ${changePct.toFixed(2)}% — Target: ${rule.direction === 'up' ? '>=' : '<='} ${threshold}% — Tipo: ${rule.isPersistent ? 'PERMANENTE' : 'UNA VEZ'}`);
+            }
+            const remainingRules = [...rules];
+            const ruleIndex = remainingRules.indexOf(rule);
+            if (isTriggered) {
+                if (rule.isPersistent) {
+                    remainingRules[ruleIndex] = Object.assign(Object.assign({}, rule), { _lastSide: currentSide, _lastCandleOpenTime: openTime });
+                    candleDbUpdates[`candleAlerts.${coin}`] = remainingRules;
+                }
+                else {
+                    remainingRules.splice(ruleIndex, 1);
+                    if (remainingRules.length === 0) {
+                        candleDbUpdates[`candleAlerts.${coin}`] = admin.firestore.FieldValue.delete();
+                    }
+                    else {
+                        candleDbUpdates[`candleAlerts.${coin}`] = remainingRules;
+                    }
+                }
+            }
+            else if (rule.isPersistent) {
+                remainingRules[ruleIndex] = Object.assign(Object.assign({}, rule), { _lastSide: currentSide, _lastCandleOpenTime: openTime });
+                candleDbUpdates[`candleAlerts.${coin}`] = remainingRules;
+            }
+        }
+    }
+    const shouldAlert = triggeredGlobalMessages.length > 0 || triggeredIndividualMessages.length > 0 || triggeredWatchlistMessages.length > 0 || triggeredCandleMessages.length > 0;
     // ── Always clean legacy assetAlerts field if present (no Telegram needed) ──
     const legacyCleanup = {};
     if (configSnap.exists && ((_a = configSnap.data()) === null || _a === void 0 ? void 0 : _a.assetAlerts) !== undefined) {
@@ -481,6 +557,8 @@ async function runCheckAlerts() {
         let message = ``;
         if (triggeredGlobalMessages.length > 0)
             message += `*🚨 Alertas Globales:*\n${triggeredGlobalMessages.join("\n")}\n\n`;
+        if (triggeredCandleMessages.length > 0)
+            message += `*📊 Alertas de Vela:*\n${triggeredCandleMessages.join("\n")}\n\n`;
         if (triggeredIndividualMessages.length > 0)
             message += `${triggeredIndividualMessages.join("\n")}\n`;
         if (triggeredWatchlistMessages.length > 0)
@@ -494,7 +572,7 @@ async function runCheckAlerts() {
             // the alert is permanently lost with no notification sent.
             if (hasGlobalAlertsToRemove || hasGlobalChanged)
                 dbUpdates.globalAlerts = remainingGlobalAlerts;
-            const allUpdates = Object.assign(Object.assign({}, dbUpdates), watchlistDbUpdates);
+            const allUpdates = Object.assign(Object.assign(Object.assign({}, dbUpdates), watchlistDbUpdates), candleDbUpdates);
             if (Object.keys(allUpdates).length > 0) {
                 await db.collection("config").doc("alerts").update(allUpdates);
                 console.log("[CLEANUP] Alertas UNA VEZ eliminadas de Firestore post-envío.");
@@ -506,6 +584,7 @@ async function runCheckAlerts() {
                 triggeredAssets: triggeredIndividualMessages,
                 triggeredGlobalAlerts: triggeredGlobalMessages,
                 triggeredWatchlistAlerts: triggeredWatchlistMessages,
+                triggeredCandleAlerts: triggeredCandleMessages,
                 totalInvested: Math.round(totalInvested),
                 totalCurrentValue: Math.round(totalCurrentValue),
                 positionSnapshot: Object.fromEntries(individualAssets.map(a => [a.id, { coin: a.coin, pnl: a.pnl, roi: a.roi }])),
@@ -521,7 +600,7 @@ async function runCheckAlerts() {
         // No alerts triggered — still update _lastSide for position tracking and remove orphans.
         if (hasGlobalAlertsToRemove || hasGlobalChanged)
             dbUpdates.globalAlerts = remainingGlobalAlerts;
-        const allUpdatesNoAlert = Object.assign(Object.assign({}, dbUpdates), watchlistDbUpdates);
+        const allUpdatesNoAlert = Object.assign(Object.assign(Object.assign({}, dbUpdates), watchlistDbUpdates), candleDbUpdates);
         if (Object.keys(allUpdatesNoAlert).length > 0) {
             await db.collection("config").doc("alerts").update(allUpdatesNoAlert);
         }
@@ -602,17 +681,7 @@ exports.testAlerts = functions
         res.status(500).send(e.message);
     }
 });
-exports.checkPNLAlerts = functions
-    .region('europe-west1')
-    .runWith({ secrets: ["TELEGRAM_TOKEN", "TELEGRAM_CHAT_ID"] })
-    .pubsub.schedule("every 10 minutes").onRun(async (_context) => {
-    try {
-        await runCheckAlerts();
-    }
-    catch (e) {
-        console.error("Error en checkPNLAlerts:", e);
-    }
-});
+// Tarea programada unificada (checkIntervalTasks) definida abajo para ahorrar costos de Cloud Scheduler
 // ─── Trading Signals ──────────────────────────────────────────────────────────
 // Indicator math (duplicated from frontend — pure functions, no browser deps)
 function _calcEMASeries(closes, period) {
@@ -810,11 +879,19 @@ exports.testTradingSignals = functions
         res.status(500).send(e.message);
     }
 });
-exports.checkTradingSignals = functions
+exports.checkIntervalTasks = functions
     .region('europe-west1')
     .runWith({ secrets: ["TELEGRAM_TOKEN", "TELEGRAM_CHAT_ID"] })
     .pubsub.schedule("every 10 minutes").onRun(async (_context) => {
     try {
+        console.log("[checkIntervalTasks] Ejecutando runCheckAlerts...");
+        await runCheckAlerts();
+    }
+    catch (e) {
+        console.error("Error en checkPNLAlerts:", e);
+    }
+    try {
+        console.log("[checkIntervalTasks] Ejecutando runTradingSignals...");
         await runTradingSignals();
     }
     catch (e) {

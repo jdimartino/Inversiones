@@ -35,6 +35,7 @@ import EditInvestmentModal from "./components/EditInvestmentModal";
 import InvestmentAlertModal from "./components/InvestmentAlertModal";
 import GlobalAlertModal from "./components/GlobalAlertModal";
 import WatchlistAlertModal from "./components/WatchlistAlertModal";
+import CandleAlertModal from "./components/CandleAlertModal";
 import MarcoAnalysisModal, { MarcoAnalysisModalProps } from "./components/MarcoAnalysisModal";
 
 const LiquidationDashboard = React.lazy(() => import("./components/LiquidationDashboard"));
@@ -65,7 +66,9 @@ const App: React.FC = () => {
   const [closingVenta, setClosingVenta] = useState<SaleRecord | null>(null);
   const [isGlobalAlertModalOpen, setIsGlobalAlertModalOpen] = useState(false);
   const [isWatchlistModalOpen, setIsWatchlistModalOpen] = useState(false);
+  const [isCandleAlertModalOpen, setIsCandleAlertModalOpen] = useState(false);
   const [watchlistEditTarget, setWatchlistEditTarget] = useState<{ coin: string; index: number } | null>(null);
+  const [candleEditTarget, setCandleEditTarget] = useState<{ coin: string; index: number } | null>(null);
   const [globalEditIndex, setGlobalEditIndex] = useState<number | null>(null);
   const [investmentEditIndex, setInvestmentEditIndex] = useState<number | null>(null);
   const [marcoItem, setMarcoItem] = useState<Omit<MarcoAnalysisModalProps, "fearGreed" | "onClose"> | null>(null);
@@ -504,6 +507,8 @@ const App: React.FC = () => {
                 onEditInvestment={handleEditInvestmentAlert}
                 onOpenWatchlist={() => setIsWatchlistModalOpen(true)}
                 onEditWatchlistAlert={(coin, index) => { setWatchlistEditTarget({ coin, index }); setIsWatchlistModalOpen(true); }}
+                onOpenCandleAlert={() => setIsCandleAlertModalOpen(true)}
+                onEditCandleAlert={(coin, index) => { setCandleEditTarget({ coin, index }); setIsCandleAlertModalOpen(true); }}
                 sales={sales}
                 totalPnl={totalPnl}
               />
@@ -608,6 +613,17 @@ const App: React.FC = () => {
           onClose={() => { setIsWatchlistModalOpen(false); setWatchlistEditTarget(null); }}
           initialEditCoin={watchlistEditTarget?.coin}
           initialEditIndex={watchlistEditTarget?.index}
+        />
+      )}
+      {isCandleAlertModalOpen && (
+        <CandleAlertModal
+          currentAlerts={config.candleAlerts || {}}
+          onSaveAlerts={async (newAlerts) => {
+            await saveConfig({ ...config, candleAlerts: newAlerts });
+          }}
+          onClose={() => { setIsCandleAlertModalOpen(false); setCandleEditTarget(null); }}
+          initialEditCoin={candleEditTarget?.coin}
+          initialEditIndex={candleEditTarget?.index}
         />
       )}
       {isGlobalAlertModalOpen && (
