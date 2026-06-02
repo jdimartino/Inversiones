@@ -8,9 +8,10 @@ import {
     TrendingUp,
     Zap,
     RefreshCw,
+    Activity,
 } from "lucide-react";
 
-export type TabId = "dashboard" | "graficos" | "prestamos" | "operaciones" | "venta" | "configuracion" | "senales";
+export type TabId = "dashboard" | "graficos" | "prestamos" | "operaciones" | "venta" | "configuracion" | "senales" | "futuros";
 
 interface Tab {
     id: TabId;
@@ -23,6 +24,7 @@ const TABS: Tab[] = [
     { id: "graficos", label: "Gráficos", icon: <BarChart3 className="w-4 h-4" /> },
     { id: "configuracion", label: "Telegram", icon: <Send className="w-4 h-4" /> },
     { id: "senales", label: "Señales", icon: <Zap className="w-4 h-4" /> },
+    { id: "futuros", label: "Futuros", icon: <Activity className="w-4 h-4" /> },
     { id: "prestamos", label: "Préstamos", icon: <CreditCard className="w-4 h-4" /> },
     { id: "venta", label: "Compra/Venta", icon: <TrendingUp className="w-4 h-4" /> },
     { id: "operaciones", label: "Operaciones", icon: <PlusCircle className="w-4 h-4" /> },

@@ -41,6 +41,7 @@ import MarcoAnalysisModal, { MarcoAnalysisModalProps } from "./components/MarcoA
 const LiquidationDashboard = React.lazy(() => import("./components/LiquidationDashboard"));
 const SellSuite = React.lazy(() => import("./components/SellSuite"));
 const AlertSettings = React.lazy(() => import("./components/AlertSettings"));
+const FuturesTab = React.lazy(() => import("./components/FuturesTab"));
 
 const App: React.FC = () => {
   const { portfolio, addInvestment, removeInvestment, updateInvestment } = usePortfolio();
@@ -512,6 +513,15 @@ const App: React.FC = () => {
                 sales={sales}
                 totalPnl={totalPnl}
               />
+            </Suspense>
+          </div>
+        )}
+
+        {/* ── FUTUROS ─────────────────────────────────────────────────────────── */}
+        {activeTab === "futuros" && (
+          <div key="futuros" className={tabClass}>
+            <Suspense fallback={<div className="py-20 text-center text-slate-500 text-sm">Cargando futuros...</div>}>
+              <FuturesTab prices={prices} />
             </Suspense>
           </div>
         )}

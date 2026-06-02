@@ -1,6 +1,9 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import axios from "axios";
+import { testFutures } from "./testFutures";
+import { futuresSync } from "./futuresSync";
+import { testFuturesAlerts } from "./testFuturesAlerts";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -1272,3 +1275,5 @@ export const testDailyPnlSnapshot = functions
             res.status(500).send(e.message);
         }
     });
+
+export { testFutures, futuresSync, testFuturesAlerts };
