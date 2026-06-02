@@ -9,3 +9,7 @@ history/
 # Firebase hosting cache
 .firebase/
 firebase-debug.log
+
+# Test scripts with potential credentials
+functions/test_*.ts
+!functions/lib/test_*.js

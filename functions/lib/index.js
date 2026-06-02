@@ -477,6 +477,9 @@ async function runCheckAlerts() {
         }
     }
     // ── Candle alerts (4h / 1d percentage change) ────────────────────────────
+    // Fix: se elimina _lastCandleOpenTime como bloqueador (cada vela se chequea
+    // cada 10 min). Se usa _lastSide para detección de cruce en alertas persistentes.
+    // Fix: updatedRules se construye fuera del inner loop para evitar overwrites.
     const triggeredCandleMessages = [];
     const candleDbUpdates = {};
     for (const [coin, rules] of Object.entries(candleAlerts)) {
@@ -484,9 +487,13 @@ async function runCheckAlerts() {
         const currentPrice = prices[symbol] || 0;
         if (currentPrice === 0)
             continue;
+        // Construir el array final UNA vez por moneda (no por regla)
+        const updatedRules = [];
         for (const rule of rules) {
-            if (rule.type !== 'candle_change')
+            if (rule.type !== 'candle_change') {
+                updatedRules.push(rule);
                 continue;
+            }
             let klineData;
             try {
                 const { data } = await axios_1.default.get(`https://api.binance.com/api/v3/klines`, {
@@ -496,20 +503,17 @@ async function runCheckAlerts() {
             }
             catch (e) {
                 console.error(`[CandleAlert] Error fetching klines for ${coin}:`, e.message);
+                updatedRules.push(rule);
                 continue;
             }
             const currentKline = klineData[klineData.length - 1];
-            const openTime = currentKline[0];
             const open = parseFloat(currentKline[1]);
             const close = parseFloat(currentKline[4]);
             const changePct = ((close - open) / open) * 100;
-            if (rule._lastCandleOpenTime === openTime) {
-                continue;
-            }
             const threshold = rule.targetPercent;
             const currentSide = changePct >= threshold ? 'above' : 'below';
             const prevSide = rule._lastSide;
-            let conditionMet = rule.direction === 'up'
+            const conditionMet = rule.direction === 'up'
                 ? changePct >= threshold
                 : changePct <= -threshold;
             const isTriggered = conditionMet && (!rule.isPersistent || prevSide === undefined || prevSide !== currentSide);
@@ -517,32 +521,33 @@ async function runCheckAlerts() {
                 const emoji = changePct >= 0 ? '📈' : '📉';
                 const directionEmoji = rule.direction === 'up' ? '🔼' : '🔽';
                 triggeredCandleMessages.push(`${emoji} *${coin}* — Vela ${rule.interval.toUpperCase()}: *${pnlSign(changePct)}${changePct.toFixed(2)}%*\n` +
-                    `   ${rule.direction === 'up' ? 'Open' : 'Open'}: ${fmtPrice(open)} → Close: ${fmtPrice(close)}\n` +
+                    `   Open: ${fmtPrice(open)} → Close: ${fmtPrice(close)}\n` +
                     `   Meta: ${directionEmoji} Variación ${rule.direction === 'up' ? '>=' : '<='} ${threshold}%` +
                     (rule.note ? `\n   _📝 ${rule.note}_` : ''));
                 console.log(`[CANDLE ALERT] ${coin} ${rule.interval}: ${changePct.toFixed(2)}% — Target: ${rule.direction === 'up' ? '>=' : '<='} ${threshold}% — Tipo: ${rule.isPersistent ? 'PERMANENTE' : 'UNA VEZ'}`);
-            }
-            const remainingRules = [...rules];
-            const ruleIndex = remainingRules.indexOf(rule);
-            if (isTriggered) {
                 if (rule.isPersistent) {
-                    remainingRules[ruleIndex] = Object.assign(Object.assign({}, rule), { _lastSide: currentSide, _lastCandleOpenTime: openTime });
-                    candleDbUpdates[`candleAlerts.${coin}`] = remainingRules;
+                    // Persistente: mantener, actualizar _lastSide para detectar próximo cruce
+                    updatedRules.push(Object.assign(Object.assign({}, rule), { _lastSide: currentSide }));
+                }
+                // One-shot: NO se agrega (eliminado de la lista)
+            }
+            else {
+                if (rule.isPersistent) {
+                    // Siempre actualizar _lastSide aunque no dispare (para detectar cruces)
+                    updatedRules.push(Object.assign(Object.assign({}, rule), { _lastSide: currentSide }));
                 }
                 else {
-                    remainingRules.splice(ruleIndex, 1);
-                    if (remainingRules.length === 0) {
-                        candleDbUpdates[`candleAlerts.${coin}`] = admin.firestore.FieldValue.delete();
-                    }
-                    else {
-                        candleDbUpdates[`candleAlerts.${coin}`] = remainingRules;
-                    }
+                    // One-shot no disparada aún: mantener sin cambios
+                    updatedRules.push(rule);
                 }
             }
-            else if (rule.isPersistent) {
-                remainingRules[ruleIndex] = Object.assign(Object.assign({}, rule), { _lastSide: currentSide, _lastCandleOpenTime: openTime });
-                candleDbUpdates[`candleAlerts.${coin}`] = remainingRules;
-            }
+        }
+        // Guardar el array completo una vez por moneda (no dentro del inner loop)
+        if (updatedRules.length === 0) {
+            candleDbUpdates[`candleAlerts.${coin}`] = admin.firestore.FieldValue.delete();
+        }
+        else {
+            candleDbUpdates[`candleAlerts.${coin}`] = updatedRules;
         }
     }
     const shouldAlert = triggeredGlobalMessages.length > 0 || triggeredIndividualMessages.length > 0 || triggeredWatchlistMessages.length > 0 || triggeredCandleMessages.length > 0;

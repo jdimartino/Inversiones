@@ -1,7 +1,16 @@
 import * as admin from "firebase-admin";
 import axios from "axios";
 
-const serviceAccount = require("/Users/jdimartino/Desktop/Antigravity/inversiones/functions/micriptoapp-firebase-adminsdk-rth8s-8b4e7235db.json");
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_TOKEN || "";
+const CHAT_ID = process.env.TELEGRAM_CHAT_ID || "";
+
+if (!TELEGRAM_BOT_TOKEN || !CHAT_ID) {
+    console.error("❌ Faltan TELEGRAM_TOKEN / TELEGRAM_CHAT_ID en environment.");
+    process.exit(1);
+}
+
+const SERVICE_ACCOUNT_PATH = process.env.GOOGLE_APPLICATION_CREDENTIALS || "./micriptoapp-firebase-adminsdk-rth8s-8b4e7235db.json";
+const serviceAccount = require(SERVICE_ACCOUNT_PATH);
 
 if (!admin.apps.length) {
     admin.initializeApp({
@@ -10,10 +19,6 @@ if (!admin.apps.length) {
 }
 
 const db = admin.firestore();
-
-// Telegram Bot details
-const TELEGRAM_BOT_TOKEN = "8434186533:AAG0mEwfF_tklVkxelS7D_D41nVSbB8r5sw";
-const CHAT_ID = "442730401";
 
 async function run() {
     console.log("Starting alert check...");
