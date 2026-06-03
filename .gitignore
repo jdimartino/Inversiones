@@ -6,10 +6,15 @@ history/
 **/.env.local
 **/.env.*
 
+# Generated source maps
+*.js.map
+
 # Firebase hosting cache
 .firebase/
 firebase-debug.log
 
+# Functions build output
+functions/lib/
+
 # Test scripts with potential credentials
 functions/test_*.ts
-!functions/lib/test_*.js
