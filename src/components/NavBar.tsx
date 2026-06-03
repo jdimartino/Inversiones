@@ -6,12 +6,15 @@ import {
     PlusCircle,
     Send,
     TrendingUp,
-    Zap,
     RefreshCw,
     Activity,
 } from "lucide-react";
+import { PriceDirection } from "../hooks/usePrices";
+import { BcvRate } from "../hooks/useBcvRate";
+import { YadioRate } from "../hooks/useYadioRate";
+import PriceTicker from "./PriceTicker";
 
-export type TabId = "dashboard" | "graficos" | "prestamos" | "operaciones" | "venta" | "configuracion" | "senales" | "futuros";
+export type TabId = "dashboard" | "futuros" | "prestamos" | "graficos" | "configuracion" | "venta" | "operaciones";
 
 interface Tab {
     id: TabId;
@@ -20,12 +23,11 @@ interface Tab {
 }
 
 const TABS: Tab[] = [
-    { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
+    { id: "dashboard", label: "Spot", icon: <LayoutDashboard className="w-4 h-4" /> },
     { id: "futuros", label: "Futuros", icon: <Activity className="w-4 h-4" /> },
+    { id: "prestamos", label: "Préstamos", icon: <CreditCard className="w-4 h-4" /> },
     { id: "graficos", label: "Gráficos", icon: <BarChart3 className="w-4 h-4" /> },
     { id: "configuracion", label: "Telegram", icon: <Send className="w-4 h-4" /> },
-    { id: "senales", label: "Señales", icon: <Zap className="w-4 h-4" /> },
-    { id: "prestamos", label: "Préstamos", icon: <CreditCard className="w-4 h-4" /> },
     { id: "venta", label: "Compra/Venta", icon: <TrendingUp className="w-4 h-4" /> },
     { id: "operaciones", label: "Operaciones", icon: <PlusCircle className="w-4 h-4" /> },
 ];
@@ -35,11 +37,26 @@ interface NavBarProps {
     onChange: (tab: TabId) => void;
     onRefresh?: () => void;
     refreshing?: boolean;
+    prices?: Record<string, number>;
+    priceDirections?: Record<string, PriceDirection>;
+    bcvRate?: BcvRate;
+    yadioRate?: YadioRate;
+    selectedCoins?: string[];
 }
 
-const NavBar: React.FC<NavBarProps> = ({ active, onChange, onRefresh, refreshing }) => {
+const NavBar: React.FC<NavBarProps> = ({
+    active,
+    onChange,
+    onRefresh,
+    refreshing,
+    prices = {},
+    priceDirections = {},
+    bcvRate,
+    yadioRate,
+    selectedCoins = [],
+}) => {
     return (
-        <nav className="sm:sticky sm:top-0 sm:z-40 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800 mb-4 sm:mb-8">
+        <nav className="sm:sticky sm:top-0 sm:z-40 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800 mb-0">
             <div className="max-w-6xl mx-auto px-3 md:px-8">
                 <div className="flex items-center gap-1">
                     <div className="flex flex-1 overflow-x-auto no-scrollbar gap-0.5 sm:gap-1 py-1.5 sm:py-2">
@@ -76,6 +93,15 @@ const NavBar: React.FC<NavBarProps> = ({ active, onChange, onRefresh, refreshing
                     )}
                 </div>
             </div>
+
+            {/* Price Ticker */}
+            <PriceTicker
+                prices={prices}
+                priceDirections={priceDirections}
+                bcvRate={bcvRate || { usd: 0, eur: 0, updatedAt: "", loading: true, error: null }}
+                yadioRate={yadioRate || { p2pRate: 0, loading: true, error: null }}
+                selectedCoins={selectedCoins}
+            />
         </nav>
     );
 };

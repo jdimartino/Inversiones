@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
     Activity,
     TrendingUp,
@@ -13,6 +13,7 @@ import {
     FlaskConical,
     ArrowUp,
     ArrowDown,
+    ArrowUpRight,
 } from "lucide-react";
 import { useFutures, useFuturesAlerts } from "../hooks/useFutures";
 import {
@@ -49,45 +50,47 @@ function PositionCard({ pos }: { pos: FuturesPosition }) {
     return (
         <div className="bg-[#0E1014] rounded-xl border border-gray-800 p-4 hover:border-gray-700 transition-colors">
             <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-1">
                     <span className={`px-2 py-0.5 rounded text-xs font-bold ${isLong ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"}`}>
                         {isLong ? "LONG" : "SHORT"}
                     </span>
                     <span className="text-white font-bold text-base">{pos.symbol}</span>
                     <span className="text-gray-500 text-xs">{pos.leverage}x</span>
                 </div>
-                <div className={`text-right font-bold ${pnlPositive ? "text-green-400" : "text-red-400"}`}>
+                <div className={`flex-1 text-center font-bold ${pnlPositive ? "text-green-400" : "text-red-400"}`}>
                     {formatPnl(pos.unrealizedPnl)}
                     <div className="text-xs font-normal text-gray-500">{formatRoe(pos.roe)}</div>
                 </div>
+                <div className="flex-1"></div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
+            <div className="grid grid-cols-2 sm:grid-cols-7 gap-2 sm:gap-3 mb-3">
                 <div>
-                    <div className="text-xs text-gray-500">Precio de Entrada</div>
+                    <div className="text-xs text-gray-500">Entrada</div>
                     <div className="text-white text-sm font-mono">${pos.entryPrice.toLocaleString()}</div>
                 </div>
-                <div>
-                    <div className="text-xs text-gray-500">Precio Actual</div>
-                    <div className="text-white text-sm font-mono">${pos.markPrice.toLocaleString()}</div>
+                <div className="text-right sm:text-left">
+                    <div className="text-xs text-gray-500">Break Even</div>
+                    <div className="text-white text-sm font-mono">${pos.breakEvenPrice.toLocaleString()}</div>
                 </div>
                 <div>
+                    <div className="text-xs text-gray-500">Actual</div>
+                    <div className="text-white text-sm font-mono">${pos.markPrice.toLocaleString()}</div>
+                </div>
+                <div className="text-right sm:text-left">
                     <div className="text-xs text-gray-500">Liquidación</div>
                     <div className={`text-sm font-mono ${distColor}`}>${pos.liquidationPrice.toLocaleString()}</div>
                 </div>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
                 <div>
                     <div className="text-xs text-gray-500">Tamaño</div>
                     <div className="text-white text-sm">{pos.size} {pos.symbol.replace("USDT", "")}</div>
                 </div>
-                <div>
-                    <div className="text-xs text-gray-500">Valor de la Posición</div>
+                <div className="text-right sm:text-left">
+                    <div className="text-xs text-gray-500">Valor</div>
                     <div className="text-white text-sm">${pos.notional.toFixed(2)}</div>
                 </div>
                 <div>
-                    <div className="text-xs text-gray-500">Margen (Depósito de Garantía)</div>
+                    <div className="text-xs text-gray-500">Margen</div>
                     <div className="text-white text-sm">${pos.initialMargin.toFixed(2)}</div>
                 </div>
             </div>
@@ -325,6 +328,11 @@ function CrossMarginSimulator({
                         </div>
                     </div>
 
+                    {/* Disclaimer */}
+                    <div className="text-xs text-gray-600 bg-[#0E1014] rounded-lg px-3 py-2 border border-gray-800">
+                        ⚙ La simulación asume movimiento uniforme del mercado para todas las posiciones. Resultados aproximados.
+                    </div>
+
                     {/* Slider */}
                     <div>
                         <div className="flex items-center justify-between text-sm text-gray-400 mb-2">
@@ -482,13 +490,20 @@ interface FuturesTabProps {
 
 export default function FuturesTab({ prices }: FuturesTabProps) {
     const { futuresData, loading: dataLoading } = useFutures();
-    const { alerts, loading: alertsLoading, saveAlerts } = useFuturesAlerts();
+    const { alerts, saveAlerts } = useFuturesAlerts();
 
     const { account, positions, lastSync } = futuresData;
 
     // Modal state
     const [selectedPosition, setSelectedPosition] = useState<FuturesPosition | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+
+    // Re-render every 60s to update stale data indicator
+    const [now, setNow] = useState(Date.now());
+    useEffect(() => {
+        const id = setInterval(() => setNow(Date.now()), 60_000);
+        return () => clearInterval(id);
+    }, []);
 
     const handleOpenAlertModal = (pos: FuturesPosition) => {
         setSelectedPosition(pos);
@@ -536,11 +551,17 @@ export default function FuturesTab({ prices }: FuturesTabProps) {
                     : -priceDiff * pos.size;
             const liveRoe =
                 pos.initialMargin > 0 ? (livePnl / pos.initialMargin) * 100 : 0;
-            return { ...pos, unrealizedPnl: livePnl, roe: liveRoe };
+            const liveDistToLiq =
+                pos.liquidationPrice > 0
+                    ? pos.side === "LONG"
+                        ? ((pos.markPrice - pos.liquidationPrice) / pos.markPrice) * 100
+                        : ((pos.liquidationPrice - pos.markPrice) / pos.markPrice) * 100
+                    : 999;
+            return { ...pos, unrealizedPnl: livePnl, roe: liveRoe, distToLiqPercent: liveDistToLiq };
         });
     }, [enrichedPositions]);
 
-    const totalPnl = livePositions.reduce((sum, p) => sum + p.unrealizedPnl, 0);
+    const totalPnl = account.totalUnrealizedProfit;
     const marginRatio = account.marginRatio ?? (account as any).marginUsedPercent ?? 0;
     const marginColor = getMarginColor(marginRatio);
     const marginBarColor = getMarginBarColor(marginRatio);
@@ -573,16 +594,16 @@ export default function FuturesTab({ prices }: FuturesTabProps) {
         <div className="space-y-4">
             {/* ── Account Summary Cards ── */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="bg-[#181A20] rounded-xl border border-gray-800 p-3">
-                    <div className="text-xs text-gray-500 mb-1 flex items-center gap-1">
+                <div className="bg-[#181A20] rounded-xl border border-gray-800 p-3 flex flex-col items-center text-center">
+                    <div className="text-xs text-gray-500 mb-1 flex items-center justify-center gap-1">
                         <DollarSign size={12} /> Balance
                     </div>
                     <div className="text-white text-lg font-bold">
                         ${account.totalWalletBalance.toFixed(2)}
                     </div>
                 </div>
-                <div className="bg-[#181A20] rounded-xl border border-gray-800 p-3">
-                    <div className="text-xs text-gray-500 mb-1 flex items-center gap-1">
+                <div className="bg-[#181A20] rounded-xl border border-gray-800 p-3 flex flex-col items-center text-center">
+                    <div className="text-xs text-gray-500 mb-1 flex items-center justify-center gap-1">
                         {totalPnl >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />} PnL
                     </div>
                     <div
@@ -593,16 +614,17 @@ export default function FuturesTab({ prices }: FuturesTabProps) {
                         {formatPnl(totalPnl)}
                     </div>
                 </div>
-                <div className="bg-[#181A20] rounded-xl border border-gray-800 p-3">
-                    <div className="text-xs text-gray-500 mb-1 flex items-center gap-1">
-                        <Target size={12} /> Disponible
+                {/* Disponible para Transferir */}
+                <div className="bg-[#181A20] rounded-xl border border-gray-800 p-3 flex flex-col items-center text-center">
+                    <div className="text-xs text-gray-500 mb-1 flex items-center justify-center gap-1">
+                        <ArrowUpRight size={12} /> Transferible
                     </div>
                     <div className="text-white text-lg font-bold">
-                        ${account.availableBalance.toFixed(2)}
+                        ${account.maxWithdrawAmount.toFixed(2)}
                     </div>
                 </div>
-                <div className="bg-[#181A20] rounded-xl border border-gray-800 p-3">
-                    <div className="text-xs text-gray-500 mb-1 flex items-center gap-1">
+                <div className="bg-[#181A20] rounded-xl border border-gray-800 p-3 flex flex-col items-center text-center">
+                    <div className="text-xs text-gray-500 mb-1 flex items-center justify-center gap-1">
                         <Shield size={12} /> Posiciones
                     </div>
                     <div className="text-white text-lg font-bold">
@@ -623,7 +645,7 @@ export default function FuturesTab({ prices }: FuturesTabProps) {
 
                 {/* Big ratio number */}
                 <div className="text-center mb-4">
-                    <div className={`text-5xl font-bold ${marginColor}`}>
+                    <div className={`text-4xl sm:text-5xl font-bold ${marginColor}`}>
                         {marginRatio.toFixed(2)}%
                     </div>
                     <div className={`text-sm font-medium mt-1 ${marginLabelColor}`}>
@@ -657,54 +679,52 @@ export default function FuturesTab({ prices }: FuturesTabProps) {
                 </div>
 
                 {/* Key values grid */}
-                <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-[#0E1014] rounded-lg p-3 border border-gray-800">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+                    <div className="bg-[#0E1014] rounded-lg p-2 sm:p-3 border border-gray-800 flex flex-col items-center text-center">
                         <div className="text-xs text-gray-500 mb-1">Balance de Margen</div>
                         <div className="text-white text-lg font-bold font-mono">
                             ${account.totalMarginBalance.toFixed(2)}
                         </div>
                         <div className="text-xs text-gray-600">USDT</div>
                     </div>
-                    <div className="bg-[#0E1014] rounded-lg p-3 border border-gray-800">
+                    <div className="bg-[#0E1014] rounded-lg p-2 sm:p-3 border border-gray-800 flex flex-col items-center text-center">
                         <div className="text-xs text-gray-500 mb-1">Margen de Mantenimiento</div>
                         <div className="text-white text-lg font-bold font-mono">
                             ${account.totalMaintMargin.toFixed(2)}
                         </div>
                         <div className="text-xs text-gray-600">USDT</div>
                     </div>
-                    <div className="bg-[#0E1014] rounded-lg p-3 border border-gray-800">
-                        <div className="text-xs text-gray-500 mb-1">Margen Inicial (Usado)</div>
+                    <div className="bg-[#0E1014] rounded-lg p-2 sm:p-3 border border-gray-800 flex flex-col items-center text-center">
+                        <div className="text-xs text-gray-500 mb-1">Margen Inicial</div>
                         <div className="text-white text-lg font-bold font-mono">
                             ${account.totalInitialMargin.toFixed(2)}
                         </div>
                         <div className="text-xs text-gray-600">USDT</div>
                     </div>
-                    <div className="bg-[#0E1014] rounded-lg p-3 border border-gray-800">
+                    <div className="bg-[#0E1014] rounded-lg p-2 sm:p-3 border border-gray-800 flex flex-col items-center text-center">
                         <div className="text-xs text-gray-500 mb-1">Disponible</div>
                         <div className="text-green-400 text-lg font-bold font-mono">
                             ${account.availableBalance.toFixed(2)}
                         </div>
                         <div className="text-xs text-gray-600">USDT</div>
                     </div>
-                </div>
-
-                {/* Effective leverage & net exposure */}
-                {livePositions.length > 0 && (
-                    <div className="grid grid-cols-2 gap-3 mt-3">
-                        <div className="bg-[#0E1014] rounded-lg p-3 border border-gray-800">
-                            <div className="text-xs text-gray-500 mb-1">Apalancamiento Efectivo</div>
-                            <div className="text-white text-lg font-bold">{effLeverageMetrics.effectiveLeverage.toFixed(1)}x</div>
-                            <div className="text-xs text-gray-600">{effLeverageMetrics.totalNotional.toFixed(2)} USDT</div>
-                        </div>
-                        <div className="bg-[#0E1014] rounded-lg p-3 border border-gray-800">
-                            <div className="text-xs text-gray-500 mb-1">Exposición Neta</div>
-                            <div className={`text-lg font-bold ${effLeverageMetrics.netExposure >= 0 ? "text-green-400" : "text-red-400"}`}>
-                                {effLeverageMetrics.netExposure >= 0 ? "+" : ""}${effLeverageMetrics.netExposure.toFixed(2)}
+                    {livePositions.length > 0 && (
+                        <>
+                            <div className="bg-[#0E1014] rounded-lg p-2 sm:p-3 border border-gray-800 flex flex-col items-center text-center">
+                                <div className="text-xs text-gray-500 mb-1">Apalancamiento Efectivo</div>
+                                <div className="text-white text-lg font-bold">{effLeverageMetrics.effectiveLeverage.toFixed(1)}x</div>
+                                <div className="text-xs text-gray-600">{effLeverageMetrics.totalNotional.toFixed(2)} USDT</div>
                             </div>
-                            <div className="text-xs text-gray-600">{effLeverageMetrics.netExposure >= 0 ? "LONG" : "SHORT"}</div>
-                        </div>
-                    </div>
-                )}
+                            <div className="bg-[#0E1014] rounded-lg p-2 sm:p-3 border border-gray-800 flex flex-col items-center text-center">
+                                <div className="text-xs text-gray-500 mb-1">Exposición Neta</div>
+                                <div className={`text-lg font-bold ${effLeverageMetrics.netExposure >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                    {effLeverageMetrics.netExposure >= 0 ? "+" : ""}${effLeverageMetrics.netExposure.toFixed(2)}
+                                </div>
+                                <div className="text-xs text-gray-600">{effLeverageMetrics.netExposure >= 0 ? "LONG" : "SHORT"}</div>
+                            </div>
+                        </>
+                    )}
+                </div>
             </div>
 
             {/* ── Cross-Margin Simulator ── */}
@@ -725,7 +745,7 @@ export default function FuturesTab({ prices }: FuturesTabProps) {
                         livePositions.map((pos) => {
                             const posAlerts = alerts.positionAlerts?.[pos.symbol] || [];
                             return (
-                                <div key={pos.symbol}>
+                                <div key={`${pos.symbol}-${pos.side}`}>
                                     <PositionCard pos={pos} />
                                     {/* Alert button and existing alerts */}
                                     <div className="bg-[#181A20] rounded-b-xl border border-t-0 border-gray-800 px-4 py-2 flex items-center justify-between">
@@ -770,16 +790,29 @@ export default function FuturesTab({ prices }: FuturesTabProps) {
             <AlertSettings alerts={alerts} onSave={saveAlerts} />
 
             {/* ── Last Sync ── */}
-            {lastSync > 0 && (
-                <div className="text-center text-xs text-gray-600 flex items-center justify-center gap-1">
-                    <Clock size={12} />
-                    Última sincronización:{" "}
-                    {new Date(lastSync).toLocaleTimeString("es-AR", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                    })}
-                </div>
-            )}
+            {lastSync > 0 && (() => {
+                const ageMin = (now - lastSync) / 60_000;
+                const isStale5 = ageMin > 5;
+                const isStale15 = ageMin > 15;
+                return (
+                    <div className="flex items-center justify-center gap-2 text-xs">
+                        <span className="text-gray-600 flex items-center gap-1">
+                            <Clock size={12} />
+                            Sync: {new Date(lastSync).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                        {isStale15 && (
+                            <span className="px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30 font-medium">
+                                ⚠ Datos muy antiguos ({Math.round(ageMin)}min)
+                            </span>
+                        )}
+                        {isStale5 && !isStale15 && (
+                            <span className="px-2 py-0.5 rounded bg-orange-500/20 text-orange-400 border border-orange-500/30 font-medium">
+                                ⚠ Datos desactualizados ({Math.round(ageMin)}min)
+                            </span>
+                        )}
+                    </div>
+                );
+            })()}
 
             {/* ── Position Alert Modal ── */}
             {isModalOpen && selectedPosition && (

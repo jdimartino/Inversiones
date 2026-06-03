@@ -114,7 +114,7 @@ function signalDotColor(sig?: string): string | null {
 
 interface CandlestickChartProps {
     aggregated: AggregatedAsset[];
-    klinesMap: Record<string, Kline[]>;
+    klinesMap?: Record<string, Kline[]>;
     items: ProcessedInvestment[];
     initialCoin?: string;
     signals?: CoinSignal[];
@@ -178,7 +178,7 @@ async function fetchKlines(coin: string, interval: Interval): Promise<Kline[]> {
 // ── Component ───────────────────────────────────────────────────────
 
 const CandlestickChart: React.FC<CandlestickChartProps> = ({
-    aggregated, klinesMap, items, initialCoin, signals = [], onCoinChange, priceDirections = {}, sales = [],
+    aggregated, klinesMap = {}, items, initialCoin, signals = [], onCoinChange, priceDirections = {}, sales = [],
 }) => {
     const portfolioCoins = aggregated.filter((a) => a.currentValue > 0).map((a) => a.coin);
     const extraCoins = Object.keys(klinesMap).filter(c => !portfolioCoins.includes(c));

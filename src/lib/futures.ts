@@ -17,6 +17,7 @@ export interface FuturesPosition {
     distToLiqPercent: number;
     roe: number;
     updateTime: number;
+    fundingRate: number;
 }
 
 export interface FuturesAccount {
@@ -166,9 +167,16 @@ export function simulateMarketMove(
         return sum + pnl;
     }, 0);
 
+    // Recalculate total maintMargin proportionally to price change per position
+    const newMaintMargin = positions.reduce((sum, pos) => {
+        if (pos.markPrice <= 0) return sum + pos.maintMargin;
+        const scaleFactor = (pos.markPrice * (1 + movePercent / 100)) / pos.markPrice;
+        return sum + pos.maintMargin * scaleFactor;
+    }, 0);
+
     const newMarginBalance = account.totalWalletBalance + newPnlSum;
     const newMarginRatio = newMarginBalance > 0
-        ? (account.totalMaintMargin / newMarginBalance) * 100
+        ? (newMaintMargin / newMarginBalance) * 100
         : 100;
     const isLiquidated = newMarginRatio >= 100 || newMarginBalance <= 0;
 

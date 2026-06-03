@@ -7,7 +7,7 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 
 interface AITraderAnalysisProps {
     coin: string;
-    signal: CoinSignal | undefined;
+    signal?: CoinSignal;
     fearGreed: FearGreedData | null | undefined;
 }
 
@@ -151,7 +151,7 @@ const AITraderAnalysis: React.FC<AITraderAnalysisProps> = ({ coin, signal, fearG
                         Disponible en {cooldownLeft}s
                     </>
                 ) : !signal ? (
-                    "Cargá las señales primero (tab Señales)"
+                    "Selecciona una moneda en el gráfico"
                 ) : (
                     <>
                         <Brain className="w-4 h-4" />

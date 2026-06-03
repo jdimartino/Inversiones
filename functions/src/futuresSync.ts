@@ -2,9 +2,9 @@ import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 import * as crypto from "crypto";
 import axios from "axios";
-import { defineJsonSecret } from "firebase-functions/params";
+import { defineSecret } from "firebase-functions/params";
 
-const binanceConfig = defineJsonSecret("FUNCTIONS_CONFIG_EXPORT");
+const binanceConfigRaw = defineSecret("FUNCTIONS_CONFIG_EXPORT");
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -71,6 +71,7 @@ interface FuturesPosition {
     distToLiqPercent: number;
     roe: number;
     updateTime: number;
+    fundingRate: number;
 }
 
 interface FuturesAccount {
@@ -109,7 +110,7 @@ interface FuturesAlertConfig {
 // ─── Core Logic ───────────────────────────────────────────────────────────────
 
 async function runFuturesSync(): Promise<FuturesData | null> {
-    const bConfig = binanceConfig.value().binance;
+    const bConfig = JSON.parse(binanceConfigRaw.value()).binance;
     if (!bConfig?.api_key || !bConfig?.api_secret) {
         console.error("[FuturesSync] Binance API keys not configured.");
         return null;
@@ -175,6 +176,7 @@ async function runFuturesSync(): Promise<FuturesData | null> {
                     distToLiqPercent,
                     roe,
                     updateTime: p.updateTime,
+                    fundingRate: parseFloat(risk.lastFundingRate || "0"),
                 };
             });
 

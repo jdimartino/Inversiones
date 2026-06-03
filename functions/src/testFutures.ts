@@ -1,9 +1,9 @@
 import * as functions from "firebase-functions/v1";
 import * as crypto from "crypto";
 import axios from "axios";
-import { defineJsonSecret } from "firebase-functions/params";
+import { defineSecret } from "firebase-functions/params";
 
-const binanceConfig = defineJsonSecret("FUNCTIONS_CONFIG_EXPORT");
+const binanceConfigRaw = defineSecret("FUNCTIONS_CONFIG_EXPORT");
 
 /**
  * Helper: sign Binance API request with HMAC-SHA256.
@@ -50,7 +50,7 @@ export const testFutures = functions
             return;
         }
 
-        const bConfig = binanceConfig.value().binance;
+        const bConfig = JSON.parse(binanceConfigRaw.value()).binance;
         if (!bConfig?.api_key || !bConfig?.api_secret) {
             res.status(500).json({
                 error: "Binance API keys not configured.",

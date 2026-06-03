@@ -5,7 +5,7 @@ const functions = require("firebase-functions/v1");
 const crypto = require("crypto");
 const axios_1 = require("axios");
 const params_1 = require("firebase-functions/params");
-const binanceConfig = (0, params_1.defineJsonSecret)("FUNCTIONS_CONFIG_EXPORT");
+const binanceConfigRaw = (0, params_1.defineSecret)("FUNCTIONS_CONFIG_EXPORT");
 // ─── Helpers (copiados de futuresSync para independencia) ─────────────────────
 function sign(queryString, secret) {
     return crypto.createHmac("sha256", secret).update(queryString).digest("hex");
@@ -55,7 +55,7 @@ exports.testFuturesAlerts = functions
     var _a, _b;
     res.set("Access-Control-Allow-Origin", "*");
     const type = req.query.type || "margen";
-    const bConfig = binanceConfig.value().binance;
+    const bConfig = JSON.parse(binanceConfigRaw.value()).binance;
     if (!(bConfig === null || bConfig === void 0 ? void 0 : bConfig.api_key) || !(bConfig === null || bConfig === void 0 ? void 0 : bConfig.api_secret)) {
         res.status(500).json({ error: "Binance API keys not configured." });
         return;

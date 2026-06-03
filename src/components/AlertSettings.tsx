@@ -1,10 +1,11 @@
-import { useState, memo } from "react";
-import { Trash2, Edit2, Repeat, Clock, History, CheckCircle, AlertTriangle, TrendingUp, TrendingDown, Loader2, Eye, Plus, Sun, Send, BarChart2 } from "lucide-react";
+import { useState, memo, useMemo } from "react";
+import { Trash2, Edit2, Repeat, Clock, History, CheckCircle, AlertTriangle, TrendingUp, TrendingDown, Loader2, Eye, Plus, Sun, Send, BarChart2, Settings, Check, Search } from "lucide-react";
 import { AlertConfig, GlobalAlert, InvestmentAlert, WatchlistAlert, CandleAlert } from "../hooks/useAlerts";
 import type { SaleRecord } from "../lib/constants";
 import { usePortfolio } from "../hooks/usePortfolio";
 import { usePrices } from "../hooks/usePrices";
 import { useNotificationLogs } from "../hooks/useNotificationLogs";
+import { useBinanceSymbols } from "../hooks/useBinanceSymbols";
 import { fmtUSD, fmtPrice } from "../lib/format";
 
 interface AlertSettingsProps {
@@ -18,22 +19,172 @@ interface AlertSettingsProps {
     onEditCandleAlert?: (coin: string, index: number) => void;
     sales?: SaleRecord[];
     totalPnl?: number;
+    selectedCoins?: string[];
+    onSelectedCoinsChange?: (coins: string[]) => void;
 }
 
-function AlertSettings({ config, saveConfig, onEditGlobal, onEditInvestment, onOpenWatchlist, onEditWatchlistAlert, onOpenCandleAlert, onEditCandleAlert, sales, totalPnl = 0 }: AlertSettingsProps) {
+function AlertSettings({ config, saveConfig, onEditGlobal, onEditInvestment, onOpenWatchlist, onEditWatchlistAlert, onOpenCandleAlert, onEditCandleAlert, sales, totalPnl = 0, selectedCoins = [], onSelectedCoinsChange }: AlertSettingsProps) {
     const { portfolio } = usePortfolio();
     const { prices } = usePrices();
     const { logs, loading: logsLoading } = useNotificationLogs(15);
     const [savingId, setSavingId] = useState<string | null>(null);
+    const [showTickerConfig, setShowTickerConfig] = useState(false);
+    const [draftCoins, setDraftCoins] = useState<string[]>(selectedCoins);
+    const [coinSearch, setCoinSearch] = useState("");
+    const { symbols, loading: symbolsLoading, error: symbolsError } = useBinanceSymbols();
 
     const globalCount = config.globalAlerts?.length ?? 0;
     const individualCount = config.investmentAlerts
         ? Object.values(config.investmentAlerts).reduce((sum, a) => sum + (Array.isArray(a) ? a.length : 0), 0)
         : 0;
 
+    const filteredSymbols = useMemo(() => {
+        if (!symbols) return [];
+        if (!coinSearch.trim()) return symbols;
+        const q = coinSearch.trim().toUpperCase();
+        return symbols.filter((s) => s.includes(q));
+    }, [symbols, coinSearch]);
+
+    const toggleDraftCoin = (coin: string) => {
+        setDraftCoins((prev) =>
+            prev.includes(coin) ? prev.filter((c) => c !== coin) : [...prev, coin]
+        );
+    };
+
+    const handleSaveTickerCoins = () => {
+        if (draftCoins.length === 0) return;
+        try {
+            localStorage.setItem("ticker_selected_coins", JSON.stringify(draftCoins));
+        } catch { /* ignore */ }
+        onSelectedCoinsChange?.(draftCoins);
+    };
+
     return (
         <div className="space-y-3 md:space-y-4">
 
+            {/* ── Ticker Coin Selector ──────────────────── */}
+            <div className="bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 md:p-4">
+                <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-bold text-slate-200 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                        <Settings className="w-3.5 h-3.5 text-yellow-400" /> Monedas en Ticker
+                    </h3>
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-slate-500 bg-slate-900/80 px-2 py-0.5 rounded-full border border-slate-700/50 font-bold">
+                            {selectedCoins.length}
+                        </span>
+                        <button
+                            onClick={() => {
+                                if (showTickerConfig) {
+                                    setDraftCoins(selectedCoins);
+                                    setCoinSearch("");
+                                }
+                                setShowTickerConfig(!showTickerConfig);
+                            }}
+                            className={`flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg transition-colors ${
+                                showTickerConfig
+                                    ? "text-yellow-400 bg-yellow-500/20 border border-yellow-500/30"
+                                    : "text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 hover:bg-yellow-500/20"
+                            }`}
+                        >
+                            {showTickerConfig ? "Cancelar" : "Configurar"}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Current coins display */}
+                {!showTickerConfig && (
+                    <div className="flex flex-wrap gap-1.5">
+                        {selectedCoins.map((coin) => (
+                            <span key={coin} className="inline-flex items-center gap-1 text-[11px] font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2 py-1 rounded-md">
+                                {coin}
+                                <button
+                                    onClick={() => {
+                                        const updated = selectedCoins.filter((c) => c !== coin);
+                                        if (updated.length === 0) return;
+                                        try { localStorage.setItem("ticker_selected_coins", JSON.stringify(updated)); } catch { /* ignore */ }
+                                        onSelectedCoinsChange?.(updated);
+                                    }}
+                                    className="ml-0.5 text-yellow-500/60 hover:text-yellow-300 transition-colors"
+                                    title={`Quitar ${coin}`}
+                                >
+                                    ×
+                                </button>
+                            </span>
+                        ))}
+                    </div>
+                )}
+
+                {/* Expanded config panel */}
+                {showTickerConfig && (
+                    <div className="space-y-3">
+                        {/* Search */}
+                        <div className="relative">
+                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                            <input
+                                type="text"
+                                placeholder="Buscar moneda..."
+                                value={coinSearch}
+                                onChange={(e) => setCoinSearch(e.target.value)}
+                                className="w-full bg-slate-900/80 border border-slate-700/50 rounded-lg pl-8 pr-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-yellow-500/50"
+                                autoFocus
+                            />
+                        </div>
+
+                        {/* Selected count */}
+                        <div className="flex items-center justify-between">
+                            <span className="text-[10px] text-slate-500">
+                                {draftCoins.length} seleccionada{draftCoins.length !== 1 ? "s" : ""}
+                            </span>
+                        </div>
+
+                        {/* Coin list */}
+                        <div className="max-h-60 overflow-y-auto space-y-1 pr-1">
+                            {symbolsLoading && (
+                                <div className="flex items-center justify-center py-6 text-slate-500 text-sm">
+                                    <Loader2 size={16} className="animate-spin mr-2" />
+                                    Cargando monedas...
+                                </div>
+                            )}
+                            {symbolsError && (
+                                <div className="text-center py-6 text-red-400 text-sm">
+                                    Error: {symbolsError}
+                                </div>
+                            )}
+                            {!symbolsLoading && !symbolsError && filteredSymbols.length === 0 && (
+                                <div className="text-center py-6 text-slate-500 text-sm">
+                                    No se encontraron monedas
+                                </div>
+                            )}
+                            {!symbolsLoading && !symbolsError && filteredSymbols.map((coin) => {
+                                const isSelected = draftCoins.includes(coin);
+                                return (
+                                    <button
+                                        key={coin}
+                                        onClick={() => toggleDraftCoin(coin)}
+                                        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                                            isSelected
+                                                ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
+                                                : "bg-slate-900/60 text-slate-400 border border-slate-700/40 hover:border-slate-600"
+                                        }`}
+                                    >
+                                        <span>{coin}</span>
+                                        {isSelected && <Check size={14} className="text-yellow-400" />}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {/* Save button */}
+                        <button
+                            onClick={handleSaveTickerCoins}
+                            disabled={draftCoins.length === 0}
+                            className="w-full px-4 py-2 rounded-lg bg-yellow-500 text-black font-medium text-sm hover:bg-yellow-400 transition-colors disabled:opacity-50"
+                        >
+                            Guardar selección
+                        </button>
+                    </div>
+                )}
+            </div>
 
             {/* ── Watchlist Alerts ──────────────────── */}
             <div className="bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 md:p-4">
@@ -492,7 +643,7 @@ function AlertSettings({ config, saveConfig, onEditGlobal, onEditInvestment, onO
                     </div>
                 ) : (
                     <p className="text-[11px] text-slate-600 italic text-center py-3 bg-slate-900/40 rounded-lg border border-slate-700/30">
-                        Sin alertas globales. Usa 🔔 en el Dashboard.
+                        Sin alertas globales. Usa 🔔 en Spot.
                     </p>
                 )}
             </div>

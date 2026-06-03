@@ -15,9 +15,11 @@ import { useSales } from "./hooks/useSales";
 import { useLoans } from "./hooks/useLoans";
 import { usePrices } from "./hooks/usePrices";
 import { useAlerts, InvestmentAlert, GlobalAlert, WatchlistAlert, cleanupInvestmentAlerts, cleanupSaleAlerts } from "./hooks/useAlerts";
-import { useSignals } from "./hooks/useSignals";
 import { useFearGreed } from "./hooks/useFearGreed";
+import { useBcvRate } from "./hooks/useBcvRate";
+import { useYadioRate } from "./hooks/useYadioRate";
 import NavBar, { TabId } from "./components/NavBar";
+import { getSelectedCoins } from "./components/CoinSelector";
 import SummaryCards from "./components/SummaryCards";
 import AssetTable from "./components/AssetTable";
 import AggregatedTable from "./components/AggregatedTable";
@@ -25,7 +27,6 @@ import AnalyticsSection from "./components/AnalyticsSection";
 import InvestmentForm from "./components/InvestmentForm";
 import SaleForm from "./components/SaleForm";
 import SalesHistoryTable from "./components/SalesHistoryTable";
-import SignalsTab from "./components/SignalsTab";
 import EditLoanModal from "./components/EditLoanModal";
 import ClosePositionModal from "./components/ClosePositionModal";
 import CloseVentaModal from "./components/CloseVentaModal";
@@ -47,13 +48,12 @@ const App: React.FC = () => {
   const { portfolio, addInvestment, removeInvestment, updateInvestment } = usePortfolio();
   const { closedTrades, addClosedTrade, loading: closedTradesLoading } = useClosedTrades();
   const { sales, addSale, deleteSale, updateSale, loading: salesLoading } = useSales();
-  const { loans, addLoan, updateLoan, removeLoan } = useLoans();
+  const { loans, updateLoan } = useLoans();
   const { config, saveConfig } = useAlerts();
-  const { prices, priceDirections, loading, refresh } = usePrices();
-  const pricesRef = useRef(prices);
-  pricesRef.current = prices;
-  const { signals, klinesMap, loading: signalsLoading, error: signalsError, lastUpdated: signalsLastUpdated, fetchSignals, forceRefresh: forceRefreshSignals } = useSignals();
+  const [selectedCoins, setSelectedCoins] = useState<string[]>(getSelectedCoins);
   const { data: fearGreed, loading: fgLoading } = useFearGreed();
+  const bcvRate = useBcvRate();
+  const yadioRate = useYadioRate();
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
   const [graficoCoin, setGraficoCoin] = useState<string | undefined>(undefined);
   const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
@@ -74,14 +74,19 @@ const App: React.FC = () => {
   const [investmentEditIndex, setInvestmentEditIndex] = useState<number | null>(null);
   const [marcoItem, setMarcoItem] = useState<Omit<MarcoAnalysisModalProps, "fearGreed" | "onClose"> | null>(null);
 
-  // ── Computed: unique coins in portfolio ──────────────────────────
-  const { portfolioCoins, portfolioSet } = useMemo(() => {
-    const coins = Array.from(new Set(portfolio.map(item => item.coin)));
-    return { portfolioCoins: coins, portfolioSet: new Set(coins) };
+  // ── Computed: unique coins in portfolio (before usePrices) ────────
+  const portfolioCoins = useMemo(() => {
+    return Array.from(new Set(portfolio.map(item => item.coin)));
   }, [portfolio]);
-  useEffect(() => {
-    fetchSignals(fearGreed ?? undefined, portfolioSet);
-  }, [fearGreed, fetchSignals, portfolioSet]);
+
+  // Fetch prices for BOTH ticker coins AND portfolio coins
+  const allNeededCoins = useMemo(() => {
+    const set = new Set([...selectedCoins, ...portfolioCoins]);
+    return Array.from(set);
+  }, [selectedCoins, portfolioCoins]);
+  const { prices, priceDirections, loading, refresh } = usePrices(allNeededCoins);
+  const pricesRef = useRef(prices);
+  pricesRef.current = prices;
 
   // ── Computed: portfolio with live prices ──────────────────────────
   const hasPrices = Object.keys(prices).length > 0;
@@ -184,7 +189,6 @@ const App: React.FC = () => {
   }, [loans, prices]);
 
   // ── Callbacks ────────────────────────────────────────────────────
-  const handleEditLoan = useCallback((loan: ProcessedLoan) => setEditingLoan(loan), []);
   const handleCloseModal = useCallback(() => setEditingLoan(null), []);
   const handleEditInvestment = useCallback((item: ProcessedInvestment) => setEditingInvestment(item), []);
   const handleCloseInvestmentModal = useCallback(() => setEditingInvestment(null), []);
@@ -335,19 +339,6 @@ const App: React.FC = () => {
     }
   }, [config, saveConfig, alertingSale]);
 
-  // Remove ALL alerts for an asset (used from AlertSettings panel)
-  const handleRemoveInvestmentAlert = useCallback(async (id: string) => {
-    const newAlerts = { ...(config.investmentAlerts || {}) };
-    delete newAlerts[id];
-    if (id.startsWith('sale_')) {
-      const newSaleMeta = { ...(config.saleMeta || {}) };
-      delete newSaleMeta[id];
-      await saveConfig({ ...config, investmentAlerts: newAlerts, saleMeta: newSaleMeta });
-    } else {
-      await saveConfig({ ...config, investmentAlerts: newAlerts });
-    }
-  }, [config, saveConfig]);
-
   const handleDeleteSale = useCallback(async (id: string) => {
     try {
       await deleteSale(id);
@@ -400,7 +391,17 @@ const App: React.FC = () => {
 
       {/* ── Sticky Header ─────────────────────────────────────── */}
       <header className="sm:sticky sm:top-0 sm:z-50 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800">
-        <NavBar active={activeTab} onChange={setActiveTab} onRefresh={refresh} refreshing={loading} />
+        <NavBar
+          active={activeTab}
+          onChange={setActiveTab}
+          onRefresh={refresh}
+          refreshing={loading}
+          prices={prices}
+          priceDirections={priceDirections}
+          bcvRate={bcvRate}
+          yadioRate={yadioRate}
+          selectedCoins={selectedCoins}
+        />
       </header>
 
       {/* ── Tab Content ───────────────────────────────────────── */}
@@ -442,8 +443,6 @@ const App: React.FC = () => {
               loans={processedLoans}
               totalValue={totalValue}
               totalInvested={totalInvested}
-              signals={signals}
-              klinesMap={klinesMap}
               fearGreed={fearGreed}
               fearGreedLoading={fgLoading}
               initialCoin={graficoCoin}
@@ -457,7 +456,7 @@ const App: React.FC = () => {
         {activeTab === "prestamos" && (
           <div key="prestamos" className={tabClass}>
             <Suspense fallback={<div className="py-20 text-center text-slate-500 text-sm">Cargando...</div>}>
-              <LiquidationDashboard prices={prices} pricesLoading={loading} refreshPrices={refresh} />
+              <LiquidationDashboard />
             </Suspense>
           </div>
         )}
@@ -468,22 +467,6 @@ const App: React.FC = () => {
             <Suspense fallback={<div className="py-20 text-center text-slate-500 text-sm">Cargando...</div>}>
               <SellSuite preload={sellPreload} buyPreload={buyPreload} />
             </Suspense>
-          </div>
-        )}
-
-        {/* ── SEÑALES DE TRADING ────────────────────────────────────── */}
-        {activeTab === "senales" && (
-          <div key="senales" className={tabClass}>
-            <SignalsTab
-              portfolioCoins={portfolioCoins}
-              signals={signals}
-              signalsLoading={signalsLoading}
-              signalsError={signalsError}
-              signalsLastUpdated={signalsLastUpdated}
-              fearGreed={fearGreed}
-              fgLoading={fgLoading}
-              onRefresh={() => forceRefreshSignals(fearGreed ?? undefined, portfolioSet)}
-            />
           </div>
         )}
 
@@ -512,6 +495,8 @@ const App: React.FC = () => {
                 onEditCandleAlert={(coin, index) => { setCandleEditTarget({ coin, index }); setIsCandleAlertModalOpen(true); }}
                 sales={sales}
                 totalPnl={totalPnl}
+                selectedCoins={selectedCoins}
+                onSelectedCoinsChange={setSelectedCoins}
               />
             </Suspense>
           </div>

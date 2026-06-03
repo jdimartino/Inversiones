@@ -1,9 +1,9 @@
 import * as functions from "firebase-functions/v1";
 import * as crypto from "crypto";
 import axios from "axios";
-import { defineJsonSecret } from "firebase-functions/params";
+import { defineSecret } from "firebase-functions/params";
 
-const binanceConfig = defineJsonSecret("FUNCTIONS_CONFIG_EXPORT");
+const binanceConfigRaw = defineSecret("FUNCTIONS_CONFIG_EXPORT");
 
 // ─── Helpers (copiados de futuresSync para independencia) ─────────────────────
 
@@ -67,7 +67,7 @@ export const testFuturesAlerts = functions
 
         const type = (req.query.type as string) || "margen";
 
-        const bConfig = binanceConfig.value().binance;
+        const bConfig = JSON.parse(binanceConfigRaw.value()).binance;
         if (!bConfig?.api_key || !bConfig?.api_secret) {
             res.status(500).json({ error: "Binance API keys not configured." });
             return;

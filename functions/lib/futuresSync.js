@@ -6,7 +6,7 @@ const admin = require("firebase-admin");
 const crypto = require("crypto");
 const axios_1 = require("axios");
 const params_1 = require("firebase-functions/params");
-const binanceConfig = (0, params_1.defineJsonSecret)("FUNCTIONS_CONFIG_EXPORT");
+const binanceConfigRaw = (0, params_1.defineSecret)("FUNCTIONS_CONFIG_EXPORT");
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function sign(queryString, secret) {
     return crypto.createHmac("sha256", secret).update(queryString).digest("hex");
@@ -45,7 +45,7 @@ async function sendTelegram(text) {
 // ─── Core Logic ───────────────────────────────────────────────────────────────
 async function runFuturesSync() {
     var _a;
-    const bConfig = binanceConfig.value().binance;
+    const bConfig = JSON.parse(binanceConfigRaw.value()).binance;
     if (!(bConfig === null || bConfig === void 0 ? void 0 : bConfig.api_key) || !(bConfig === null || bConfig === void 0 ? void 0 : bConfig.api_secret)) {
         console.error("[FuturesSync] Binance API keys not configured.");
         return null;
@@ -105,6 +105,7 @@ async function runFuturesSync() {
                 distToLiqPercent,
                 roe,
                 updateTime: p.updateTime,
+                fundingRate: parseFloat(risk.lastFundingRate || "0"),
             };
         });
         // Account summary

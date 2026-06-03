@@ -4,6 +4,7 @@ import axios from "axios";
 import { testFutures } from "./testFutures";
 import { futuresSync } from "./futuresSync";
 import { testFuturesAlerts } from "./testFuturesAlerts";
+import { getBinancePrices } from "./getBinancePrices";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -1283,4 +1284,4 @@ export const testDailyPnlSnapshot = functions
         }
     });
 
-export { testFutures, futuresSync, testFuturesAlerts };
+export { testFutures, futuresSync, testFuturesAlerts, getBinancePrices };

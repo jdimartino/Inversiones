@@ -7,6 +7,10 @@ export interface DebtItem {
   amount: number;
   price: number;
   rate: number;
+  synced?: boolean;
+  lastSyncAt?: number;
+  accruedInterest?: number;
+  hourlyRate?: number;
 }
 
 export interface CollateralItem {
@@ -14,6 +18,8 @@ export interface CollateralItem {
   id: string;
   amount: number;
   price: number;
+  synced?: boolean;
+  lastSyncAt?: number;
 }
 
 export interface ExchangeLiqData {
@@ -22,6 +28,14 @@ export interface ExchangeLiqData {
   liquidationLTV: number;
   debts: DebtItem[];
   collateral: CollateralItem[];
+  // Valores agregados del exchange (Bybit los calcula exacto)
+  totalDebt?: number;
+  totalCollateral?: number;
+  ltvFromExchange?: number;
+  // LTV reales del API (por moneda)
+  marginCallLTV?: number;
+  perCoinLiqLTV?: Record<string, number>;
+  weightedAvgLiqLTV?: number;
 }
 
 export interface MultiExchangeLiqData {

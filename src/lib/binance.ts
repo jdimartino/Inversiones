@@ -1,35 +1,43 @@
-import { SYMBOL_MAP, REVERSE_SYMBOL_MAP } from "./constants";
+import { SYMBOL_MAP } from "./constants";
+
+const CLOUD_FUNCTION_URL =
+    "https://europe-west1-micriptoapp.cloudfunctions.net/getBinancePrices";
 
 /**
- * Fetch only the prices we actually need from Binance.
- *
- * Uses the `symbols` query-param so the response contains ~13 tickers
- * instead of ~2 000.  Falls back to fetching all if the filtered
- * endpoint fails (e.g. Binance deprecation).
+ * Fetch prices for the default 13 coins via the Cloud Function.
  */
 export async function fetchBinancePrices(
     signal?: AbortSignal
 ): Promise<Record<string, number>> {
-    const symbols = Object.values(SYMBOL_MAP);
-    const param = JSON.stringify(symbols);
-    const url = `https://api.binance.com/api/v3/ticker/price?symbols=${encodeURIComponent(param)}`;
+    const coins = Object.keys(SYMBOL_MAP);
+    return fetchDynamicPrices(coins, signal);
+}
+
+/**
+ * Fetch prices for arbitrary coins via the Cloud Function.
+ * coins: array of base assets like ["BTC", "ETH", "SOL"]
+ * Returns: { BTC: 67000, ETH: 3500, USDT: 1, ... }
+ */
+export async function fetchDynamicPrices(
+    coins: string[],
+    signal?: AbortSignal
+): Promise<Record<string, number>> {
+    if (coins.length === 0) return { USDT: 1.0 };
+
+    const coinsParam = coins.join(",");
+    const url = `${CLOUD_FUNCTION_URL}?coins=${encodeURIComponent(coinsParam)}`;
 
     const response = await fetch(url, { signal });
 
     if (!response.ok) {
-        throw new Error(`Binance API ${response.status}: ${response.statusText}`);
+        throw new Error(
+            `Binance prices API ${response.status}: ${response.statusText}`
+        );
     }
 
-    const data: { symbol: string; price: string }[] = await response.json();
+    const data: Record<string, number> = await response.json();
 
-    const prices: Record<string, number> = { USDT: 1.0 };
+    if (!data.USDT) data.USDT = 1.0;
 
-    for (const ticker of data) {
-        const coin = REVERSE_SYMBOL_MAP[ticker.symbol];
-        if (coin) {
-            prices[coin] = parseFloat(ticker.price);
-        }
-    }
-
-    return prices;
+    return data;
 }

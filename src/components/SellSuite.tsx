@@ -932,7 +932,7 @@ export default function SellSuite({ preload, buyPreload }: { preload?: Processed
     if (preload) {
       setLoadedData({
         id: '',
-        name: `${preload.coin} desde Dashboard`,
+        name: `${preload.coin} desde Spot`,
         type: 'sell',
         data: {
           coin: preload.coin,

@@ -18,10 +18,10 @@ import { coinColor } from "./chartColors";
 
 interface PositionBubbleProps {
     aggregated: AggregatedAsset[];
-    signals: CoinSignal[];
+    signals?: CoinSignal[];
 }
 
-const PositionBubble: React.FC<PositionBubbleProps> = ({ aggregated, signals }) => {
+const PositionBubble: React.FC<PositionBubbleProps> = ({ aggregated, signals = [] }) => {
     const signalMap = new Map(signals.filter((s) => s.inPortfolio).map((s) => [s.coin, s]));
 
     const data = aggregated

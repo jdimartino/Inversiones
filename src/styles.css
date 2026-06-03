@@ -14,3 +14,15 @@
 /* Hide scrollbar on tab nav (mobile) */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Price ticker continuous scroll */
+@keyframes ticker-scroll {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+.animate-ticker {
+  animation: ticker-scroll 35s linear infinite;
+}
+.animate-ticker:hover {
+  animation-play-state: paused;
+}

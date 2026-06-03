@@ -21,6 +21,11 @@ export default function FuturesPositionAlertModal({
     const [direction, setDirection] = useState<"up" | "down">("up");
     const [isPersistent, setIsPersistent] = useState(false);
     const [note, setNote] = useState("");
+    const currentAlertValue = alertType === "roe" ? position.roe : position.unrealizedPnl;
+    const isAlreadyTriggered = targetValue !== 0 && (
+        (direction === "up" && currentAlertValue >= targetValue) ||
+        (direction === "down" && currentAlertValue <= targetValue)
+    );
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -32,21 +37,17 @@ export default function FuturesPositionAlertModal({
 
     const handleTargetChange = (val: number) => {
         setTargetValue(val);
-        if (alertType === "roe") {
-            setDirection(val >= 0 ? "up" : "down");
-        } else {
-            setDirection(val >= 0 ? "up" : "down");
-        }
+        setDirection(val >= 0 ? "up" : "down");
     };
 
     const handleAdd = () => {
         if (alertType === "roe" && isNaN(targetValue)) return;
         if (alertType === "roeUsd" && isNaN(targetValue)) return;
 
-        // Preserve _lastSide if an identical alert already exists in the draft
         const existing = draftAlerts.find(
             (a) => a.type === alertType && a.targetValue === targetValue && a.direction === direction
         );
+        if (existing) return;
 
         setDraftAlerts([
             ...draftAlerts,
@@ -56,7 +57,6 @@ export default function FuturesPositionAlertModal({
                 direction,
                 isPersistent,
                 ...(note.trim() ? { note: note.trim() } : {}),
-                ...(existing?._lastSide ? { _lastSide: existing._lastSide } : {}),
             },
         ]);
         setTargetValue(0);
@@ -194,6 +194,13 @@ export default function FuturesPositionAlertModal({
                             </button>
                         </div>
                     </div>
+
+                    {/* Warning: already triggered */}
+                    {isAlreadyTriggered && (
+                        <p className="text-center text-[10px] font-bold mb-1.5 text-yellow-400">
+                            ⚠️ El {alertType === "roe" ? "ROE" : "PnL"} actual ya {direction === "up" ? "supera" : "está por debajo de"} {alertType === "roe" ? `${targetValue}%` : `$${targetValue}`} — se disparará en el próximo ciclo
+                        </p>
+                    )}
 
                     {/* Note */}
                     <div>
