@@ -1,6 +1,9 @@
-import * as functions from "firebase-functions";
+import * as functions from "firebase-functions/v1";
 import * as crypto from "crypto";
 import axios from "axios";
+import { defineJsonSecret } from "firebase-functions/params";
+
+const binanceConfig = defineJsonSecret("FUNCTIONS_CONFIG_EXPORT");
 
 /**
  * Helper: sign Binance API request with HMAC-SHA256.
@@ -36,6 +39,7 @@ async function binanceGet(
  */
 export const testFutures = functions
     .region("europe-west1")
+    .runWith({ secrets: ["FUNCTIONS_CONFIG_EXPORT"] })
     .https.onRequest(async (req, res) => {
         res.set("Access-Control-Allow-Origin", "*");
 
@@ -46,8 +50,8 @@ export const testFutures = functions
             return;
         }
 
-        const config = functions.config().binance;
-        if (!config?.api_key || !config?.api_secret) {
+        const bConfig = binanceConfig.value().binance;
+        if (!bConfig?.api_key || !bConfig?.api_secret) {
             res.status(500).json({
                 error: "Binance API keys not configured.",
                 hint: "Run: firebase functions:config:set binance.api_key=... binance.api_secret=...",
@@ -55,7 +59,7 @@ export const testFutures = functions
             return;
         }
 
-        const { api_key: apiKey, api_secret: apiSecret } = config;
+        const { api_key: apiKey, api_secret: apiSecret } = bConfig;
 
         try {
             // Call both endpoints in parallel

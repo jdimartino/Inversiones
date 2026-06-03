@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { X, Bell, Trash2, Plus } from "lucide-react";
-import { FuturesPosition, FuturesPositionAlert, formatRoe } from "../lib/futures";
+import { FuturesPosition, FuturesPositionAlert, formatRoe, formatPnl } from "../lib/futures";
 
 interface FuturesPositionAlertModalProps {
     position: FuturesPosition;
@@ -43,6 +43,11 @@ export default function FuturesPositionAlertModal({
         if (alertType === "roe" && isNaN(targetValue)) return;
         if (alertType === "roeUsd" && isNaN(targetValue)) return;
 
+        // Preserve _lastSide if an identical alert already exists in the draft
+        const existing = draftAlerts.find(
+            (a) => a.type === alertType && a.targetValue === targetValue && a.direction === direction
+        );
+
         setDraftAlerts([
             ...draftAlerts,
             {
@@ -51,6 +56,7 @@ export default function FuturesPositionAlertModal({
                 direction,
                 isPersistent,
                 ...(note.trim() ? { note: note.trim() } : {}),
+                ...(existing?._lastSide ? { _lastSide: existing._lastSide } : {}),
             },
         ]);
         setTargetValue(0);
@@ -81,7 +87,7 @@ export default function FuturesPositionAlertModal({
                             Alertas: {position.symbol}
                         </h3>
                         <p className="text-xs text-gray-500 mt-0.5">
-                            {position.side} {position.leverage}x — ROE actual: {formatRoe(position.roe)}
+                            {position.side} {position.leverage}x — {formatPnl(position.unrealizedPnl)} · {formatRoe(position.roe)}
                         </p>
                     </div>
                     <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">

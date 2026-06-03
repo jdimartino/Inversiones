@@ -1,10 +1,12 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.futuresSync = void 0;
-const functions = require("firebase-functions");
+const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 const axios_1 = require("axios");
+const params_1 = require("firebase-functions/params");
+const binanceConfig = (0, params_1.defineJsonSecret)("FUNCTIONS_CONFIG_EXPORT");
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function sign(queryString, secret) {
     return crypto.createHmac("sha256", secret).update(queryString).digest("hex");
@@ -43,12 +45,12 @@ async function sendTelegram(text) {
 // ─── Core Logic ───────────────────────────────────────────────────────────────
 async function runFuturesSync() {
     var _a;
-    const config = functions.config().binance;
-    if (!(config === null || config === void 0 ? void 0 : config.api_key) || !(config === null || config === void 0 ? void 0 : config.api_secret)) {
+    const bConfig = binanceConfig.value().binance;
+    if (!(bConfig === null || bConfig === void 0 ? void 0 : bConfig.api_key) || !(bConfig === null || bConfig === void 0 ? void 0 : bConfig.api_secret)) {
         console.error("[FuturesSync] Binance API keys not configured.");
         return null;
     }
-    const { api_key: apiKey, api_secret: apiSecret } = config;
+    const { api_key: apiKey, api_secret: apiSecret } = bConfig;
     try {
         // Call both endpoints in parallel
         const [accountRes, positionRes] = await Promise.all([
@@ -71,10 +73,17 @@ async function runFuturesSync() {
             const markPrice = parseFloat(risk.markPrice || "0");
             const liqPrice = parseFloat(risk.liquidationPrice || "0");
             const unrealizedPnl = parseFloat(p.unrealizedProfit);
-            // Distance to liquidation %
+            // Distance to liquidation % (absolute distance per side)
             let distToLiqPercent = 0;
             if (liqPrice > 0 && markPrice > 0) {
-                distToLiqPercent = ((markPrice - liqPrice) / markPrice) * 100;
+                if (parseFloat(p.positionAmt) > 0) {
+                    // LONG: price must drop to hit liquidation
+                    distToLiqPercent = ((markPrice - liqPrice) / markPrice) * 100;
+                }
+                else {
+                    // SHORT: price must rise to hit liquidation
+                    distToLiqPercent = ((liqPrice - markPrice) / markPrice) * 100;
+                }
             }
             // ROE = PnL / initialMargin * 100
             const initialMargin = parseFloat(p.initialMargin);
@@ -143,10 +152,8 @@ async function checkFuturesAlerts(data) {
     const futuresAlerts = conf.futuresAlerts || {
         enabled: true,
         marginThresholds: [70, 80, 90],
-        positionLiqThreshold: 10,
         positionAlerts: {},
         _lastAlertedMargin: null,
-        _lastAlertedPositions: {},
     };
     if (!futuresAlerts.enabled)
         return;
@@ -176,31 +183,14 @@ async function checkFuturesAlerts(data) {
     else if (highestTriggered === null) {
         futuresAlerts._lastAlertedMargin = null;
     }
-    // Check individual position liquidation proximity
-    const liqThreshold = futuresAlerts.positionLiqThreshold || 10;
-    for (const pos of data.positions) {
-        if (pos.distToLiqPercent > 0 && pos.distToLiqPercent < liqThreshold) {
-            const lastAlerted = futuresAlerts._lastAlertedPositions[pos.symbol] || 0;
-            const now = Date.now();
-            // Don't re-alert within 30 minutes for the same position
-            if (now - lastAlerted > 30 * 60 * 1000) {
-                messages.push(`🔴 *POSICIÓN CERCA DE LIQUIDACIÓN*\n` +
-                    `━━━━━━━━━━━━━━━━━━━━\n` +
-                    `*${pos.symbol}* ${pos.side} ${pos.leverage}x\n` +
-                    `Entrada: $${pos.entryPrice} → Actual: $${pos.markPrice.toFixed(2)}\n` +
-                    `Liquidación: $${pos.liquidationPrice.toFixed(2)}\n` +
-                    `Distancia: *${pos.distToLiqPercent.toFixed(1)}%*\n` +
-                    `PnL: ${pos.unrealizedPnl >= 0 ? "+" : ""}$${pos.unrealizedPnl.toFixed(2)}`);
-                futuresAlerts._lastAlertedPositions[pos.symbol] = now;
-            }
-        }
-    }
     // Check per-position ROE/ROE USD alerts
     const positionAlerts = futuresAlerts.positionAlerts || {};
+    futuresAlerts.positionAlerts = positionAlerts;
     for (const pos of data.positions) {
         const alertsForSymbol = positionAlerts[pos.symbol];
         if (!alertsForSymbol || alertsForSymbol.length === 0)
             continue;
+        const remaining = [];
         for (const alert of alertsForSymbol) {
             let currentValue;
             let alertLabel;
@@ -232,9 +222,28 @@ async function checkFuturesAlerts(data) {
                     `${pos.side} ${pos.leverage}x\n` +
                     `PnL: ${pos.unrealizedPnl >= 0 ? "+" : ""}$${pos.unrealizedPnl.toFixed(2)}` +
                     (alert.note ? `\n_${alert.note}_` : ""));
+                // One-shot: delete after firing. Persistent: keep with updated _lastSide.
+                if (alert.isPersistent) {
+                    remaining.push(Object.assign(Object.assign({}, alert), { _lastSide: currentSide }));
+                }
+                else {
+                    console.log(`[FuturesSync] One-shot alert for ${pos.symbol} (${alertLabel}) fired and removed.`);
+                }
             }
-            // Update last side
-            alert._lastSide = currentSide;
+            else if (alert.isPersistent) {
+                // Track _lastSide even when not triggered for future crossing detection
+                remaining.push(Object.assign(Object.assign({}, alert), { _lastSide: currentSide }));
+            }
+            else {
+                // One-shot alert not yet triggered: keep waiting
+                remaining.push(alert);
+            }
+        }
+        if (remaining.length === 0) {
+            delete positionAlerts[pos.symbol];
+        }
+        else {
+            positionAlerts[pos.symbol] = remaining;
         }
     }
     // Send messages
@@ -247,7 +256,7 @@ async function checkFuturesAlerts(data) {
 // ─── Cloud Function (scheduled every 3 minutes) ──────────────────────────────
 exports.futuresSync = functions
     .region("europe-west1")
-    .runWith({ secrets: ["TELEGRAM_TOKEN", "TELEGRAM_CHAT_ID"] })
+    .runWith({ secrets: ["TELEGRAM_TOKEN", "TELEGRAM_CHAT_ID", "FUNCTIONS_CONFIG_EXPORT"] })
     .pubsub.schedule("every 3 minutes")
     .onRun(async () => {
     try {

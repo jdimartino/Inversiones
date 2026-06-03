@@ -21,3 +21,9 @@ export const fmtUSD = (n: number): string => fmtCurrency.format(n);
 export const fmtPrice = (n: number): string => {
     return Math.abs(n) < 1 ? fmtCurrency4.format(n) : fmtCurrency.format(n);
 };
+
+/** Format a signed percentage (e.g. "+15.2%" / "-23.1%") */
+export const fmtPercent = (n: number, decimals: number = 1): string => {
+    const sign = n >= 0 ? "+" : "";
+    return `${sign}${n.toFixed(decimals)}%`;
+};

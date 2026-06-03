@@ -50,7 +50,6 @@ export interface FuturesPositionAlert {
 export interface FuturesAlertConfig {
     enabled: boolean;
     marginThresholds: number[];
-    positionLiqThreshold: number;
     positionAlerts: Record<string, FuturesPositionAlert[]>;
 }
 
@@ -74,7 +73,6 @@ export const DEFAULT_FUTURES_DATA: FuturesData = {
 export const DEFAULT_FUTURES_ALERTS: FuturesAlertConfig = {
     enabled: true,
     marginThresholds: [70, 80, 90],
-    positionLiqThreshold: 10,
     positionAlerts: {},
 };
 
@@ -132,4 +130,84 @@ export function getDistToLiqBarColor(percent: number): string {
     if (percent <= 15) return "bg-orange-500";
     if (percent <= 25) return "bg-yellow-500";
     return "bg-green-500";
+}
+
+export function getDistToLiqDirection(side: "LONG" | "SHORT"): string {
+    return side === "LONG" ? "Debe caer" : "Debe subir";
+}
+
+export function getDistToLiqDirectionColor(side: "LONG" | "SHORT"): string {
+    return side === "LONG" ? "text-red-400" : "text-yellow-400";
+}
+
+// ─── Cross-Margin Simulation ───────────────────────────────────────────────────
+
+export interface FuturesMarketSimulation {
+    marketMovePercent: number;
+    newMarginBalance: number;
+    newMarginRatio: number;
+    newUnrealizedPnl: number;
+    isLiquidated: boolean;
+    bufferToLiq: number;
+}
+
+/** Recalculate account state after a uniform market move of `movePercent`%.
+ *  Positive = prices rise, negative = prices drop. */
+export function simulateMarketMove(
+    positions: FuturesPosition[],
+    account: FuturesAccount,
+    movePercent: number,
+): FuturesMarketSimulation {
+    const newPnlSum = positions.reduce((sum, pos) => {
+        const newPrice = pos.markPrice * (1 + movePercent / 100);
+        const pnl = pos.side === "LONG"
+            ? (newPrice - pos.entryPrice) * pos.size
+            : (pos.entryPrice - newPrice) * pos.size;
+        return sum + pnl;
+    }, 0);
+
+    const newMarginBalance = account.totalWalletBalance + newPnlSum;
+    const newMarginRatio = newMarginBalance > 0
+        ? (account.totalMaintMargin / newMarginBalance) * 100
+        : 100;
+    const isLiquidated = newMarginRatio >= 100 || newMarginBalance <= 0;
+
+    return {
+        marketMovePercent: movePercent,
+        newMarginBalance,
+        newMarginRatio: Math.min(newMarginRatio, 100),
+        newUnrealizedPnl: newPnlSum,
+        isLiquidated,
+        bufferToLiq: isLiquidated ? 0 : 100 - newMarginRatio,
+    };
+}
+
+/** Binary search for the exact market move % that triggers liquidation.
+ *  Returns null if liquidation is not reached within reasonable bounds. */
+export function findLiquidationThreshold(
+    positions: FuturesPosition[],
+    account: FuturesAccount,
+    direction: "up" | "down",
+): number | null {
+    const base = simulateMarketMove(positions, account, 0);
+    if (base.isLiquidated) return 0;
+
+    const bound = direction === "down" ? -100 : 1000;
+    const extreme = simulateMarketMove(positions, account, bound);
+    if (!extreme.isLiquidated) return null;
+
+    let lo = 0;
+    let hi = bound;
+
+    for (let i = 0; i < 50; i++) {
+        const mid = (lo + hi) / 2;
+        const sim = simulateMarketMove(positions, account, mid);
+        if (sim.isLiquidated) {
+            hi = mid;
+        } else {
+            lo = mid;
+        }
+    }
+
+    return Math.round(((lo + hi) / 2) * 100) / 100;
 }

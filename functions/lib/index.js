@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.testFuturesAlerts = exports.futuresSync = exports.testFutures = exports.testDailyPnlSnapshot = exports.dailyPnlSnapshot = exports.testDailyReport = exports.dailyPortfolioReport = exports.checkIntervalTasks = exports.testTradingSignals = exports.testAlerts = exports.setupTestAlerts = exports.debugLogs = exports.debugInversiones = exports.debugAlerts = exports.analyzeMarket = void 0;
-const functions = require("firebase-functions");
+const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 const axios_1 = require("axios");
 const testFutures_1 = require("./testFutures");

@@ -1,7 +1,10 @@
-import * as functions from "firebase-functions";
+import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 import * as crypto from "crypto";
 import axios from "axios";
+import { defineJsonSecret } from "firebase-functions/params";
+
+const binanceConfig = defineJsonSecret("FUNCTIONS_CONFIG_EXPORT");
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -99,22 +102,20 @@ interface FuturesPositionAlert {
 interface FuturesAlertConfig {
     enabled: boolean;
     marginThresholds: number[];
-    positionLiqThreshold: number;
     positionAlerts: Record<string, FuturesPositionAlert[]>;
     _lastAlertedMargin: number | null;
-    _lastAlertedPositions: Record<string, number>;
 }
 
 // ─── Core Logic ───────────────────────────────────────────────────────────────
 
 async function runFuturesSync(): Promise<FuturesData | null> {
-    const config = functions.config().binance;
-    if (!config?.api_key || !config?.api_secret) {
+    const bConfig = binanceConfig.value().binance;
+    if (!bConfig?.api_key || !bConfig?.api_secret) {
         console.error("[FuturesSync] Binance API keys not configured.");
         return null;
     }
 
-    const { api_key: apiKey, api_secret: apiSecret } = config;
+    const { api_key: apiKey, api_secret: apiSecret } = bConfig;
 
     try {
         // Call both endpoints in parallel
@@ -141,10 +142,16 @@ async function runFuturesSync(): Promise<FuturesData | null> {
                 const liqPrice = parseFloat(risk.liquidationPrice || "0");
                 const unrealizedPnl = parseFloat(p.unrealizedProfit);
 
-                // Distance to liquidation %
+                // Distance to liquidation % (absolute distance per side)
                 let distToLiqPercent = 0;
                 if (liqPrice > 0 && markPrice > 0) {
-                    distToLiqPercent = ((markPrice - liqPrice) / markPrice) * 100;
+                    if (parseFloat(p.positionAmt) > 0) {
+                        // LONG: price must drop to hit liquidation
+                        distToLiqPercent = ((markPrice - liqPrice) / markPrice) * 100;
+                    } else {
+                        // SHORT: price must rise to hit liquidation
+                        distToLiqPercent = ((liqPrice - markPrice) / markPrice) * 100;
+                    }
                 }
 
                 // ROE = PnL / initialMargin * 100
@@ -224,10 +231,8 @@ async function checkFuturesAlerts(data: FuturesData): Promise<void> {
     const futuresAlerts: FuturesAlertConfig = conf.futuresAlerts || {
         enabled: true,
         marginThresholds: [70, 80, 90],
-        positionLiqThreshold: 10,
         positionAlerts: {},
         _lastAlertedMargin: null,
-        _lastAlertedPositions: {},
     };
 
     if (!futuresAlerts.enabled) return;
@@ -263,33 +268,15 @@ async function checkFuturesAlerts(data: FuturesData): Promise<void> {
         futuresAlerts._lastAlertedMargin = null;
     }
 
-    // Check individual position liquidation proximity
-    const liqThreshold = futuresAlerts.positionLiqThreshold || 10;
-    for (const pos of data.positions) {
-        if (pos.distToLiqPercent > 0 && pos.distToLiqPercent < liqThreshold) {
-            const lastAlerted = futuresAlerts._lastAlertedPositions[pos.symbol] || 0;
-            const now = Date.now();
-            // Don't re-alert within 30 minutes for the same position
-            if (now - lastAlerted > 30 * 60 * 1000) {
-                messages.push(
-                    `🔴 *POSICIÓN CERCA DE LIQUIDACIÓN*\n` +
-                    `━━━━━━━━━━━━━━━━━━━━\n` +
-                    `*${pos.symbol}* ${pos.side} ${pos.leverage}x\n` +
-                    `Entrada: $${pos.entryPrice} → Actual: $${pos.markPrice.toFixed(2)}\n` +
-                    `Liquidación: $${pos.liquidationPrice.toFixed(2)}\n` +
-                    `Distancia: *${pos.distToLiqPercent.toFixed(1)}%*\n` +
-                    `PnL: ${pos.unrealizedPnl >= 0 ? "+" : ""}$${pos.unrealizedPnl.toFixed(2)}`
-                );
-                futuresAlerts._lastAlertedPositions[pos.symbol] = now;
-            }
-        }
-    }
-
     // Check per-position ROE/ROE USD alerts
     const positionAlerts = futuresAlerts.positionAlerts || {};
+    futuresAlerts.positionAlerts = positionAlerts;
+
     for (const pos of data.positions) {
         const alertsForSymbol = positionAlerts[pos.symbol];
         if (!alertsForSymbol || alertsForSymbol.length === 0) continue;
+
+        const remaining: FuturesPositionAlert[] = [];
 
         for (const alert of alertsForSymbol) {
             let currentValue: number;
@@ -332,10 +319,26 @@ async function checkFuturesAlerts(data: FuturesData): Promise<void> {
                     `PnL: ${pos.unrealizedPnl >= 0 ? "+" : ""}$${pos.unrealizedPnl.toFixed(2)}` +
                     (alert.note ? `\n_${alert.note}_` : "")
                 );
-            }
 
-            // Update last side
-            alert._lastSide = currentSide;
+                // One-shot: delete after firing. Persistent: keep with updated _lastSide.
+                if (alert.isPersistent) {
+                    remaining.push({ ...alert, _lastSide: currentSide });
+                } else {
+                    console.log(`[FuturesSync] One-shot alert for ${pos.symbol} (${alertLabel}) fired and removed.`);
+                }
+            } else if (alert.isPersistent) {
+                // Track _lastSide even when not triggered for future crossing detection
+                remaining.push({ ...alert, _lastSide: currentSide });
+            } else {
+                // One-shot alert not yet triggered: keep waiting
+                remaining.push(alert);
+            }
+        }
+
+        if (remaining.length === 0) {
+            delete positionAlerts[pos.symbol];
+        } else {
+            positionAlerts[pos.symbol] = remaining;
         }
     }
 
@@ -352,7 +355,7 @@ async function checkFuturesAlerts(data: FuturesData): Promise<void> {
 
 export const futuresSync = functions
     .region("europe-west1")
-    .runWith({ secrets: ["TELEGRAM_TOKEN", "TELEGRAM_CHAT_ID"] })
+    .runWith({ secrets: ["TELEGRAM_TOKEN", "TELEGRAM_CHAT_ID", "FUNCTIONS_CONFIG_EXPORT"] })
     .pubsub.schedule("every 3 minutes")
     .onRun(async () => {
         try {

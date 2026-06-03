@@ -1,9 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.testFutures = void 0;
-const functions = require("firebase-functions");
+const functions = require("firebase-functions/v1");
 const crypto = require("crypto");
 const axios_1 = require("axios");
+const params_1 = require("firebase-functions/params");
+const binanceConfig = (0, params_1.defineJsonSecret)("FUNCTIONS_CONFIG_EXPORT");
 /**
  * Helper: sign Binance API request with HMAC-SHA256.
  */
@@ -31,6 +33,7 @@ async function binanceGet(path, params, apiKey, apiSecret) {
  */
 exports.testFutures = functions
     .region("europe-west1")
+    .runWith({ secrets: ["FUNCTIONS_CONFIG_EXPORT"] })
     .https.onRequest(async (req, res) => {
     var _a, _b;
     res.set("Access-Control-Allow-Origin", "*");
@@ -40,15 +43,15 @@ exports.testFutures = functions
         res.status(204).send("");
         return;
     }
-    const config = functions.config().binance;
-    if (!(config === null || config === void 0 ? void 0 : config.api_key) || !(config === null || config === void 0 ? void 0 : config.api_secret)) {
+    const bConfig = binanceConfig.value().binance;
+    if (!(bConfig === null || bConfig === void 0 ? void 0 : bConfig.api_key) || !(bConfig === null || bConfig === void 0 ? void 0 : bConfig.api_secret)) {
         res.status(500).json({
             error: "Binance API keys not configured.",
             hint: "Run: firebase functions:config:set binance.api_key=... binance.api_secret=...",
         });
         return;
     }
-    const { api_key: apiKey, api_secret: apiSecret } = config;
+    const { api_key: apiKey, api_secret: apiSecret } = bConfig;
     try {
         // Call both endpoints in parallel
         const [accountRes, positionRes] = await Promise.all([

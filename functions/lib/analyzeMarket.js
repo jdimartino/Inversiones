@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.analyzeMarket = void 0;
-const functions = require("firebase-functions");
+const functions = require("firebase-functions/v1");
 const groq_sdk_1 = require("groq-sdk");
 // ─── Detector de señal de VENTA para ciclo venta→recompra ────────────────────
 function detectSellSetup(data) {

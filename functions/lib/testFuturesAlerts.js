@@ -1,9 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.testFuturesAlerts = void 0;
-const functions = require("firebase-functions");
+const functions = require("firebase-functions/v1");
 const crypto = require("crypto");
 const axios_1 = require("axios");
+const params_1 = require("firebase-functions/params");
+const binanceConfig = (0, params_1.defineJsonSecret)("FUNCTIONS_CONFIG_EXPORT");
 // ─── Helpers (copiados de futuresSync para independencia) ─────────────────────
 function sign(queryString, secret) {
     return crypto.createHmac("sha256", secret).update(queryString).digest("hex");
@@ -48,21 +50,21 @@ async function sendTelegram(text) {
 // ─── Test Function ────────────────────────────────────────────────────────────
 exports.testFuturesAlerts = functions
     .region("europe-west1")
-    .runWith({ secrets: ["TELEGRAM_TOKEN", "TELEGRAM_CHAT_ID"] })
+    .runWith({ secrets: ["TELEGRAM_TOKEN", "TELEGRAM_CHAT_ID", "FUNCTIONS_CONFIG_EXPORT"] })
     .https.onRequest(async (req, res) => {
     var _a, _b;
     res.set("Access-Control-Allow-Origin", "*");
     const type = req.query.type || "margen";
-    const config = functions.config().binance;
-    if (!(config === null || config === void 0 ? void 0 : config.api_key) || !(config === null || config === void 0 ? void 0 : config.api_secret)) {
+    const bConfig = binanceConfig.value().binance;
+    if (!(bConfig === null || bConfig === void 0 ? void 0 : bConfig.api_key) || !(bConfig === null || bConfig === void 0 ? void 0 : bConfig.api_secret)) {
         res.status(500).json({ error: "Binance API keys not configured." });
         return;
     }
     try {
         // Fetch real data from Binance
         const [accountRes, positionRes] = await Promise.all([
-            binanceGet("/fapi/v3/account", {}, config.api_key, config.api_secret),
-            binanceGet("/fapi/v2/positionRisk", {}, config.api_key, config.api_secret),
+            binanceGet("/fapi/v3/account", {}, bConfig.api_key, bConfig.api_secret),
+            binanceGet("/fapi/v2/positionRisk", {}, bConfig.api_key, bConfig.api_secret),
         ]);
         const positionMap = new Map();
         for (const p of positionRes) {

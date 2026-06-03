@@ -1,6 +1,9 @@
-import * as functions from "firebase-functions";
+import * as functions from "firebase-functions/v1";
 import * as crypto from "crypto";
 import axios from "axios";
+import { defineJsonSecret } from "firebase-functions/params";
+
+const binanceConfig = defineJsonSecret("FUNCTIONS_CONFIG_EXPORT");
 
 // ─── Helpers (copiados de futuresSync para independencia) ─────────────────────
 
@@ -58,14 +61,14 @@ async function sendTelegram(text: string): Promise<boolean> {
 
 export const testFuturesAlerts = functions
     .region("europe-west1")
-    .runWith({ secrets: ["TELEGRAM_TOKEN", "TELEGRAM_CHAT_ID"] })
+    .runWith({ secrets: ["TELEGRAM_TOKEN", "TELEGRAM_CHAT_ID", "FUNCTIONS_CONFIG_EXPORT"] })
     .https.onRequest(async (req, res) => {
         res.set("Access-Control-Allow-Origin", "*");
 
         const type = (req.query.type as string) || "margen";
 
-        const config = functions.config().binance;
-        if (!config?.api_key || !config?.api_secret) {
+        const bConfig = binanceConfig.value().binance;
+        if (!bConfig?.api_key || !bConfig?.api_secret) {
             res.status(500).json({ error: "Binance API keys not configured." });
             return;
         }
@@ -73,8 +76,8 @@ export const testFuturesAlerts = functions
         try {
             // Fetch real data from Binance
             const [accountRes, positionRes] = await Promise.all([
-                binanceGet("/fapi/v3/account", {}, config.api_key, config.api_secret),
-                binanceGet("/fapi/v2/positionRisk", {}, config.api_key, config.api_secret),
+                binanceGet("/fapi/v3/account", {}, bConfig.api_key, bConfig.api_secret),
+                binanceGet("/fapi/v2/positionRisk", {}, bConfig.api_key, bConfig.api_secret),
             ]);
 
             const positionMap = new Map<string, any>();
