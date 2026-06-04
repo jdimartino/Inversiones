@@ -41,3 +41,31 @@ export async function fetchDynamicPrices(
 
     return data;
 }
+
+/**
+ * Fetch previous daily close prices for arbitrary coins.
+ * Returns: { BTC: 66500, ETH: 3400, USDT: 1, ... }
+ */
+export async function fetchPrevClosePrices(
+    coins: string[],
+    signal?: AbortSignal
+): Promise<Record<string, number>> {
+    if (coins.length === 0) return { USDT: 1.0 };
+
+    const coinsParam = coins.join(",");
+    const url = `${CLOUD_FUNCTION_URL}?coins=${encodeURIComponent(coinsParam)}&type=prevClose`;
+
+    const response = await fetch(url, { signal });
+
+    if (!response.ok) {
+        throw new Error(
+            `Binance prevClose API ${response.status}: ${response.statusText}`
+        );
+    }
+
+    const data: Record<string, number> = await response.json();
+
+    if (!data.USDT) data.USDT = 1.0;
+
+    return data;
+}

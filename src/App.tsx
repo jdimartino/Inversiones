@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef, Suspense } from "react";
-import { Activity, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import {
   RISK_PARAMS,
   ProcessedInvestment,
@@ -22,6 +22,7 @@ import { useBcvRate } from "./hooks/useBcvRate";
 import { useYadioRate } from "./hooks/useYadioRate";
 import NavBar, { TabId } from "./components/NavBar";
 import { getSelectedCoins } from "./components/CoinSelector";
+import { useWatchlistCoins } from "./hooks/useWatchlistCoins";
 import SummaryCards from "./components/SummaryCards";
 import AssetTable from "./components/AssetTable";
 import AggregatedTable from "./components/AggregatedTable";
@@ -59,6 +60,7 @@ const App: React.FC = () => {
   const yadioRate = useYadioRate();
   const { futuresData } = useFutures();
   const { exchangeData } = useLiquidationData();
+  const { watchlistCoins, setWatchlistCoins } = useWatchlistCoins();
   const [activeTab, setActiveTab] = useState<TabId>("inicio");
   const [graficoCoin, setGraficoCoin] = useState<string | undefined>(undefined);
   const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
@@ -84,12 +86,12 @@ const App: React.FC = () => {
     return Array.from(new Set(portfolio.map(item => item.coin)));
   }, [portfolio]);
 
-  // Fetch prices for BOTH ticker coins AND portfolio coins
+  // Fetch prices for BOTH ticker coins AND portfolio coins AND watchlist coins
   const allNeededCoins = useMemo(() => {
-    const set = new Set([...selectedCoins, ...portfolioCoins]);
+    const set = new Set([...selectedCoins, ...portfolioCoins, ...watchlistCoins]);
     return Array.from(set);
-  }, [selectedCoins, portfolioCoins]);
-  const { prices, priceDirections, loading, refresh } = usePrices(allNeededCoins);
+  }, [selectedCoins, portfolioCoins, watchlistCoins]);
+  const { prices, priceDirections, prevDailyCloses, loading, refresh } = usePrices(allNeededCoins);
   const pricesRef = useRef(prices);
   pricesRef.current = prices;
 
@@ -410,7 +412,7 @@ const App: React.FC = () => {
       </header>
 
       {/* ── Tab Content ───────────────────────────────────────── */}
-      <main className="max-w-6xl mx-auto px-3 md:px-8 py-3 sm:py-6">
+      <main className="w-full px-2 py-3 sm:py-6">
 
         {!hasPrices && !loading && (
           <div className="bg-yellow-900/20 border border-yellow-700/50 rounded-lg px-4 py-3 mb-4 flex items-center gap-2 text-yellow-300 text-sm">
@@ -432,11 +434,12 @@ const App: React.FC = () => {
               exchangeData={exchangeData}
               prices={prices}
               priceDirections={priceDirections}
-              selectedCoins={selectedCoins}
+              prevDailyCloses={prevDailyCloses}
+              selectedCoins={watchlistCoins}
               onNavigateSpot={() => setActiveTab("dashboard")}
               onNavigateFutures={() => setActiveTab("futuros")}
-              onNavigateLoans={() => setActiveTab("prestamos")}
               onCoinClick={(coin) => { setGraficoCoin(coin); setActiveTab("graficos"); }}
+              onWatchlistChange={setWatchlistCoins}
             />
           </div>
         )}
@@ -444,38 +447,42 @@ const App: React.FC = () => {
         {/* ── DASHBOARD ─────────────────────────────────────────────── */}
         {activeTab === "dashboard" && (
           <div key="dashboard" className={tabClass}>
-            <SummaryCards
-              totalInvested={totalInvested}
-              totalValue={totalValue}
-              totalPnl={totalPnl}
-              totalRoi={totalRoi}
-              hasActiveGlobalAlerts={(config.globalAlerts || []).length > 0}
-              onOpenGlobalAlerts={() => setIsGlobalAlertModalOpen(true)}
-            />
-            {sales.length > 0
-              ? <>{salesTableNode}{assetTableNode}</>
-              : <>{assetTableNode}{salesTableNode}</>
-            }
-            <AggregatedTable items={aggregatedList} priceDirections={priceDirections} openPositions={sortedPortfolio} openSales={sales} closedTrades={closedTrades} />
-            <ClosedTradesTable trades={closedTrades} loading={closedTradesLoading} onMarcoAnalysis={handleMarcoClosed} />
+            <div className="max-w-6xl mx-auto space-y-3">
+              <SummaryCards
+                totalInvested={totalInvested}
+                totalValue={totalValue}
+                totalPnl={totalPnl}
+                totalRoi={totalRoi}
+                hasActiveGlobalAlerts={(config.globalAlerts || []).length > 0}
+                onOpenGlobalAlerts={() => setIsGlobalAlertModalOpen(true)}
+              />
+              {sales.length > 0
+                ? <>{salesTableNode}{assetTableNode}</>
+                : <>{assetTableNode}{salesTableNode}</>
+              }
+              <AggregatedTable items={aggregatedList} priceDirections={priceDirections} openPositions={sortedPortfolio} openSales={sales} closedTrades={closedTrades} />
+              <ClosedTradesTable trades={closedTrades} loading={closedTradesLoading} onMarcoAnalysis={handleMarcoClosed} />
+            </div>
           </div>
         )}
 
         {/* ── GRÁFICOS ──────────────────────────────────────────────── */}
         {activeTab === "graficos" && (
           <div key="graficos" className={tabClass}>
-            <AnalyticsSection
-              aggregated={aggregatedList}
-              items={sortedPortfolio}
-              loans={processedLoans}
-              totalValue={totalValue}
-              totalInvested={totalInvested}
-              fearGreed={fearGreed}
-              fearGreedLoading={fgLoading}
-              initialCoin={graficoCoin}
-              priceDirections={priceDirections}
-              sales={sales}
-            />
+            <div className="max-w-6xl mx-auto space-y-3">
+              <AnalyticsSection
+                aggregated={aggregatedList}
+                items={sortedPortfolio}
+                loans={processedLoans}
+                totalValue={totalValue}
+                totalInvested={totalInvested}
+                fearGreed={fearGreed}
+                fearGreedLoading={fgLoading}
+                initialCoin={graficoCoin}
+                priceDirections={priceDirections}
+                sales={sales}
+              />
+            </div>
           </div>
         )}
 
@@ -510,45 +517,37 @@ const App: React.FC = () => {
         {/* ── CONFIGURACIÓN (TELEGRAM) ─────────────────────────────────────────── */}
         {activeTab === "configuracion" && (
           <div key="configuracion" className={tabClass}>
-            <Suspense fallback={<div className="py-20 text-center text-slate-500 text-sm">Cargando...</div>}>
-              <AlertSettings
-                config={config}
-                saveConfig={saveConfig}
-                onEditGlobal={handleEditGlobalAlert}
-                onEditInvestment={handleEditInvestmentAlert}
-                onOpenWatchlist={() => setIsWatchlistModalOpen(true)}
-                onEditWatchlistAlert={(coin, index) => { setWatchlistEditTarget({ coin, index }); setIsWatchlistModalOpen(true); }}
-                onOpenCandleAlert={() => setIsCandleAlertModalOpen(true)}
-                onEditCandleAlert={(coin, index) => { setCandleEditTarget({ coin, index }); setIsCandleAlertModalOpen(true); }}
-                sales={sales}
-                totalPnl={totalPnl}
-                selectedCoins={selectedCoins}
-                onSelectedCoinsChange={setSelectedCoins}
-              />
-            </Suspense>
+            <div className="max-w-6xl mx-auto space-y-3">
+              <Suspense fallback={<div className="py-20 text-center text-slate-500 text-sm">Cargando...</div>}>
+                <AlertSettings
+                  config={config}
+                  saveConfig={saveConfig}
+                  onEditGlobal={handleEditGlobalAlert}
+                  onEditInvestment={handleEditInvestmentAlert}
+                  onOpenWatchlist={() => setIsWatchlistModalOpen(true)}
+                  onEditWatchlistAlert={(coin, index) => { setWatchlistEditTarget({ coin, index }); setIsWatchlistModalOpen(true); }}
+                  onOpenCandleAlert={() => setIsCandleAlertModalOpen(true)}
+                  onEditCandleAlert={(coin, index) => { setCandleEditTarget({ coin, index }); setIsCandleAlertModalOpen(true); }}
+                  sales={sales}
+                  totalPnl={totalPnl}
+                  selectedCoins={selectedCoins}
+                  onSelectedCoinsChange={setSelectedCoins}
+                />
+              </Suspense>
+            </div>
           </div>
         )}
 
         {/* ── FUTUROS ─────────────────────────────────────────────────────────── */}
         {activeTab === "futuros" && (
           <div key="futuros" className={tabClass}>
-            <Suspense fallback={<div className="py-20 text-center text-slate-500 text-sm">Cargando futuros...</div>}>
-              <FuturesTab prices={prices} />
-            </Suspense>
+            <div className="max-w-6xl mx-auto space-y-3">
+              <Suspense fallback={<div className="py-20 text-center text-slate-500 text-sm">Cargando futuros...</div>}>
+                <FuturesTab prices={prices} priceDirections={priceDirections} />
+              </Suspense>
+            </div>
           </div>
         )}
-        {/* ── Footer ────────────────────────────────────────────── */}
-        <footer className="mt-8 border-t border-slate-800 py-3 flex justify-between items-center">
-          <div>
-            <h1 className="text-base font-bold flex items-center gap-2 text-yellow-400">
-              <Activity className="w-4 h-4" /> Crypto Command
-            </h1>
-            <p className="text-[10px] text-yellow-500/70 font-semibold mt-[-2px] ml-6">By #JDMRules</p>
-            <p className="text-slate-500 text-[10px] uppercase tracking-widest font-bold hidden sm:block ml-6">
-              LTV Flex: Binance 91% · Bybit 92%
-            </p>
-          </div>
-        </footer>
       </main>
 
       {/* ── Modals (always mounted regardless of active tab) ───────── */}

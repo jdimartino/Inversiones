@@ -1,81 +1,217 @@
-import React from "react";
-import { TrendingUp, TrendingDown, Minus, LineChart } from "lucide-react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { Settings, X, GripVertical } from "lucide-react";
 import { PriceDirection } from "../../hooks/usePrices";
-import { getCoinTextColor } from "../../lib/constants";
-import { fmtUSD, fmtPercent } from "../../lib/format";
+import { fmtUSD } from "../../lib/format";
+import MarketWatchSettingsModal from "./MarketWatchSettingsModal";
 
 interface MarketWatchCardProps {
     prices: Record<string, number>;
     priceDirections: Record<string, PriceDirection>;
+    prevDailyCloses: Record<string, number>;
     selectedCoins: string[];
     onCoinClick: (coin: string) => void;
+    onWatchlistChange: (coins: string[]) => void;
 }
 
-const DirectionIcon: React.FC<{ direction: PriceDirection; size?: number }> = ({
-    direction,
-    size = 10,
-}) => {
-    if (direction === "up")
-        return <TrendingUp size={size} className="text-green-400" />;
-    if (direction === "down")
-        return <TrendingDown size={size} className="text-red-400" />;
-    return <Minus size={size} className="text-gray-500" />;
+const COIN_LOGO_URL = (symbol: string) =>
+    `https://assets.coincap.io/assets/icons/${symbol.toLowerCase()}@2x.png`;
+
+function adaptiveDecimals(price: number): number {
+    if (price >= 1000) return 2;
+    if (price >= 1) return 4;
+    return 6;
+}
+
+function fmtChange(value: number, referencePrice: number): string {
+    const dec = adaptiveDecimals(referencePrice);
+    const sign = value >= 0 ? "+" : "";
+    return `${sign}${value.toFixed(dec)}`;
+}
+
+function fmtChangePct(value: number): string {
+    const sign = value >= 0 ? "+" : "";
+    return `${sign}${value.toFixed(2)}%`;
+}
+
+const MarketWatchRow: React.FC<{
+    coin: string;
+    price: number;
+    prevClose: number | undefined;
+    direction: PriceDirection;
+    onClick: () => void;
+    onRemove: () => void;
+    index: number;
+    isDragging: boolean;
+    onDragStart: (idx: number) => void;
+    onDragOver: (e: React.DragEvent) => void;
+    onDrop: (idx: number) => void;
+    onDragEnd: () => void;
+}> = ({ coin, price, prevClose, direction, onClick, onRemove, index, isDragging, onDragStart, onDragOver, onDrop, onDragEnd }) => {
+    const [flashClass, setFlashClass] = useState("");
+    const prevDirRef = useRef<PriceDirection>(direction);
+
+    useEffect(() => {
+        if (direction !== prevDirRef.current && direction !== "neutral") {
+            setFlashClass(direction === "up" ? "flash-green" : "flash-red");
+            const timer = setTimeout(() => setFlashClass(""), 600);
+            prevDirRef.current = direction;
+            return () => clearTimeout(timer);
+        }
+    }, [direction]);
+
+    const change = prevClose != null ? price - prevClose : 0;
+    const changePct = prevClose ? ((price - prevClose) / prevClose) * 100 : 0;
+    const changeColor = direction === "up" ? "text-green-400" : direction === "down" ? "text-red-400" : "text-white";
+
+    return (
+        <button
+            draggable
+            onDragStart={() => onDragStart(index)}
+            onDragOver={onDragOver}
+            onDrop={() => onDrop(index)}
+            onDragEnd={onDragEnd}
+            onClick={onClick}
+            className={`w-full flex items-center gap-0.5 px-1 py-[5px] rounded hover:bg-gray-800/40 transition-colors text-left group cursor-grab active:cursor-grabbing ${isDragging ? "opacity-30" : ""} ${flashClass}`}
+        >
+            <span className="text-gray-700 group-hover:text-gray-500 transition-colors flex-shrink-0">
+                <GripVertical size={10} />
+            </span>
+            <img
+                src={COIN_LOGO_URL(coin)}
+                alt={coin}
+                className="w-5 h-5 rounded-full flex-shrink-0"
+                onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                }}
+            />
+            <span className="text-xs text-gray-300 font-semibold w-[56px] flex-shrink-0 truncate">{coin}</span>
+            <div className="flex items-center gap-1">
+                <span className={`text-xs font-mono tabular-nums text-right w-28 ${changeColor}`}>
+                    {fmtUSD(price)}
+                </span>
+                <span className={`text-xs font-mono tabular-nums text-right w-20 flex-shrink-0 ${changeColor}`}>
+                    {fmtChange(change, price)}
+                </span>
+                <span className={`text-xs font-mono tabular-nums text-right w-14 flex-shrink-0 ${changeColor}`}>
+                    {fmtChangePct(changePct)}
+                </span>
+            </div>
+            <button
+                onClick={(e) => { e.stopPropagation(); onRemove(); }}
+                className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-400 transition-all flex-shrink-0 ml-auto pr-1"
+                title="Eliminar de la lista"
+            >
+                <X size={12} />
+            </button>
+        </button>
+    );
 };
 
 const MarketWatchCard: React.FC<MarketWatchCardProps> = ({
     prices,
     priceDirections,
+    prevDailyCloses,
     selectedCoins,
     onCoinClick,
+    onWatchlistChange,
 }) => {
-    const coinList = selectedCoins.filter((c) => c !== "USDT" && prices[c] != null);
+    const [showSettings, setShowSettings] = useState(false);
+    const [dragIndex, setDragIndex] = useState<number | null>(null);
+
+    const coinList = selectedCoins.filter((c) => c !== "USDT").slice(0, 15);
+
+    const handleDragStart = useCallback((idx: number) => {
+        setDragIndex(idx);
+    }, []);
+
+    const handleDragOver = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+    }, []);
+
+    const handleDrop = useCallback((toIdx: number) => {
+        if (dragIndex === null || dragIndex === toIdx) return;
+        const updated = [...coinList];
+        const [moved] = updated.splice(dragIndex, 1);
+        updated.splice(toIdx, 0, moved);
+        setDragIndex(null);
+        onWatchlistChange(updated);
+    }, [dragIndex, coinList, onWatchlistChange]);
+
+    const handleDragEnd = useCallback(() => {
+        setDragIndex(null);
+    }, []);
+
+    const renderColumn = (coins: string[]) => (
+        <div>
+            <div className="flex items-center gap-0.5 px-1 py-1.5 border-b border-gray-800/60 mb-0.5">
+                <span className="text-[11px] text-gray-600 font-medium w-3" />
+                <span className="text-[11px] text-gray-600 font-medium w-5" />
+                <span className="text-[11px] text-gray-600 font-medium w-[56px] flex-shrink-0 truncate">Símbolo</span>
+                <div className="flex items-center gap-1">
+                    <span className="text-[11px] text-gray-600 text-right w-28">Última</span>
+                    <span className="text-[11px] text-gray-600 text-right w-20">Cbo</span>
+                    <span className="text-[11px] text-gray-600 text-right w-14">Cambi%</span>
+                </div>
+            </div>
+            <div className="space-y-0">
+                {coins.map((coin, idx) => (
+                    <MarketWatchRow
+                        key={coin}
+                        coin={coin}
+                        price={prices[coin] ?? 0}
+                        prevClose={prevDailyCloses[coin]}
+                        direction={priceDirections[coin] ?? "neutral"}
+                        onClick={() => onCoinClick(coin)}
+                        onRemove={() => {
+                            const updated = selectedCoins.filter(c => c !== coin);
+                            onWatchlistChange(updated);
+                        }}
+                        index={idx}
+                        isDragging={dragIndex === idx}
+                        onDragStart={handleDragStart}
+                        onDragOver={handleDragOver}
+                        onDrop={handleDrop}
+                        onDragEnd={handleDragEnd}
+                    />
+                ))}
+            </div>
+        </div>
+    );
 
     return (
-        <div className="bg-[#181A20] rounded-xl border border-gray-800 p-4">
-            <div className="flex items-center justify-between mb-3">
-                <h3 className="text-white font-semibold flex items-center gap-2">
-                    <LineChart size={16} className="text-yellow-400" />
-                    <span>Market Watch</span>
-                </h3>
-                <span className="text-xs text-gray-500">
-                    {coinList.length} activos
-                </span>
+        <>
+            <div className="w-full h-full bg-[#181A20] rounded-xl border border-slate-700/50 shadow-sm shadow-black/10 p-1.5">
+                <div className="relative flex items-center justify-center mb-1">
+                    <h3 className="text-white font-semibold text-sm">
+                        Market Watch
+                    </h3>
+                    <button
+                        onClick={() => setShowSettings(true)}
+                        className="absolute right-0 text-gray-600 hover:text-yellow-400 transition-colors"
+                    >
+                        <Settings size={14} />
+                    </button>
+                </div>
+
+                {coinList.length === 0 ? (
+                    <p className="text-gray-600 text-xs text-center py-4">
+                        Sin monedas seleccionadas
+                    </p>
+                ) : (
+                    <div>
+                        {renderColumn(coinList)}
+                    </div>
+                )}
             </div>
 
-            {coinList.length === 0 ? (
-                <p className="text-gray-600 text-sm">Sin monedas seleccionadas</p>
-            ) : (
-                <div className="space-y-1">
-                    {coinList.map((coin) => {
-                        const price = prices[coin] ?? 0;
-                        const dir = priceDirections[coin] ?? "neutral";
-                        return (
-                            <button
-                                key={coin}
-                                onClick={() => onCoinClick(coin)}
-                                className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-gray-800/50 transition-colors group"
-                            >
-                                <div className="flex items-center gap-2">
-                                    <span
-                                        className={`text-sm font-bold ${getCoinTextColor(
-                                            coin
-                                        )}`}
-                                    >
-                                        {coin}
-                                    </span>
-                                    <DirectionIcon direction={dir} />
-                                </div>
-                                <div className="text-right">
-                                    <div className="text-white text-sm font-medium">
-                                        {fmtUSD(price)}
-                                    </div>
-                                </div>
-                            </button>
-                        );
-                    })}
-                </div>
+            {showSettings && (
+                <MarketWatchSettingsModal
+                    selectedCoins={selectedCoins}
+                    onChange={onWatchlistChange}
+                    onClose={() => setShowSettings(false)}
+                />
             )}
-        </div>
+        </>
     );
 };
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { fetchBinancePrices, fetchDynamicPrices } from "../lib/binance";
+import { fetchBinancePrices, fetchDynamicPrices, fetchPrevClosePrices } from "../lib/binance";
 
 const POLL_INTERVAL_MS = 15_000;
 
@@ -15,6 +15,7 @@ export function usePrices(selectedCoins?: string[]) {
     const [priceDirections, setPriceDirections] = useState<
         Record<string, PriceDirection>
     >({});
+    const [prevDailyCloses, setPrevDailyCloses] = useState<Record<string, number>>({});
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const abortRef = useRef<AbortController | null>(null);
@@ -64,6 +65,21 @@ export function usePrices(selectedCoins?: string[]) {
         }
     }, [selectedCoins]);
 
+    // Fetch previous daily close prices once on mount / when coins change
+    useEffect(() => {
+        if (!selectedCoins || selectedCoins.length === 0) return;
+
+        const controller = new AbortController();
+        fetchPrevClosePrices(selectedCoins, controller.signal)
+            .then(setPrevDailyCloses)
+            .catch((e) => {
+                if (e instanceof DOMException && e.name === "AbortError") return;
+                console.error("Error fetching prev close prices:", e);
+            });
+
+        return () => controller.abort();
+    }, [selectedCoins]);
+
     useEffect(() => {
         refresh();
         const interval = setInterval(refresh, POLL_INTERVAL_MS);
@@ -73,5 +89,5 @@ export function usePrices(selectedCoins?: string[]) {
         };
     }, [refresh]);
 
-    return { prices, priceDirections, loading, error, refresh };
+    return { prices, priceDirections, prevDailyCloses, loading, error, refresh };
 }

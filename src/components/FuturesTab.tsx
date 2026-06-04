@@ -35,11 +35,12 @@ import {
     findLiquidationThreshold,
 } from "../lib/futures";
 import { fmtPercent } from "../lib/format";
+import { PriceDirection } from "../hooks/usePrices";
 import FuturesPositionAlertModal from "./FuturesPositionAlertModal";
 
 // ─── Position Card ────────────────────────────────────────────────────────────
 
-function PositionCard({ pos }: { pos: FuturesPosition }) {
+function PositionCard({ pos, priceDirections }: { pos: FuturesPosition; priceDirections: Record<string, PriceDirection> }) {
     const isLong = pos.side === "LONG";
     const pnlPositive = pos.unrealizedPnl >= 0;
     const distColor = getDistToLiqColor(pos.distToLiqPercent);
@@ -75,7 +76,7 @@ function PositionCard({ pos }: { pos: FuturesPosition }) {
                 </div>
                 <div>
                     <div className="text-xs text-gray-500">Actual</div>
-                    <div className="text-white text-sm font-mono">${pos.markPrice.toLocaleString()}</div>
+                    <div className={`text-sm font-mono ${priceDirections[pos.symbol.replace('USDT', '')] === 'up' ? 'text-green-400' : priceDirections[pos.symbol.replace('USDT', '')] === 'down' ? 'text-red-400' : 'text-white'}`}>${pos.markPrice.toLocaleString()}</div>
                 </div>
                 <div className="text-right sm:text-left">
                     <div className="text-xs text-gray-500">Liquidación</div>
@@ -486,9 +487,10 @@ function CrossMarginSimulator({
 
 interface FuturesTabProps {
     prices: Record<string, number>;
+    priceDirections: Record<string, PriceDirection>;
 }
 
-export default function FuturesTab({ prices }: FuturesTabProps) {
+export default function FuturesTab({ prices, priceDirections }: FuturesTabProps) {
     const { futuresData, loading: dataLoading } = useFutures();
     const { alerts, saveAlerts } = useFuturesAlerts();
 
@@ -746,7 +748,7 @@ export default function FuturesTab({ prices }: FuturesTabProps) {
                             const posAlerts = alerts.positionAlerts?.[pos.symbol] || [];
                             return (
                                 <div key={`${pos.symbol}-${pos.side}`}>
-                                    <PositionCard pos={pos} />
+                                    <PositionCard pos={pos} priceDirections={priceDirections} />
                                     {/* Alert button and existing alerts */}
                                     <div className="bg-[#181A20] rounded-b-xl border border-t-0 border-gray-800 px-4 py-2 flex items-center justify-between">
                                         <div className="flex items-center gap-2 flex-wrap">
