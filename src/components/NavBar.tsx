@@ -1,5 +1,6 @@
 import React from "react";
 import {
+    Home,
     LayoutDashboard,
     BarChart3,
     CreditCard,
@@ -14,7 +15,7 @@ import { BcvRate } from "../hooks/useBcvRate";
 import { YadioRate } from "../hooks/useYadioRate";
 import PriceTicker from "./PriceTicker";
 
-export type TabId = "dashboard" | "futuros" | "prestamos" | "graficos" | "configuracion" | "venta" | "operaciones";
+export type TabId = "inicio" | "dashboard" | "futuros" | "prestamos" | "graficos" | "configuracion" | "venta" | "operaciones";
 
 interface Tab {
     id: TabId;
@@ -23,6 +24,7 @@ interface Tab {
 }
 
 const TABS: Tab[] = [
+    { id: "inicio", label: "Inicio", icon: <Home className="w-4 h-4" /> },
     { id: "dashboard", label: "Spot", icon: <LayoutDashboard className="w-4 h-4" /> },
     { id: "futuros", label: "Futuros", icon: <Activity className="w-4 h-4" /> },
     { id: "prestamos", label: "Préstamos", icon: <CreditCard className="w-4 h-4" /> },

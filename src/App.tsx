@@ -13,6 +13,8 @@ import { usePortfolio } from "./hooks/usePortfolio";
 import { useClosedTrades } from "./hooks/useClosedTrades";
 import { useSales } from "./hooks/useSales";
 import { useLoans } from "./hooks/useLoans";
+import { useFutures } from "./hooks/useFutures";
+import { useLiquidationData } from "./hooks/useLiquidationData";
 import { usePrices } from "./hooks/usePrices";
 import { useAlerts, InvestmentAlert, GlobalAlert, WatchlistAlert, cleanupInvestmentAlerts, cleanupSaleAlerts } from "./hooks/useAlerts";
 import { useFearGreed } from "./hooks/useFearGreed";
@@ -38,6 +40,7 @@ import GlobalAlertModal from "./components/GlobalAlertModal";
 import WatchlistAlertModal from "./components/WatchlistAlertModal";
 import CandleAlertModal from "./components/CandleAlertModal";
 import MarcoAnalysisModal, { MarcoAnalysisModalProps } from "./components/MarcoAnalysisModal";
+import Dashboard from "./components/Dashboard/Dashboard";
 
 const LiquidationDashboard = React.lazy(() => import("./components/LiquidationDashboard"));
 const SellSuite = React.lazy(() => import("./components/SellSuite"));
@@ -54,7 +57,9 @@ const App: React.FC = () => {
   const { data: fearGreed, loading: fgLoading } = useFearGreed();
   const bcvRate = useBcvRate();
   const yadioRate = useYadioRate();
-  const [activeTab, setActiveTab] = useState<TabId>("dashboard");
+  const { futuresData } = useFutures();
+  const { exchangeData } = useLiquidationData();
+  const [activeTab, setActiveTab] = useState<TabId>("inicio");
   const [graficoCoin, setGraficoCoin] = useState<string | undefined>(undefined);
   const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
   const [editingInvestment, setEditingInvestment] = useState<ProcessedInvestment | null>(null);
@@ -411,6 +416,28 @@ const App: React.FC = () => {
           <div className="bg-yellow-900/20 border border-yellow-700/50 rounded-lg px-4 py-3 mb-4 flex items-center gap-2 text-yellow-300 text-sm">
             <RefreshCw className="w-4 h-4" />
             <span>Precios no disponibles — los valores mostrados pueden no ser actuales.</span>
+          </div>
+        )}
+
+        {/* ── INICIO (Dashboard global) ──────────────────────────────── */}
+        {activeTab === "inicio" && (
+          <div key="inicio" className={tabClass}>
+            <Dashboard
+              totalInvested={totalInvested}
+              totalValue={totalValue}
+              totalPnl={totalPnl}
+              totalRoi={totalRoi}
+              sortedPortfolio={sortedPortfolio}
+              futuresData={futuresData}
+              exchangeData={exchangeData}
+              prices={prices}
+              priceDirections={priceDirections}
+              selectedCoins={selectedCoins}
+              onNavigateSpot={() => setActiveTab("dashboard")}
+              onNavigateFutures={() => setActiveTab("futuros")}
+              onNavigateLoans={() => setActiveTab("prestamos")}
+              onCoinClick={(coin) => { setGraficoCoin(coin); setActiveTab("graficos"); }}
+            />
           </div>
         )}
 
