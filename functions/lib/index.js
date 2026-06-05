@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getFuturesTrades = exports.getBinancePrices = exports.testFuturesAlerts = exports.futuresSync = exports.testFutures = exports.testDailyPnlSnapshot = exports.dailyPnlSnapshot = exports.testDailyReport = exports.dailyPortfolioReport = exports.checkIntervalTasks = exports.testTradingSignals = exports.testAlerts = exports.setupTestAlerts = exports.debugLogs = exports.debugInversiones = exports.debugAlerts = exports.syncOpenCodeUsage = exports.analyzeMarket = void 0;
+exports.proxyFetch = exports.getFuturesTrades = exports.getBinancePrices = exports.testFuturesAlerts = exports.futuresSync = exports.testFutures = exports.testDailyPnlSnapshot = exports.dailyPnlSnapshot = exports.testDailyReport = exports.dailyPortfolioReport = exports.checkIntervalTasks = exports.testTradingSignals = exports.testAlerts = exports.setupTestAlerts = exports.debugLogs = exports.debugInversiones = exports.debugAlerts = exports.syncOpenCodeUsage = exports.analyzeMarket = void 0;
 const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 const axios_1 = require("axios");
@@ -14,6 +14,8 @@ const getFuturesTrades_1 = require("./getFuturesTrades");
 Object.defineProperty(exports, "getFuturesTrades", { enumerable: true, get: function () { return getFuturesTrades_1.getFuturesTrades; } });
 const getBinancePrices_1 = require("./getBinancePrices");
 Object.defineProperty(exports, "getBinancePrices", { enumerable: true, get: function () { return getBinancePrices_1.getBinancePrices; } });
+const proxyFetch_1 = require("./proxyFetch");
+Object.defineProperty(exports, "proxyFetch", { enumerable: true, get: function () { return proxyFetch_1.proxyFetch; } });
 admin.initializeApp();
 const db = admin.firestore();
 // ─── Telegram config (Ahora gestionados por Secret Manager) ──────────────────

@@ -6,6 +6,7 @@ import { futuresSync } from "./futuresSync";
 import { testFuturesAlerts } from "./testFuturesAlerts";
 import { getFuturesTrades } from "./getFuturesTrades";
 import { getBinancePrices } from "./getBinancePrices";
+import { proxyFetch } from "./proxyFetch";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -1286,4 +1287,4 @@ export const testDailyPnlSnapshot = functions
         }
     });
 
-export { testFutures, futuresSync, testFuturesAlerts, getBinancePrices, getFuturesTrades };
+export { testFutures, futuresSync, testFuturesAlerts, getBinancePrices, getFuturesTrades, proxyFetch };

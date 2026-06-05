@@ -67,9 +67,9 @@ export const getFuturesTrades = functions
             return;
         }
 
-        // Binance allOrders max time interval is 30 days
+        // Binance allOrders max time interval is 7 days
         const endTime = Date.now();
-        const startTime = endTime - 30 * 24 * 60 * 60 * 1000;
+        const startTime = endTime - 7 * 24 * 60 * 60 * 1000;
 
         const bConfig = JSON.parse(binanceConfigRaw.value()).binance;
         if (!bConfig?.api_key || !bConfig?.api_secret) {

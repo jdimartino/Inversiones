@@ -1,12 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
-const CACHE_KEY = "yadio_ves_rate_cache";
-const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
-
-interface YadioRateCache {
-    p2pRate: number;
-    fetchedAt: number;
-}
+const POLL_INTERVAL_MS = 60_000;
 
 export interface YadioRate {
     p2pRate: number;
@@ -14,33 +8,12 @@ export interface YadioRate {
     error: string | null;
 }
 
-function getCachedRate(): YadioRateCache | null {
-    try {
-        const raw = localStorage.getItem(CACHE_KEY);
-        if (!raw) return null;
-        const cached: YadioRateCache = JSON.parse(raw);
-        if (Date.now() - cached.fetchedAt > CACHE_TTL_MS) return null;
-        return cached;
-    } catch {
-        return null;
-    }
-}
-
-function setCachedRate(data: YadioRateCache) {
-    try {
-        localStorage.setItem(CACHE_KEY, JSON.stringify(data));
-    } catch { /* ignore */ }
-}
-
 export function useYadioRate(): YadioRate {
-    const [rate, setRate] = useState<YadioRate>(() => {
-        const cached = getCachedRate();
-        return {
-            p2pRate: cached?.p2pRate ?? 0,
-            loading: !cached,
-            error: null,
-        };
-    });
+    const [rate, setRate] = useState<YadioRate>(() => ({
+        p2pRate: 0,
+        loading: true,
+        error: null,
+    }));
     const abortRef = useRef<AbortController | null>(null);
 
     const fetchRate = useCallback(async () => {
@@ -59,9 +32,6 @@ export function useYadioRate(): YadioRate {
 
             const p2pRate = data?.VES?.rate_p2p ?? 0;
 
-            const cache: YadioRateCache = { p2pRate, fetchedAt: Date.now() };
-            setCachedRate(cache);
-
             setRate({ p2pRate, loading: false, error: null });
         } catch (e: unknown) {
             if (e instanceof DOMException && e.name === "AbortError") return;
@@ -76,7 +46,7 @@ export function useYadioRate(): YadioRate {
 
     useEffect(() => {
         fetchRate();
-        const interval = setInterval(fetchRate, CACHE_TTL_MS);
+        const interval = setInterval(fetchRate, POLL_INTERVAL_MS);
         return () => {
             clearInterval(interval);
             abortRef.current?.abort();

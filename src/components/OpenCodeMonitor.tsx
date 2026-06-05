@@ -10,7 +10,26 @@ interface ModelData {
   tier: string;
 }
 
-const MODELS: Record<string, ModelData> = {
+interface ParsedModel {
+  id: string;
+  name: string;
+  reqs5h: number;
+  reqsWeek: number;
+  reqsMonth: number;
+}
+
+const MEDALS: Record<number, string> = { 0: "🥇", 1: "🥈", 2: "🥉" };
+const CYCLE = { WEEK: 7, MONTH: 30 };
+const MODELS_LS_KEY = "opencode-v3-models";
+
+function detectTier(reqs5h: number): string {
+  if (reqs5h >= 10000) return "ultra";
+  if (reqs5h >= 3000) return "light";
+  if (reqs5h >= 1000) return "medium";
+  return "heavy";
+}
+
+const DEFAULT_MODELS: Record<string, ModelData> = {
   "deepseek-v4-flash": { name: "DeepSeek V4 Flash", reqs5h: 31650, reqsWeek: 79050, reqsMonth: 158150, tier: "ultra" },
   "mimo-v2.5": { name: "MiMo-V2.5", reqs5h: 30100, reqsWeek: 75200, reqsMonth: 150400, tier: "ultra" },
   "minimax-m2.5": { name: "MiniMax M2.5", reqs5h: 6300, reqsWeek: 15900, reqsMonth: 31800, tier: "light" },
@@ -27,17 +46,6 @@ const MODELS: Record<string, ModelData> = {
   "qwen3.7-plus": { name: "Qwen3.7 Plus", reqs5h: 4300, reqsWeek: 10800, reqsMonth: 21600, tier: "medium" },
 };
 
-interface ParsedModel {
-  id: string;
-  name: string;
-  reqs5h: number;
-  reqsWeek: number;
-  reqsMonth: number;
-}
-
-const MEDALS: Record<number, string> = { 0: "🥇", 1: "🥈", 2: "🥉" };
-const CYCLE = { WEEK: 7, MONTH: 30 };
-
 const FUNCTIONS_BASE = FIREBASE_FUNCTIONS_URL;
 
 const OpenCodeMonitor: React.FC = () => {
@@ -49,6 +57,17 @@ const OpenCodeMonitor: React.FC = () => {
   const [syncUsageResult, setSyncUsageResult] = useState<{ msg: string; type: string } | null>(null);
   const [checkResult, setCheckResult] = useState<string | null>(null);
   const [syncLoading, setSyncLoading] = useState(false);
+  const [models, setModels] = useState<Record<string, ModelData>>(() => {
+    try {
+      const saved = localStorage.getItem(MODELS_LS_KEY);
+      return saved ? JSON.parse(saved) : DEFAULT_MODELS;
+    } catch { return DEFAULT_MODELS; }
+  });
+
+  // Persist models to localStorage on change
+  useEffect(() => {
+    localStorage.setItem(MODELS_LS_KEY, JSON.stringify(models));
+  }, [models]);
 
   const historyTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -100,8 +119,9 @@ const OpenCodeMonitor: React.FC = () => {
       const cells = row.match(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi);
       if (!cells || cells.length < 4) continue;
 
-      const clean = (s: string) => s.replace(/<[^>]+>/g, "").replace(/[,.]/g, "").trim();
-      const rawName = clean(cells[0]);
+      const stripHtml = (s: string) => s.replace(/<[^>]+>/g, "").trim();
+      const cleanNum = (s: string) => parseInt(stripHtml(s).replace(/[,.]/g, ""), 10);
+      const rawName = stripHtml(cells[0]);
 
       const nameMap: Record<string, string> = {
         "DeepSeek V4 Flash": "deepseek-v4-flash",
@@ -123,7 +143,7 @@ const OpenCodeMonitor: React.FC = () => {
       const id = nameMap[rawName];
       if (!id) continue;
 
-      const reqs = [cells[1], cells[2], cells[3]].map(c => parseInt(clean(c), 10));
+      const reqs = [cells[1], cells[2], cells[3]].map(cleanNum);
       if (reqs.some(isNaN)) continue;
 
       parsed.push({ id, name: rawName, reqs5h: reqs[0], reqsWeek: reqs[1], reqsMonth: reqs[2] });
@@ -135,36 +155,61 @@ const OpenCodeMonitor: React.FC = () => {
   const checkUpdates = useCallback(async () => {
     setCheckResult(null);
     try {
-      const res = await fetch("https://opencode.ai/docs/es/go/", {
-        headers: { Accept: "text/html" },
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const html = await res.text();
+      const proxyRes = await fetch(`${FIREBASE_FUNCTIONS_URL}/proxyFetch?url=${encodeURIComponent("https://opencode.ai/docs/es/go/")}`);
+      if (!proxyRes.ok) throw new Error(`HTTP ${proxyRes.status}`);
+      const { content: html } = await proxyRes.json();
       const parsed = parseModelTable(html);
 
       if (parsed.length === 0) throw new Error("No se pudo encontrar la tabla de modelos");
 
-      const currentIds = new Set(Object.keys(MODELS));
+      const currentIds = new Set(Object.keys(models));
       const newModels = parsed.filter(p => !currentIds.has(p.id));
       const changedModels = parsed.filter(p => {
-        const cur = MODELS[p.id];
+        const cur = models[p.id];
         if (!cur || cur.reqs5h === p.reqs5h && cur.reqsWeek === p.reqsWeek && cur.reqsMonth === p.reqsMonth) return false;
         return true;
       });
-      const missingFromPage = Object.keys(MODELS).filter(id => !parsed.some(p => p.id === id));
+      const missingFromPage = Object.keys(models).filter(id => !parsed.some(p => p.id === id));
 
       let msg = "";
+
+      // Auto-apply: add new models
       if (newModels.length > 0) {
-        msg += `🆕 Modelos nuevos: ${newModels.map(m => m.name).join(", ")}\n`;
+        msg += `🆕 Nuevos agregados: ${newModels.map(m => m.name).join(", ")}\n`;
       }
+
+      // Auto-apply: update changed models
       if (changedModels.length > 0) {
-        msg += `⚠️ Modelos actualizados: ${changedModels.map(m => m.name).join(", ")}\n`;
+        msg += `⚠️ Actualizados: ${changedModels.map(m => `${m.name} (${models[m.id]?.reqs5h}→${m.reqs5h} reqs)`).join(", ")}\n`;
       }
+
+      // Auto-apply: remove missing models
       if (missingFromPage.length > 0) {
-        msg += `❌ Modelos no encontrados en la página: ${missingFromPage.join(", ")}\n`;
+        msg += `❌ Eliminados: ${missingFromPage.join(", ")}\n`;
       }
+
       if (!msg) {
         msg = "✅ Todos los modelos están actualizados";
+      } else {
+        // Build the new models map by merging parsed data into current models
+        const newModelCount = Object.keys(models).length - missingFromPage.length + newModels.length;
+        setModels(prev => {
+          const next = { ...prev };
+          for (const id of missingFromPage) {
+            delete next[id];
+          }
+          for (const p of parsed) {
+            next[p.id] = {
+              name: p.name,
+              reqs5h: p.reqs5h,
+              reqsWeek: p.reqsWeek,
+              reqsMonth: p.reqsMonth,
+              tier: next[p.id]?.tier || detectTier(p.reqs5h),
+            };
+          }
+          return next;
+        });
+        msg += `✅ ${newModelCount} modelos activos`;
       }
 
       setCheckResult(msg);
@@ -173,7 +218,7 @@ const OpenCodeMonitor: React.FC = () => {
       setCheckResult(`⚠️ No se pudo verificar: ${err.message}. Visita opencode.ai/docs/go/ manualmente`);
       setTimeout(() => setCheckResult(null), 8000);
     }
-  }, []);
+  }, [models]);
 
   const syncUsage = useCallback(async () => {
     setSyncLoading(true);
@@ -235,7 +280,7 @@ const OpenCodeMonitor: React.FC = () => {
   else if (monthPct > expectedMonthPct + 2) pacingStatus = "warning";
 
   const recommendedTier = pacingStatus === "danger" ? "ultra" : pacingStatus === "warning" ? "light" : "heavy";
-  const topModels = Object.entries(MODELS)
+  const topModels = Object.entries(models)
     .filter(([_, m]) => m.tier === recommendedTier)
     .sort((a, b) => b[1].reqs5h - a[1].reqs5h)
     .slice(0, 3);
@@ -257,7 +302,7 @@ const OpenCodeMonitor: React.FC = () => {
     advices.push({ type: "info", icon: "🚀", title: "¡Sprint Semanal Disponible!", text: `${weekAvailPct}% libre, reset <24h. Flash: 79k reqs, MiMo-V2.5: 75k. ¡Programa fuerte!` });
   }
 
-  const estimatorModelData = estimatorModel ? MODELS[estimatorModel] : null;
+  const estimatorModelData = estimatorModel ? models[estimatorModel] : null;
 
   const updateStatusIcon = (pct: number): string => {
     if (pct >= 80) return "🔴";
@@ -567,7 +612,7 @@ const OpenCodeMonitor: React.FC = () => {
                 </label>
                 <select className="om-select" value={estimatorModel} onChange={e => updateEstimator(e.target.value)}>
                   <option value="">-- Selecciona un modelo --</option>
-                  {Object.entries(MODELS).map(([id, model]) => (
+                  {Object.entries(models).map(([id, model]) => (
                     <option key={id} value={id}>{model.name}</option>
                   ))}
                 </select>
@@ -594,7 +639,7 @@ const OpenCodeMonitor: React.FC = () => {
             <div className="om-section">
               <div style={{fontSize:".78rem", textTransform:"uppercase", color:"var(--muted)", marginBottom:"1rem", fontFamily:"'DM Mono', monospace", display:"flex", justifyContent:"space-between", alignItems:"center"}}>
                 <span>📋 Todos los Modelos</span>
-                <span style={{fontSize:".65rem", color:"var(--muted)"}}>{Object.keys(MODELS).length} modelos</span>
+                <span style={{fontSize:".65rem", color:"var(--muted)"}}>{Object.keys(models).length} modelos</span>
               </div>
               <div style={{overflowX:"auto"}}>
                 <table className="om-table">
@@ -608,7 +653,7 @@ const OpenCodeMonitor: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {Object.entries(MODELS).map(([id, model]) => (
+                    {Object.entries(models).map(([id, model]) => (
                       <tr key={id}>
                         <td className="om-model-name">{model.name}</td>
                         <td className="om-model-reqs">{(model.reqs5h / 1000).toFixed(1)}k</td>
