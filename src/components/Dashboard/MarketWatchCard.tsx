@@ -84,15 +84,15 @@ const MarketWatchRow: React.FC<{
                     (e.target as HTMLImageElement).style.display = "none";
                 }}
             />
-            <span className="text-xs text-gray-300 font-semibold w-[56px] flex-shrink-0 truncate">{coin}</span>
-            <div className="flex items-center gap-1">
-                <span className={`text-xs font-mono tabular-nums text-right w-28 ${changeColor}`}>
+            <span className="text-[11px] md:text-xs text-gray-300 font-semibold w-[48px] md:w-[56px] flex-shrink-0 truncate">{coin}</span>
+            <div className="flex items-center gap-0.5 md:gap-1">
+                <span className={`text-[11px] md:text-xs font-mono tabular-nums text-right w-[82px] md:w-28 ${changeColor}`}>
                     {fmtUSD(price)}
                 </span>
-                <span className={`text-xs font-mono tabular-nums text-right w-20 flex-shrink-0 ${changeColor}`}>
+                <span className={`text-[11px] md:text-xs font-mono tabular-nums text-right w-[60px] md:w-20 flex-shrink-0 ${changeColor}`}>
                     {fmtChange(change, price)}
                 </span>
-                <span className={`text-xs font-mono tabular-nums text-right w-14 flex-shrink-0 ${changeColor}`}>
+                <span className={`text-[11px] md:text-xs font-mono tabular-nums text-right w-[44px] md:w-14 flex-shrink-0 ${changeColor}`}>
                     {fmtChangePct(changePct)}
                 </span>
             </div>
@@ -146,11 +146,11 @@ const MarketWatchCard: React.FC<MarketWatchCardProps> = ({
             <div className="flex items-center gap-0.5 px-1 py-1.5 border-b border-gray-800/60 mb-0.5">
                 <span className="text-[11px] text-gray-600 font-medium w-3" />
                 <span className="text-[11px] text-gray-600 font-medium w-5" />
-                <span className="text-[11px] text-gray-600 font-medium w-[56px] flex-shrink-0 truncate">Símbolo</span>
-                <div className="flex items-center gap-1">
-                    <span className="text-[11px] text-gray-600 text-right w-28">Última</span>
-                    <span className="text-[11px] text-gray-600 text-right w-20">Cbo</span>
-                    <span className="text-[11px] text-gray-600 text-right w-14">Cambi%</span>
+                <span className="text-[11px] text-gray-600 font-medium w-[48px] md:w-[56px] flex-shrink-0 truncate">Símbolo</span>
+                <div className="flex items-center gap-0.5 md:gap-1">
+                    <span className="text-[11px] text-gray-600 text-right w-[82px] md:w-28">Última</span>
+                    <span className="text-[11px] text-gray-600 text-right w-[60px] md:w-20">Cbo</span>
+                    <span className="text-[11px] text-gray-600 text-right w-[44px] md:w-14">Cambi%</span>
                 </div>
             </div>
             <div className="space-y-0">

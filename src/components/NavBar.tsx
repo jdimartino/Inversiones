@@ -9,13 +9,14 @@ import {
     TrendingUp,
     RefreshCw,
     Activity,
+    Zap,
 } from "lucide-react";
 import { PriceDirection } from "../hooks/usePrices";
 import { BcvRate } from "../hooks/useBcvRate";
 import { YadioRate } from "../hooks/useYadioRate";
 import PriceTicker from "./PriceTicker";
 
-export type TabId = "inicio" | "dashboard" | "futuros" | "prestamos" | "graficos" | "configuracion" | "venta" | "operaciones";
+export type TabId = "inicio" | "dashboard" | "futuros" | "prestamos" | "graficos" | "configuracion" | "venta" | "operaciones" | "monitor";
 
 interface Tab {
     id: TabId;
@@ -32,6 +33,7 @@ const TABS: Tab[] = [
     { id: "configuracion", label: "Telegram", icon: <Send className="w-4 h-4" /> },
     { id: "venta", label: "Compra/Venta", icon: <TrendingUp className="w-4 h-4" /> },
     { id: "operaciones", label: "Operaciones", icon: <PlusCircle className="w-4 h-4" /> },
+    { id: "monitor", label: "Monitor", icon: <Zap className="w-4 h-4" /> },
 ];
 
 interface NavBarProps {

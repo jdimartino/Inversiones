@@ -406,16 +406,17 @@ export default function LiquidationDashboard() {
                 </button>
               </div>
               
-              <div className="grid grid-cols-12 gap-2 text-xs font-medium text-gray-400 px-1 uppercase tracking-wider">
-                <div className="col-span-3">Activo</div>
-                <div className="col-span-2 text-right">Cantidad</div>
-                <div className="col-span-3 text-right">Precio ($)</div>
-                <div className="col-span-3 text-right" title="Tasa de interés Anual">Tasa (%)</div>
-                <div className="col-span-1"></div>
-              </div>
+              <div className="overflow-x-auto">
+                <div className="grid grid-cols-12 gap-2 text-xs font-medium text-gray-400 px-1 uppercase tracking-wider min-w-[500px]">
+                  <div className="col-span-3">Activo</div>
+                  <div className="col-span-2 text-right">Cantidad</div>
+                  <div className="col-span-3 text-right">Precio ($)</div>
+                  <div className="col-span-3 text-right" title="Tasa de interés Anual">Tasa (%)</div>
+                  <div className="col-span-1"></div>
+                </div>
 
-              {currentData.debts.map((item, index) => (
-                <div key={item._id} className="grid grid-cols-12 gap-2 items-center bg-[#0E1014] p-2 rounded-lg border border-gray-800 focus-within:border-blue-500 transition-colors">
+                {currentData.debts.map((item, index) => (
+                  <div key={item._id} className="grid grid-cols-12 gap-2 items-center bg-[#0E1014] p-2 rounded-lg border border-gray-800 focus-within:border-blue-500 transition-colors min-w-[500px]">
                   <div className="col-span-3 flex items-center gap-1">
                     <input type="text" value={item.id} onChange={(e) => handleDebtChange(index, 'id', e.target.value)} className="w-full bg-transparent text-white font-bold outline-none uppercase px-1.5 py-1.5" placeholder="USDT" />
                     {item.synced && (
@@ -438,6 +439,7 @@ export default function LiquidationDashboard() {
                   </div>
                 </div>
               ))}
+              </div>
             </div>
 
             <div className="bg-[#181A20] p-4 rounded-xl border border-gray-800 space-y-3 shadow-lg">
@@ -448,15 +450,16 @@ export default function LiquidationDashboard() {
                 </button>
               </div>
 
-              <div className="grid grid-cols-12 gap-2 text-xs font-medium text-gray-400 px-1 uppercase tracking-wider">
-                <div className="col-span-3">Activo</div>
-                <div className="col-span-4 text-right">Cantidad</div>
-                <div className="col-span-4 text-right">Precio ($)</div>
-                <div className="col-span-1"></div>
-              </div>
-              
-              {currentData.collateral.map((asset, index) => (
-                <div key={asset._id} className={`grid grid-cols-12 gap-2 items-center bg-[#0E1014] p-2 rounded-lg border border-gray-800 ${theme.borderHover} transition-colors focus-within:border-gray-600`}>
+              <div className="overflow-x-auto">
+                <div className="grid grid-cols-12 gap-2 text-xs font-medium text-gray-400 px-1 uppercase tracking-wider min-w-[500px]">
+                  <div className="col-span-3">Activo</div>
+                  <div className="col-span-4 text-right">Cantidad</div>
+                  <div className="col-span-4 text-right">Precio ($)</div>
+                  <div className="col-span-1"></div>
+                </div>
+                
+                {currentData.collateral.map((asset, index) => (
+                  <div key={asset._id} className={`grid grid-cols-12 gap-2 items-center bg-[#0E1014] p-2 rounded-lg border border-gray-800 ${theme.borderHover} transition-colors focus-within:border-gray-600 min-w-[500px]`}>
                   <div className="col-span-3 flex items-center gap-1">
                     <input type="text" value={asset.id} onChange={(e) => handleCollateralChange(index, 'id', e.target.value)} className="w-full bg-transparent text-white font-bold outline-none uppercase px-1.5 py-1.5" placeholder="BTC" />
                     {asset.synced && (
@@ -475,6 +478,7 @@ export default function LiquidationDashboard() {
                   </div>
                 </div>
               ))}
+              </div>
 
               <div className="pt-3 mt-1 border-t border-gray-800">
                 <div className="grid grid-cols-2 gap-2">

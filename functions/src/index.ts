@@ -4,6 +4,7 @@ import axios from "axios";
 import { testFutures } from "./testFutures";
 import { futuresSync } from "./futuresSync";
 import { testFuturesAlerts } from "./testFuturesAlerts";
+import { getFuturesTrades } from "./getFuturesTrades";
 import { getBinancePrices } from "./getBinancePrices";
 
 admin.initializeApp();
@@ -716,6 +717,7 @@ async function runCheckAlerts() {
 // ─── Cloud Functions ───────────────────────────────────────────────────────────
 
 export { analyzeMarket } from "./analyzeMarket";
+export { syncOpenCodeUsage } from "./syncOpenCodeUsage";
 
 
 export const debugAlerts = functions.region('europe-west1').https.onRequest(async (req, res) => {
@@ -1284,4 +1286,4 @@ export const testDailyPnlSnapshot = functions
         }
     });
 
-export { testFutures, futuresSync, testFuturesAlerts, getBinancePrices };
+export { testFutures, futuresSync, testFuturesAlerts, getBinancePrices, getFuturesTrades };

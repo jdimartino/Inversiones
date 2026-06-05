@@ -7,6 +7,7 @@ import { usePrices } from "../hooks/usePrices";
 import { useNotificationLogs } from "../hooks/useNotificationLogs";
 import { useBinanceSymbols } from "../hooks/useBinanceSymbols";
 import { fmtUSD, fmtPrice } from "../lib/format";
+import { FIREBASE_FUNCTIONS_URL } from "../lib/firebase";
 
 interface AlertSettingsProps {
     config: AlertConfig;
@@ -665,7 +666,7 @@ function AlertSettings({ config, saveConfig, onEditGlobal, onEditInvestment, onO
                                     if (savingId) return;
                                     setSavingId("testDailyReport");
                                     try {
-                                        await fetch("https://europe-west1-micriptoapp.cloudfunctions.net/testDailyReport");
+                                        await fetch(`${FIREBASE_FUNCTIONS_URL}/testDailyReport`);
                                     } catch {}
                                     setSavingId(null);
                                 }}

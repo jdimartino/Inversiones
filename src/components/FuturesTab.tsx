@@ -37,10 +37,11 @@ import {
 import { fmtPercent } from "../lib/format";
 import { PriceDirection } from "../hooks/usePrices";
 import FuturesPositionAlertModal from "./FuturesPositionAlertModal";
+import PositionTradesDetail from "./PositionTradesDetail";
 
 // ─── Position Card ────────────────────────────────────────────────────────────
 
-function PositionCard({ pos, priceDirections }: { pos: FuturesPosition; priceDirections: Record<string, PriceDirection> }) {
+function PositionCard({ pos, priceDirections, onClick }: { pos: FuturesPosition; priceDirections: Record<string, PriceDirection>; onClick?: () => void }) {
     const isLong = pos.side === "LONG";
     const pnlPositive = pos.unrealizedPnl >= 0;
     const distColor = getDistToLiqColor(pos.distToLiqPercent);
@@ -49,7 +50,10 @@ function PositionCard({ pos, priceDirections }: { pos: FuturesPosition; priceDir
     const liqDirColor = getDistToLiqDirectionColor(pos.side);
 
     return (
-        <div className="bg-[#0E1014] rounded-xl border border-gray-800 p-4 hover:border-gray-700 transition-colors">
+        <div
+            className={`bg-[#0E1014] rounded-xl border border-gray-800 p-4 transition-colors ${onClick ? "cursor-pointer hover:border-blue-500/50" : "hover:border-gray-700"}`}
+            onClick={onClick}
+        >
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2 flex-1">
                     <span className={`px-2 py-0.5 rounded text-xs font-bold ${isLong ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"}`}>
@@ -499,6 +503,7 @@ export default function FuturesTab({ prices, priceDirections }: FuturesTabProps)
     // Modal state
     const [selectedPosition, setSelectedPosition] = useState<FuturesPosition | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [expandedPosition, setExpandedPosition] = useState<string | null>(null);
 
     // Re-render every 60s to update stale data indicator
     const [now, setNow] = useState(Date.now());
@@ -594,143 +599,79 @@ export default function FuturesTab({ prices, priceDirections }: FuturesTabProps)
 
     return (
         <div className="space-y-4">
-            {/* ── Account Summary Cards ── */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="bg-[#181A20] rounded-xl border border-gray-800 p-3 flex flex-col items-center text-center">
-                    <div className="text-xs text-gray-500 mb-1 flex items-center justify-center gap-1">
-                        <DollarSign size={12} /> Balance
+            {/* ── Account & Margin Stats ── */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+                <div className="bg-[#0E1014] rounded-lg p-1.5 flex flex-col items-center text-center">
+                    <div className="text-[10px] text-gray-500 flex items-center gap-0.5">
+                        <DollarSign size={9} /> Balance
                     </div>
-                    <div className="text-white text-lg font-bold">
+                    <div className="text-white text-xs font-bold">
                         ${account.totalWalletBalance.toFixed(2)}
                     </div>
                 </div>
-                <div className="bg-[#181A20] rounded-xl border border-gray-800 p-3 flex flex-col items-center text-center">
-                    <div className="text-xs text-gray-500 mb-1 flex items-center justify-center gap-1">
-                        {totalPnl >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />} PnL
+                <div className="bg-[#0E1014] rounded-lg p-1.5 flex flex-col items-center text-center">
+                    <div className="text-[10px] text-gray-500 flex items-center gap-0.5">
+                        {totalPnl >= 0 ? <TrendingUp size={9} /> : <TrendingDown size={9} />} PnL
                     </div>
-                    <div
-                        className={`text-lg font-bold ${
-                            totalPnl >= 0 ? "text-green-400" : "text-red-400"
-                        }`}
-                    >
+                    <div className={`text-xs font-bold ${totalPnl >= 0 ? "text-green-400" : "text-red-400"}`}>
                         {formatPnl(totalPnl)}
                     </div>
                 </div>
-                {/* Disponible para Transferir */}
-                <div className="bg-[#181A20] rounded-xl border border-gray-800 p-3 flex flex-col items-center text-center">
-                    <div className="text-xs text-gray-500 mb-1 flex items-center justify-center gap-1">
-                        <ArrowUpRight size={12} /> Transferible
+                <div className="bg-[#0E1014] rounded-lg p-1.5 flex flex-col items-center text-center">
+                    <div className="text-[10px] text-gray-500 flex items-center gap-0.5">
+                        <ArrowUpRight size={9} /> Transferible
                     </div>
-                    <div className="text-white text-lg font-bold">
+                    <div className="text-white text-xs font-bold">
                         ${account.maxWithdrawAmount.toFixed(2)}
                     </div>
                 </div>
-                <div className="bg-[#181A20] rounded-xl border border-gray-800 p-3 flex flex-col items-center text-center">
-                    <div className="text-xs text-gray-500 mb-1 flex items-center justify-center gap-1">
-                        <Shield size={12} /> Posiciones
+                <div className="bg-[#0E1014] rounded-lg p-1.5 flex flex-col items-center text-center">
+                    <div className="text-[10px] text-gray-500">Bal. Margen</div>
+                    <div className="text-white text-xs font-bold font-mono">
+                        ${account.totalMarginBalance.toFixed(2)}
                     </div>
-                    <div className="text-white text-lg font-bold">
+                </div>
+                <div className="bg-[#0E1014] rounded-lg p-1.5 flex flex-col items-center text-center">
+                    <div className={`text-[10px] font-medium ${marginLabelColor}`}>
+                        {marginLabel}
+                    </div>
+                    <div className={`text-xs font-bold ${marginColor}`}>
+                        {marginRatio.toFixed(2)}%
+                    </div>
+                </div>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+                <div className="bg-[#0E1014] rounded-lg p-1.5 border border-gray-800 flex flex-col items-center text-center">
+                    <div className="text-[10px] text-gray-500">Marg. Manto.</div>
+                    <div className="text-white text-xs font-bold font-mono">
+                        ${account.totalMaintMargin.toFixed(2)}
+                    </div>
+                </div>
+                <div className="bg-[#0E1014] rounded-lg p-1.5 border border-gray-800 flex flex-col items-center text-center">
+                    <div className="text-[10px] text-gray-500">Marg. Inicial</div>
+                    <div className="text-white text-xs font-bold font-mono">
+                        ${account.totalInitialMargin.toFixed(2)}
+                    </div>
+                </div>
+                <div className="bg-[#0E1014] rounded-lg p-1.5 border border-gray-800 flex flex-col items-center text-center">
+                    <div className="text-[10px] text-gray-500">Apal. Efectivo</div>
+                    <div className="text-white text-xs font-bold">{effLeverageMetrics.effectiveLeverage.toFixed(1)}x</div>
+                </div>
+                <div className="bg-[#0E1014] rounded-lg p-1.5 border border-gray-800 flex flex-col items-center text-center">
+                    <div className="text-[10px] text-gray-500">Exp. Neta</div>
+                    <div className={`text-xs font-bold ${effLeverageMetrics.netExposure >= 0 ? "text-green-400" : "text-red-400"}`}>
+                        {effLeverageMetrics.netExposure >= 0 ? "+" : ""}${effLeverageMetrics.netExposure.toFixed(2)}
+                    </div>
+                </div>
+                <div className="bg-[#0E1014] rounded-lg p-1.5 border border-gray-800 flex flex-col items-center text-center">
+                    <div className="text-[10px] text-gray-500 flex items-center gap-0.5">
+                        <Shield size={9} /> Posiciones
+                    </div>
+                    <div className="text-white text-xs font-bold">
                         {livePositions.length}
                     </div>
                 </div>
             </div>
-
-            {/* ── Margin Gauge — Binance Style ── */}
-            <div className="bg-[#181A20] rounded-xl border border-gray-800 p-5">
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-white font-semibold flex items-center gap-2">
-                        <Shield className="text-blue-400" size={18} />
-                        Margen Cross
-                    </h3>
-                    <span className="text-xs text-gray-500">USDT</span>
-                </div>
-
-                {/* Big ratio number */}
-                <div className="text-center mb-4">
-                    <div className={`text-4xl sm:text-5xl font-bold ${marginColor}`}>
-                        {marginRatio.toFixed(2)}%
-                    </div>
-                    <div className={`text-sm font-medium mt-1 ${marginLabelColor}`}>
-                        {marginLabel}
-                    </div>
-                </div>
-
-                {/* Progress bar — 0% (safe) to 100% (liquidation) */}
-                <div className="relative mb-2">
-                    <div className="w-full bg-gray-800 rounded-full h-3 overflow-hidden">
-                        <div
-                            className={`h-full rounded-full transition-all duration-700 ${marginBarColor}`}
-                            style={{ width: `${Math.min(marginRatio, 100)}%` }}
-                        />
-                    </div>
-                    {/* Threshold markers */}
-                    {[50, 80, 95].map((t) => (
-                        <div
-                            key={t}
-                            className="absolute top-0 bottom-0 w-px bg-gray-600"
-                            style={{ left: `${t}%` }}
-                        />
-                    ))}
-                </div>
-                <div className="flex justify-between text-xs text-gray-600 mb-4">
-                    <span>0% Seguro</span>
-                    <span>50%</span>
-                    <span>80%</span>
-                    <span>95%</span>
-                    <span>100% Liq</span>
-                </div>
-
-                {/* Key values grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
-                    <div className="bg-[#0E1014] rounded-lg p-2 sm:p-3 border border-gray-800 flex flex-col items-center text-center">
-                        <div className="text-xs text-gray-500 mb-1">Balance de Margen</div>
-                        <div className="text-white text-lg font-bold font-mono">
-                            ${account.totalMarginBalance.toFixed(2)}
-                        </div>
-                        <div className="text-xs text-gray-600">USDT</div>
-                    </div>
-                    <div className="bg-[#0E1014] rounded-lg p-2 sm:p-3 border border-gray-800 flex flex-col items-center text-center">
-                        <div className="text-xs text-gray-500 mb-1">Margen de Mantenimiento</div>
-                        <div className="text-white text-lg font-bold font-mono">
-                            ${account.totalMaintMargin.toFixed(2)}
-                        </div>
-                        <div className="text-xs text-gray-600">USDT</div>
-                    </div>
-                    <div className="bg-[#0E1014] rounded-lg p-2 sm:p-3 border border-gray-800 flex flex-col items-center text-center">
-                        <div className="text-xs text-gray-500 mb-1">Margen Inicial</div>
-                        <div className="text-white text-lg font-bold font-mono">
-                            ${account.totalInitialMargin.toFixed(2)}
-                        </div>
-                        <div className="text-xs text-gray-600">USDT</div>
-                    </div>
-                    <div className="bg-[#0E1014] rounded-lg p-2 sm:p-3 border border-gray-800 flex flex-col items-center text-center">
-                        <div className="text-xs text-gray-500 mb-1">Disponible</div>
-                        <div className="text-green-400 text-lg font-bold font-mono">
-                            ${account.availableBalance.toFixed(2)}
-                        </div>
-                        <div className="text-xs text-gray-600">USDT</div>
-                    </div>
-                    {livePositions.length > 0 && (
-                        <>
-                            <div className="bg-[#0E1014] rounded-lg p-2 sm:p-3 border border-gray-800 flex flex-col items-center text-center">
-                                <div className="text-xs text-gray-500 mb-1">Apalancamiento Efectivo</div>
-                                <div className="text-white text-lg font-bold">{effLeverageMetrics.effectiveLeverage.toFixed(1)}x</div>
-                                <div className="text-xs text-gray-600">{effLeverageMetrics.totalNotional.toFixed(2)} USDT</div>
-                            </div>
-                            <div className="bg-[#0E1014] rounded-lg p-2 sm:p-3 border border-gray-800 flex flex-col items-center text-center">
-                                <div className="text-xs text-gray-500 mb-1">Exposición Neta</div>
-                                <div className={`text-lg font-bold ${effLeverageMetrics.netExposure >= 0 ? "text-green-400" : "text-red-400"}`}>
-                                    {effLeverageMetrics.netExposure >= 0 ? "+" : ""}${effLeverageMetrics.netExposure.toFixed(2)}
-                                </div>
-                                <div className="text-xs text-gray-600">{effLeverageMetrics.netExposure >= 0 ? "LONG" : "SHORT"}</div>
-                            </div>
-                        </>
-                    )}
-                </div>
-            </div>
-
-            {/* ── Cross-Margin Simulator ── */}
-            <CrossMarginSimulator positions={livePositions} account={account} />
 
             {/* ── Positions ── */}
             <div>
@@ -748,7 +689,17 @@ export default function FuturesTab({ prices, priceDirections }: FuturesTabProps)
                             const posAlerts = alerts.positionAlerts?.[pos.symbol] || [];
                             return (
                                 <div key={`${pos.symbol}-${pos.side}`}>
-                                    <PositionCard pos={pos} priceDirections={priceDirections} />
+                                    <PositionCard
+                                        pos={pos}
+                                        priceDirections={priceDirections}
+                                        onClick={() => {
+                                            const key = `${pos.symbol}-${pos.side}`;
+                                            setExpandedPosition(expandedPosition === key ? null : key);
+                                        }}
+                                    />
+                                    {expandedPosition === `${pos.symbol}-${pos.side}` && (
+                                        <PositionTradesDetail position={pos} />
+                                    )}
                                     {/* Alert button and existing alerts */}
                                     <div className="bg-[#181A20] rounded-b-xl border border-t-0 border-gray-800 px-4 py-2 flex items-center justify-between">
                                         <div className="flex items-center gap-2 flex-wrap">
@@ -787,6 +738,9 @@ export default function FuturesTab({ prices, priceDirections }: FuturesTabProps)
                     )}
                 </div>
             </div>
+
+            {/* ── Cross-Margin Simulator ── */}
+            <CrossMarginSimulator positions={livePositions} account={account} />
 
             {/* ── Alert Settings ── */}
             <AlertSettings alerts={alerts} onSave={saveAlerts} />

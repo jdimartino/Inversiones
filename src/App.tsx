@@ -47,6 +47,7 @@ const LiquidationDashboard = React.lazy(() => import("./components/LiquidationDa
 const SellSuite = React.lazy(() => import("./components/SellSuite"));
 const AlertSettings = React.lazy(() => import("./components/AlertSettings"));
 const FuturesTab = React.lazy(() => import("./components/FuturesTab"));
+const OpenCodeMonitor = React.lazy(() => import("./components/OpenCodeMonitor"));
 
 const App: React.FC = () => {
   const { portfolio, addInvestment, removeInvestment, updateInvestment } = usePortfolio();
@@ -546,6 +547,15 @@ const App: React.FC = () => {
                 <FuturesTab prices={prices} priceDirections={priceDirections} />
               </Suspense>
             </div>
+          </div>
+        )}
+
+        {/* ── MONITOR OPENCODE ──────────────────────────────────────────────────── */}
+        {activeTab === "monitor" && (
+          <div key="monitor" className={tabClass}>
+            <Suspense fallback={<div className="py-20 text-center text-slate-500 text-sm">Cargando monitor...</div>}>
+              <OpenCodeMonitor />
+            </Suspense>
           </div>
         )}
       </main>

@@ -22,11 +22,11 @@ const SummaryCards: React.FC<SummaryCardsProps> = React.memo(
                     <span className="text-slate-500 text-xs uppercase font-bold">Invertido:&nbsp;
                         <span className="text-white font-bold normal-case">{fmtUSD(totalInvested)}</span>
                     </span>
-                    <span className="text-slate-600">·</span>
+                    <span className="text-slate-600 hidden sm:inline">·</span>
                     <span className="text-slate-500 text-xs uppercase font-bold">Valor:&nbsp;
                         <span className="text-blue-300 font-bold normal-case">{fmtUSD(totalValue)}</span>
                     </span>
-                    <span className="text-slate-600">·</span>
+                    <span className="text-slate-600 hidden sm:inline">·</span>
                     <span className="text-slate-500 text-xs uppercase font-bold">PNL:&nbsp;
                         <span className={`font-bold normal-case ${totalPnl >= 0 ? "text-green-400" : "text-red-400"}`}>
                             {totalPnl >= 0 ? "+" : ""}{fmtUSD(totalPnl)}

@@ -48,7 +48,7 @@ const FuturesSummaryCard: React.FC<FuturesSummaryCardProps> = ({
                 </h3>
             </div>
 
-            <div className="flex items-center justify-evenly text-xs">
+            <div className="grid grid-cols-2 sm:flex sm:items-center sm:justify-evenly gap-2 sm:gap-0 text-[11px] sm:text-xs">
                 <div className="text-center">
                     <div className="text-gray-500">Balance</div>
                     <div className="text-white font-bold">{fmtUSD(account.totalWalletBalance)}</div>
@@ -68,7 +68,7 @@ const FuturesSummaryCard: React.FC<FuturesSummaryCardProps> = ({
                     <div className="text-gray-500">Transferible</div>
                     <div className="text-white font-bold">{fmtUSD(account.availableBalance)}</div>
                 </div>
-                <div className="text-center">
+                <div className="text-center col-span-2 sm:col-span-1">
                     <div className="text-gray-500">Margen Cross</div>
                     <div className={`font-bold ${marginColor}`}>{marginRatio.toFixed(2)}%</div>
                 </div>
@@ -76,63 +76,65 @@ const FuturesSummaryCard: React.FC<FuturesSummaryCardProps> = ({
 
             {positions.length > 0 && (
                 <div className="mt-3 border-t border-gray-800 pt-2">
-                    <table className="w-full">
-                        <colgroup>
-                            <col className="w-[7%]" />
-                            <col className="w-[14%]" />
-                            <col className="w-[16%]" />
-                            <col className="w-[16%]" />
-                            <col className="w-[16%]" />
-                            <col className="w-[13%]" />
-                            <col className="w-[8%]" />
-                            <col className="w-[10%]" />
-                        </colgroup>
-                        <thead>
-                            <tr className="text-[10px] uppercase tracking-wider text-gray-500 border-b border-gray-800">
-                                <th className="text-left pb-2 font-medium">Tipo</th>
-                                <th className="text-left pb-2 font-medium">Activo</th>
-                                <th className="text-right pb-2 font-medium">Entrada</th>
-                                <th className="text-right pb-2 font-medium">Actual</th>
-                                <th className="text-right pb-2 font-medium">Liq</th>
-                                <th className="text-right pb-2 font-medium">Valor</th>
-                                <th className="text-right pb-2 font-medium">Margen</th>
-                                <th className="text-right pb-2 font-medium">PnL</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {[...positions]
-                                .sort((a, b) => b.unrealizedPnl - a.unrealizedPnl)
-                                .map((pos) => {
-                                const baseAsset = pos.symbol.replace('USDT', '');
-                                const actualColor = priceDirections[baseAsset] === 'up' ? 'text-green-400' : priceDirections[baseAsset] === 'down' ? 'text-red-400' : 'text-white';
-                                return (
-                                <tr key={pos.symbol} className="border-b border-gray-800/50">
-                                    <td className={`py-1.5 text-xs font-bold ${pos.side === 'LONG' ? 'text-green-400' : 'text-red-400'}`}>
-                                        {pos.side}
-                                    </td>
-                                    <td className="py-1.5 text-xs font-semibold">
-                                        {pos.symbol} <span className="text-[9px] text-gray-500">{pos.leverage}x</span>
-                                    </td>
-                                    <td className="py-1.5 text-right font-mono text-[11px] tabular-nums">
-                                        ${pos.entryPrice.toLocaleString()}
-                                    </td>
-                                    <td className={`py-1.5 text-right font-mono text-[11px] tabular-nums ${actualColor}`}>
-                                        ${pos.markPrice.toLocaleString()}
-                                    </td>
-                                    <td className="py-1.5 text-right font-mono text-[11px] tabular-nums text-red-400/70">
-                                        ${pos.liquidationPrice.toLocaleString()}
-                                    </td>
-                                    <td className="py-1.5 text-right font-mono text-[11px] tabular-nums">${pos.notional.toFixed(2)}</td>
-                                    <td className="py-1.5 text-right font-mono text-[11px] tabular-nums">${pos.maintMargin.toFixed(2)}</td>
-                                    <td className={`py-1.5 text-right font-mono text-[11px] tabular-nums font-bold ${pos.unrealizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                        <div>{pos.unrealizedPnl >= 0 ? '+' : ''}{pos.unrealizedPnl.toFixed(2)}</div>
-                                        <div className="text-[10px] font-normal">({pos.roe >= 0 ? '+' : ''}{pos.roe.toFixed(2)}%)</div>
-                                    </td>
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <colgroup>
+                                <col className="w-[10%] md:w-[7%]" />
+                                <col className="w-[22%] md:w-[14%]" />
+                                <col className="w-0 md:w-[16%]" />
+                                <col className="w-0 md:w-[16%]" />
+                                <col className="w-0 md:w-[16%]" />
+                                <col className="w-[30%] md:w-[13%]" />
+                                <col className="w-0 md:w-[8%]" />
+                                <col className="w-[38%] md:w-[10%]" />
+                            </colgroup>
+                            <thead>
+                                <tr className="text-[10px] uppercase tracking-wider text-gray-500 border-b border-gray-800">
+                                    <th className="text-left pb-2 font-medium">Tipo</th>
+                                    <th className="text-left pb-2 font-medium">Activo</th>
+                                    <th className="text-right pb-2 font-medium hidden md:table-cell">Entrada</th>
+                                    <th className="text-right pb-2 font-medium hidden md:table-cell">Actual</th>
+                                    <th className="text-right pb-2 font-medium hidden md:table-cell">Liq</th>
+                                    <th className="text-right pb-2 font-medium">Valor</th>
+                                    <th className="text-right pb-2 font-medium hidden md:table-cell">Margen</th>
+                                    <th className="text-right pb-2 font-medium">PnL</th>
                                 </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {[...positions]
+                                    .sort((a, b) => b.unrealizedPnl - a.unrealizedPnl)
+                                    .map((pos) => {
+                                    const baseAsset = pos.symbol.replace('USDT', '');
+                                    const actualColor = priceDirections[baseAsset] === 'up' ? 'text-green-400' : priceDirections[baseAsset] === 'down' ? 'text-red-400' : 'text-white';
+                                    return (
+                                    <tr key={pos.symbol} className="border-b border-gray-800/50">
+                                        <td className={`py-1.5 text-[11px] md:text-xs font-bold ${pos.side === 'LONG' ? 'text-green-400' : 'text-red-400'}`}>
+                                            {pos.side}
+                                        </td>
+                                        <td className="py-1.5 text-[11px] md:text-xs font-semibold">
+                                            {pos.symbol} <span className="text-[9px] text-gray-500">{pos.leverage}x</span>
+                                        </td>
+                                        <td className="py-1.5 text-right font-mono text-[11px] tabular-nums hidden md:table-cell">
+                                            ${pos.entryPrice.toLocaleString()}
+                                        </td>
+                                        <td className={`py-1.5 text-right font-mono text-[11px] tabular-nums hidden md:table-cell ${actualColor}`}>
+                                            ${pos.markPrice.toLocaleString()}
+                                        </td>
+                                        <td className="py-1.5 text-right font-mono text-[11px] tabular-nums text-red-400/70 hidden md:table-cell">
+                                            ${pos.liquidationPrice.toLocaleString()}
+                                        </td>
+                                        <td className="py-1.5 text-right font-mono text-[11px] tabular-nums">${pos.notional.toFixed(2)}</td>
+                                        <td className="py-1.5 text-right font-mono text-[11px] tabular-nums hidden md:table-cell">${pos.maintMargin.toFixed(2)}</td>
+                                        <td className={`py-1.5 text-right font-mono text-[11px] tabular-nums font-bold ${pos.unrealizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                            <div>{pos.unrealizedPnl >= 0 ? '+' : ''}{pos.unrealizedPnl.toFixed(2)}</div>
+                                            <div className="text-[10px] font-normal">({pos.roe >= 0 ? '+' : ''}{pos.roe.toFixed(2)}%)</div>
+                                        </td>
+                                    </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
         </button>

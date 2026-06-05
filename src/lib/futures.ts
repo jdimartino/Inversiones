@@ -20,6 +20,21 @@ export interface FuturesPosition {
     fundingRate: number;
 }
 
+export interface PositionOrder {
+    orderId: number;
+    symbol: string;
+    side: "BUY" | "SELL";
+    type: string;
+    time: number;
+    updateTime: number;
+    executedQty: number;
+    cumQuote: number;
+    avgPrice: number;
+    status: string;
+    price: number;
+    origQty: number;
+}
+
 export interface FuturesAccount {
     totalWalletBalance: number;
     totalUnrealizedProfit: number;

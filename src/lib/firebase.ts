@@ -27,5 +27,8 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db: Firestore = getFirestore(app);
 
+/** Base URL for Firebase Cloud Functions — derived from projectId. */
+export const FIREBASE_FUNCTIONS_URL = `https://europe-west1-${firebaseConfig.projectId}.cloudfunctions.net`;
+
 export { db, collection, addDoc, updateDoc, deleteDoc, doc, setDoc, getDoc, onSnapshot, query };
 export type { DocumentData };

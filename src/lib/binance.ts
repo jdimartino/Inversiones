@@ -1,7 +1,7 @@
 import { SYMBOL_MAP } from "./constants";
+import { FIREBASE_FUNCTIONS_URL } from "./firebase";
 
-const CLOUD_FUNCTION_URL =
-    "https://europe-west1-micriptoapp.cloudfunctions.net/getBinancePrices";
+const CLOUD_FUNCTION_URL = `${FIREBASE_FUNCTIONS_URL}/getBinancePrices`;
 
 /**
  * Fetch prices for the default 13 coins via the Cloud Function.
