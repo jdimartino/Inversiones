@@ -43,25 +43,25 @@ const FuturesSummaryCard: React.FC<FuturesSummaryCardProps> = ({
 
             {positions.length > 0 && (
                 <div className="mt-3 border-t border-gray-800 pt-2">
-                    <div className="overflow-x-auto">
-                        <table className="w-full">
+                    <div className="overflow-x-auto flex justify-center md:block">
+                        <table className="w-auto md:w-full">
                             <colgroup>
-                                <col className="w-[10%] md:w-[7%]" />
-                                <col className="w-[22%] md:w-[14%]" />
-                                <col className="w-0 md:w-[16%]" />
-                                <col className="w-0 md:w-[16%]" />
-                                <col className="w-0 md:w-[16%]" />
-                                <col className="w-[30%] md:w-[13%]" />
+                                <col className="w-[8%] md:w-[7%]" />
+                                <col className="w-[14%] md:w-[14%]" />
+                                <col className="w-[14%] md:w-[16%]" />
+                                <col className="w-[14%] md:w-[16%]" />
+                                <col className="w-[14%] md:w-[16%]" />
+                                <col className="w-[13%] md:w-[13%]" />
                                 <col className="w-0 md:w-[8%]" />
-                                <col className="w-[38%] md:w-[10%]" />
+                                <col className="w-[23%] md:w-[10%]" />
                             </colgroup>
                             <thead>
                                 <tr className="text-[10px] uppercase tracking-wider text-gray-500 border-b border-gray-800">
                                     <th className="text-center md:text-left pb-2 font-medium">Tipo</th>
                                     <th className="text-center md:text-left pb-2 font-medium">Activo</th>
-                                    <th className="text-right pb-2 font-medium hidden md:table-cell">Entrada</th>
-                                    <th className="text-right pb-2 font-medium hidden md:table-cell">Actual</th>
-                                    <th className="text-right pb-2 font-medium hidden md:table-cell">Liq</th>
+                                    <th className="text-center md:text-right pb-2 font-medium">Entrada</th>
+                                    <th className="text-center md:text-right pb-2 font-medium">Actual</th>
+                                    <th className="text-center md:text-right pb-2 font-medium">Liq</th>
                                     <th className="text-center md:text-right pb-2 font-medium">Valor</th>
                                     <th className="text-right pb-2 font-medium hidden md:table-cell">Margen</th>
                                     <th className="text-center md:text-right pb-2 font-medium">PnL</th>
@@ -81,13 +81,13 @@ const FuturesSummaryCard: React.FC<FuturesSummaryCardProps> = ({
                                         <td className="py-1.5 text-[11px] md:text-xs font-semibold text-center md:text-left">
                                             {pos.symbol} <span className="text-[9px] text-gray-500">{pos.leverage}x</span>
                                         </td>
-                                        <td className="py-1.5 text-right font-mono text-[11px] tabular-nums hidden md:table-cell">
+                                        <td className="py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums">
                                             ${pos.entryPrice.toLocaleString()}
                                         </td>
-                                        <td className={`py-1.5 text-right font-mono text-[11px] tabular-nums hidden md:table-cell ${actualColor}`}>
+                                        <td className={`py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums ${actualColor}`}>
                                             ${pos.markPrice.toLocaleString()}
                                         </td>
-                                        <td className="py-1.5 text-right font-mono text-[11px] tabular-nums text-red-400/70 hidden md:table-cell">
+                                        <td className="py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums text-red-400/70">
                                             ${pos.liquidationPrice.toLocaleString()}
                                         </td>
                                         <td className="py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums">${pos.notional.toFixed(2)}</td>

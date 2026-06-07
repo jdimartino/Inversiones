@@ -15,7 +15,7 @@ const SpotSummaryCard: React.FC<SpotSummaryCardProps> = ({
     onNavigate,
     priceDirections,
 }) => {
-    const sortedPositions = [...sortedPortfolio].sort((a, b) => b.profit - a.profit);
+    const sortedPositions = [...sortedPortfolio].sort((a, b) => b.profit - a.profit).slice(0, 10);
     const totalPositions = sortedPortfolio.length;
 
     return (
@@ -36,21 +36,21 @@ const SpotSummaryCard: React.FC<SpotSummaryCardProps> = ({
                 <p className="text-gray-600 text-xs text-center">Sin posiciones abiertas</p>
             ) : (
                 <div className="mt-2">
-                    <div className="overflow-x-auto">
-                        <table className="w-full">
+                    <div className="overflow-x-auto flex justify-center md:block">
+                        <table className="w-auto md:w-full">
                             <colgroup>
-                                <col className="w-[15%] md:w-[12%]" />
-                                <col className="w-[35%] md:w-[20%]" />
-                                <col className="w-0 md:w-[22%]" />
-                                <col className="w-0 md:w-[22%]" />
-                                <col className="w-[50%] md:w-[24%]" />
+                                <col className="w-[12%] md:w-[12%]" />
+                                <col className="w-[20%] md:w-[20%]" />
+                                <col className="w-[20%] md:w-[22%]" />
+                                <col className="w-[20%] md:w-[22%]" />
+                                <col className="w-[28%] md:w-[24%]" />
                             </colgroup>
                             <thead>
                                 <tr className="text-[10px] uppercase tracking-wider text-gray-500 border-b border-gray-800">
                                     <th className="text-center md:text-left pb-2 font-medium">Activo</th>
                                     <th className="text-center md:text-right pb-2 font-medium">Valor</th>
-                                    <th className="text-right pb-2 font-medium hidden md:table-cell">P. Compra</th>
-                                    <th className="text-right pb-2 font-medium hidden md:table-cell">P. Actual</th>
+                                    <th className="text-center md:text-right pb-2 font-medium">P. Compra</th>
+                                    <th className="text-center md:text-right pb-2 font-medium">P. Actual</th>
                                     <th className="text-center md:text-right pb-2 font-medium">PNL</th>
                                 </tr>
                             </thead>
@@ -63,10 +63,10 @@ const SpotSummaryCard: React.FC<SpotSummaryCardProps> = ({
                                         <td className="py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums">
                                             {fmtUSD(item.currentValue)}
                                         </td>
-                                        <td className="py-1.5 text-right font-mono text-[11px] tabular-nums text-blue-400 hidden md:table-cell">
+                                        <td className="py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums text-blue-400">
                                             {fmtPrice(item.buyPrice)}
                                         </td>
-                                        <td className={`py-1.5 text-right font-mono text-[11px] tabular-nums hidden md:table-cell ${priceDirections[item.coin] === 'up' ? 'text-green-400' : priceDirections[item.coin] === 'down' ? 'text-red-400' : 'text-white'}`}>
+                                        <td className={`py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums ${priceDirections[item.coin] === 'up' ? 'text-green-400' : priceDirections[item.coin] === 'down' ? 'text-red-400' : 'text-white'}`}>
                                             {fmtPrice(item.currentPrice)}
                                         </td>
                                         <td className={`py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums font-bold ${item.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.proxyFetch = exports.getFuturesTrades = exports.getBinancePrices = exports.testFuturesAlerts = exports.futuresSync = exports.testFutures = exports.testDailyPnlSnapshot = exports.dailyPnlSnapshot = exports.testDailyReport = exports.dailyPortfolioReport = exports.checkIntervalTasks = exports.testTradingSignals = exports.testAlerts = exports.setupTestAlerts = exports.debugLogs = exports.debugInversiones = exports.debugAlerts = exports.syncOpenCodeUsage = exports.analyzeMarket = void 0;
+exports.proxyFetch = exports.getFuturesTrades = exports.getBinancePrices = exports.testFuturesAlerts = exports.futuresSync = exports.testFutures = exports.testDailyPnlSnapshot = exports.dailyPnlSnapshot = exports.testDailyReport = exports.dailyPortfolioReport = exports.checkIntervalTasks = exports.testTradingSignals = exports.testAlerts = exports.setupTestAlerts = exports.debugLogs = exports.debugInversiones = exports.debugAlerts = exports.analyzeMarket = void 0;
 const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 const axios_1 = require("axios");
@@ -628,8 +628,6 @@ async function runCheckAlerts() {
 // ─── Cloud Functions ───────────────────────────────────────────────────────────
 var analyzeMarket_1 = require("./analyzeMarket");
 Object.defineProperty(exports, "analyzeMarket", { enumerable: true, get: function () { return analyzeMarket_1.analyzeMarket; } });
-var syncOpenCodeUsage_1 = require("./syncOpenCodeUsage");
-Object.defineProperty(exports, "syncOpenCodeUsage", { enumerable: true, get: function () { return syncOpenCodeUsage_1.syncOpenCodeUsage; } });
 exports.debugAlerts = functions.region('europe-west1').https.onRequest(async (req, res) => {
     try {
         const doc = await db.collection("config").doc("alerts").get();

@@ -41,50 +41,62 @@ const PortfolioHeader: React.FC<PortfolioHeaderProps> = ({
         <div className="bg-[#181A20] rounded-lg border border-slate-700/50 px-3 py-2.5">
             {/* Mobile: each section on its own line */}
             <div className="sm:hidden flex flex-col gap-1 text-[10px]">
-                <div className="flex flex-nowrap items-center gap-1 overflow-x-auto whitespace-nowrap">
+                <div className="flex flex-nowrap items-center justify-between overflow-hidden whitespace-nowrap">
                     <span className="text-yellow-400 font-bold shrink-0">Spot</span>
-                    <span className="text-gray-500 shrink-0">Total Invertido</span>
-                    <span className="text-white font-semibold shrink-0">{fmtUSD(totalInvested)}</span>
-                    <span className="text-gray-500 shrink-0">Valor Actual</span>
-                    <span className="text-white font-semibold shrink-0">{fmtUSD(totalValue)}</span>
-                    <span className="text-gray-500 shrink-0">PNL Global</span>
-                    <span
-                        className={`font-semibold shrink-0 ${
-                            isPositive ? "text-green-400" : "text-red-400"
-                        }`}
-                    >
-                        {fmtUSD(totalPnl)} ({fmtPercent(totalRoi)})
-                    </span>
+                    <div className="flex items-center gap-0.5">
+                        <span className="text-gray-500">Inv</span>
+                        <span className="text-white font-semibold">{fmtUSD(totalInvested)}</span>
+                    </div>
+                    <div className="flex items-center gap-0.5">
+                        <span className="text-gray-500">Val</span>
+                        <span className="text-white font-semibold">{fmtUSD(totalValue)}</span>
+                    </div>
+                    <div className="flex items-center gap-0.5">
+                        <span className="text-gray-500">PnL</span>
+                        <span className={`font-semibold ${isPositive ? "text-green-400" : "text-red-400"}`}>
+                            {fmtUSD(totalPnl)}
+                        </span>
+                    </div>
                 </div>
                 <div className="border-t border-slate-700/50" />
-                <div className="flex flex-nowrap items-center gap-1 overflow-x-auto whitespace-nowrap">
+                <div className="flex flex-nowrap items-center justify-between overflow-hidden whitespace-nowrap">
                     <span className="text-yellow-400 font-bold shrink-0">Préstamos</span>
-                    <span className="text-gray-500 shrink-0">Deuda</span>
-                    <span className="text-white font-semibold shrink-0">{fmtUSD(totalDebt)}</span>
-                    <span className="text-gray-500 shrink-0">Colateral</span>
-                    <span className="text-white font-semibold shrink-0">{fmtUSD(totalCollateral)}</span>
-                    <span className="text-gray-500 shrink-0">LTV</span>
-                    <span className={`font-semibold shrink-0 ${getLtvColor(totalLtv)}`}>
-                        {totalLtv.toFixed(2)}%
-                    </span>
+                    <div className="flex items-center gap-0.5">
+                        <span className="text-gray-500">Deud</span>
+                        <span className="text-white font-semibold">{fmtUSD(totalDebt)}</span>
+                    </div>
+                    <div className="flex items-center gap-0.5">
+                        <span className="text-gray-500">Col</span>
+                        <span className="text-white font-semibold">{fmtUSD(totalCollateral)}</span>
+                    </div>
+                    <div className="flex items-center gap-0.5">
+                        <span className="text-gray-500">LTV</span>
+                        <span className={`font-semibold ${getLtvColor(totalLtv)}`}>
+                            {totalLtv.toFixed(2)}%
+                        </span>
+                    </div>
                 </div>
                 <div className="border-t border-slate-700/50" />
-                <div className="flex flex-nowrap items-center gap-1 overflow-x-auto whitespace-nowrap">
+                <div className="flex flex-nowrap items-center justify-between overflow-hidden whitespace-nowrap">
                     <span className="text-yellow-400 font-bold shrink-0">Futuros</span>
-                    <span className="text-gray-500 shrink-0">Balance</span>
-                    <span className="text-white font-semibold shrink-0">{fmtUSD(futuresBalance)}</span>
-                    <span className="text-gray-500 shrink-0">PnL</span>
-                    <span
-                        className={`font-semibold shrink-0 ${
-                            isFuturesPnlPositive ? "text-green-400" : "text-red-400"
-                        }`}
-                    >
-                        {fmtUSD(futuresPnl)}
-                    </span>
-                    <span className="text-gray-500 shrink-0">Saldo Margen</span>
-                    <span className="text-white font-semibold shrink-0">{fmtUSD(futuresMarginBalance)}</span>
-                    <span className="text-gray-500 shrink-0">Transferible</span>
-                    <span className="text-white font-semibold shrink-0">{fmtUSD(futuresTransferable)}</span>
+                    <div className="flex items-center gap-0.5">
+                        <span className="text-gray-500">Bal</span>
+                        <span className="text-white font-semibold">{fmtUSD(futuresBalance)}</span>
+                    </div>
+                    <div className="flex items-center gap-0.5">
+                        <span className="text-gray-500">Marg</span>
+                        <span className="text-white font-semibold">{fmtUSD(futuresMarginBalance)}</span>
+                    </div>
+                    <div className="flex items-center gap-0.5">
+                        <span className="text-gray-500">Trans</span>
+                        <span className="text-white font-semibold">{fmtUSD(futuresTransferable)}</span>
+                    </div>
+                    <div className="flex items-center gap-0.5">
+                        <span className="text-gray-500">PnL</span>
+                        <span className={`font-semibold ${isFuturesPnlPositive ? "text-green-400" : "text-red-400"}`}>
+                            {fmtUSD(futuresPnl)}
+                        </span>
+                    </div>
                 </div>
             </div>
 
@@ -151,6 +163,16 @@ const PortfolioHeader: React.FC<PortfolioHeaderProps> = ({
                         </div>
                         <span className="text-gray-700">|</span>
                         <div>
+                            <span className="text-gray-500">Saldo Margen </span>
+                            <span className="text-white font-semibold">{fmtUSD(futuresMarginBalance)}</span>
+                        </div>
+                        <span className="text-gray-700">|</span>
+                        <div>
+                            <span className="text-gray-500">Transferible </span>
+                            <span className="text-white font-semibold">{fmtUSD(futuresTransferable)}</span>
+                        </div>
+                        <span className="text-gray-700">|</span>
+                        <div>
                             <span className="text-gray-500">PnL </span>
                             <span
                                 className={`font-semibold ${
@@ -159,16 +181,6 @@ const PortfolioHeader: React.FC<PortfolioHeaderProps> = ({
                             >
                                 {fmtUSD(futuresPnl)}
                             </span>
-                        </div>
-                        <span className="text-gray-700">|</span>
-                        <div>
-                            <span className="text-gray-500">Saldo Margen </span>
-                            <span className="text-white font-semibold">{fmtUSD(futuresMarginBalance)}</span>
-                        </div>
-                        <span className="text-gray-700">|</span>
-                        <div>
-                            <span className="text-gray-500">Transferible </span>
-                            <span className="text-white font-semibold">{fmtUSD(futuresTransferable)}</span>
                         </div>
                     </div>
                 </div>

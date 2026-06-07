@@ -71,7 +71,7 @@ const MarketWatchRow: React.FC<{
             onDrop={() => onDrop(index)}
             onDragEnd={onDragEnd}
             onClick={onClick}
-            className={`w-full flex items-center gap-0.5 px-1 py-[5px] rounded hover:bg-gray-800/40 transition-colors text-left group cursor-grab active:cursor-grabbing ${isDragging ? "opacity-30" : ""} ${flashClass}`}
+            className={`w-auto mx-auto md:w-full md:mx-0 flex items-center justify-center md:justify-start gap-0.5 px-1 py-[5px] rounded hover:bg-gray-800/40 transition-colors text-left group cursor-grab active:cursor-grabbing ${isDragging ? "opacity-30" : ""} ${flashClass}`}
         >
             <span className="text-gray-700 group-hover:text-gray-500 transition-colors flex-shrink-0 hidden md:block">
                 <GripVertical size={10} />
@@ -98,7 +98,7 @@ const MarketWatchRow: React.FC<{
             </div>
             <button
                 onClick={(e) => { e.stopPropagation(); onRemove(); }}
-                className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-400 transition-all flex-shrink-0 ml-auto pr-1"
+                className="hidden md:block opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-400 transition-all flex-shrink-0 ml-auto pr-1"
                 title="Eliminar de la lista"
             >
                 <X size={12} />
@@ -142,8 +142,8 @@ const MarketWatchCard: React.FC<MarketWatchCardProps> = ({
     }, []);
 
     const renderColumn = (coins: string[]) => (
-        <div>
-            <div className="flex items-center gap-0.5 px-1 py-1.5 border-b border-gray-800/60 mb-0.5">
+        <div className="flex flex-col items-center">
+            <div className="flex items-center justify-center md:justify-start gap-0.5 px-1 py-1.5 border-b border-gray-800/60 mb-0.5">
                 <span className="text-[11px] text-gray-600 font-medium w-3 hidden md:block" />
                 <span className="text-[11px] text-gray-600 font-medium w-5 hidden md:block" />
                 <span className="text-[11px] text-gray-600 font-medium w-[48px] md:w-[56px] flex-shrink-0 truncate text-center md:text-left">Símbolo</span>
@@ -153,7 +153,7 @@ const MarketWatchCard: React.FC<MarketWatchCardProps> = ({
                     <span className="text-[11px] text-gray-600 text-center md:text-right w-[44px] md:w-14">Camb%</span>
                 </div>
             </div>
-            <div className="space-y-0">
+            <div className="flex flex-col items-center space-y-0 w-full">
                 {coins.map((coin, idx) => (
                     <MarketWatchRow
                         key={coin}

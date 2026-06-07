@@ -718,8 +718,6 @@ async function runCheckAlerts() {
 // ─── Cloud Functions ───────────────────────────────────────────────────────────
 
 export { analyzeMarket } from "./analyzeMarket";
-export { syncOpenCodeUsage } from "./syncOpenCodeUsage";
-
 
 export const debugAlerts = functions.region('europe-west1').https.onRequest(async (req, res) => {
     try {

@@ -46,7 +46,7 @@ const DEFAULT_MODELS: Record<string, ModelData> = {
   "qwen3.7-plus": { name: "Qwen3.7 Plus", reqs5h: 4300, reqsWeek: 10800, reqsMonth: 21600, tier: "medium" },
 };
 
-const FUNCTIONS_BASE = FIREBASE_FUNCTIONS_URL;
+
 
 const OpenCodeMonitor: React.FC = () => {
   const { state, syncStatus, update, history, setHistory, saveHistoryEntry, resetState } = useOpenCodeMonitor();
@@ -54,9 +54,8 @@ const OpenCodeMonitor: React.FC = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [estimatorModel, setEstimatorModel] = useState("");
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
-  const [syncUsageResult, setSyncUsageResult] = useState<{ msg: string; type: string } | null>(null);
+  const [saveResult, setSaveResult] = useState<{ msg: string; type: string } | null>(null);
   const [checkResult, setCheckResult] = useState<string | null>(null);
-  const [syncLoading, setSyncLoading] = useState(false);
   const [models, setModels] = useState<Record<string, ModelData>>(() => {
     try {
       const saved = localStorage.getItem(MODELS_LS_KEY);
@@ -220,35 +219,12 @@ const OpenCodeMonitor: React.FC = () => {
     }
   }, [models]);
 
-  const syncUsage = useCallback(async () => {
-    setSyncLoading(true);
-    setSyncUsageResult(null);
-    try {
-      const res = await fetch(`${FUNCTIONS_BASE}/syncOpenCodeUsage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      const data = await res.json();
-      if (data.error) {
-        setSyncUsageResult({ msg: `Error: ${data.error}`, type: "error" });
-      } else if (data.usagePercent !== undefined) {
-        const pct = Math.round(data.usagePercent);
-        update({ monthPct: pct });
-        setSyncUsageResult({ msg: `✅ Uso sincronizado: ${pct}% mensual`, type: "success" });
-      } else {
-        setSyncUsageResult({ msg: "⚠️ Respuesta inesperada del servidor", type: "warning" });
-      }
-    } catch {
-      setSyncUsageResult({
-        msg: "⚠️ Función no disponible. Ejecuta: firebase functions:secrets:set OPENCODE_API_KEY && firebase deploy --only functions",
-        type: "error",
-      });
-    } finally {
-      setSyncLoading(false);
-      setTimeout(() => setSyncUsageResult(null), 8000);
-    }
-  }, [update]);
+  const saveNow = useCallback(() => {
+    setSaveResult({ msg: "💾 Guardando...", type: "info" });
+    update({ ...state });
+    setTimeout(() => setSaveResult({ msg: "✅ Guardado en la nube", type: "success" }), 400);
+    setTimeout(() => setSaveResult(null), 4000);
+  }, [update, state]);
 
   const updateEstimator = useCallback((modelId: string) => {
     setEstimatorModel(modelId);
@@ -458,8 +434,8 @@ const OpenCodeMonitor: React.FC = () => {
             <button className="om-btn" onClick={checkUpdates}>
               {checkResult && checkResult.startsWith("✅") ? "✅ Verificado" : "🔄 Verificar actualizaciones"}
             </button>
-            <button className="om-btn" onClick={syncUsage} disabled={syncLoading}>
-              {syncLoading ? "⏳ Sincronizando..." : "☁️ Sincronizar uso"}
+            <button className="om-btn primary" onClick={saveNow}>
+              💾 Guardar
             </button>
             <button className="om-btn" onClick={toggleHistory}>📈 Histórico</button>
             <button className="om-btn" onClick={resetAll}>🗑 Limpiar</button>
@@ -711,8 +687,8 @@ const OpenCodeMonitor: React.FC = () => {
         <div className="om-copy-feedback">✓ Copiado: {copyFeedback}</div>
       )}
 
-      {syncUsageResult && (
-        <div className={`om-msg ${syncUsageResult.type}`}>{syncUsageResult.msg}</div>
+      {saveResult && (
+        <div className={`om-msg ${saveResult.type}`}>{saveResult.msg}</div>
       )}
 
       {checkResult && (

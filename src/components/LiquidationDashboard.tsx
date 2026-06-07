@@ -357,8 +357,8 @@ export default function LiquidationDashboard() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <div className={`bg-[#181A20] p-3 rounded-xl border-y border-r border-gray-800 ${theme.borderLeft} border-l-4 text-center flex flex-col items-center justify-center min-h-[110px]`}>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="bg-[#181A20] p-3 rounded-xl border border-gray-800 text-center flex flex-col items-center justify-center min-h-[110px]">
             <div className="text-gray-400 text-sm mb-1">Deuda Total</div>
             <div className="text-xl font-bold text-white">${totalDebt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
           </div>
@@ -366,14 +366,14 @@ export default function LiquidationDashboard() {
             <div className="text-gray-400 text-sm mb-1">Valor del Colateral</div>
             <div className="text-xl font-bold text-white">${totalCollateralValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
           </div>
-          <div className="bg-[#181A20] p-3 rounded-xl border border-gray-800 text-center flex flex-col items-center justify-center min-h-[110px]">
+          <div className="bg-[#181A20] p-3 rounded-xl border border-gray-800 text-center flex flex-col items-center justify-center min-h-[110px] col-span-2 md:col-span-1">
             <div className="text-gray-400 text-sm mb-1 capitalize">Intereses {monthLabel}</div>
             <div className="text-sm font-bold text-orange-400">+${interestMTD.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
             <div className="text-[10px] text-orange-400/60">acumulado</div>
             <div className="text-sm font-bold text-orange-300 mt-1">~${interestFullMonth.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
             <div className="text-[10px] text-orange-300/60">estimado fin de mes</div>
           </div>
-          <div className="bg-[#181A20] p-3 rounded-xl border border-gray-800 relative overflow-hidden flex flex-col justify-center min-h-[110px]">
+          <div className="bg-[#181A20] p-3 rounded-xl border border-gray-800 relative overflow-hidden flex flex-col justify-center min-h-[110px] col-span-2 md:col-span-1">
             <div className="text-gray-400 text-sm mb-1 text-center">LTV Actual</div>
             <div className={`text-xl font-bold ${isLiquidated ? 'text-red-500' : currentLTV > (currentData.liquidationLTV - 10) ? 'text-yellow-500' : 'text-green-500'}`}>
               {currentLTV.toFixed(2)}%
