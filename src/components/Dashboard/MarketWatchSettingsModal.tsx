@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { X, Settings, Check, Search, Loader2 } from "lucide-react";
 import { useBinanceSymbols } from "../../hooks/useBinanceSymbols";
 
-const MAX_COINS = 15;
+const MAX_COINS = 10;
 
 interface MarketWatchSettingsModalProps {
     selectedCoins: string[];

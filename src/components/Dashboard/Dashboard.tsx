@@ -51,6 +51,11 @@ const Dashboard: React.FC<DashboardProps> = ({
         return { totalDebt, totalCollateral, totalLtv };
     }, [exchangeData]);
 
+    const futuresBalance = futuresData?.account?.totalWalletBalance ?? 0;
+    const futuresPnl = futuresData?.account?.totalUnrealizedProfit ?? 0;
+    const futuresMarginBalance = futuresData?.account?.totalMarginBalance ?? 0;
+    const futuresTransferable = futuresData?.account?.maxWithdrawAmount ?? 0;
+
     return (
         <div className="space-y-2">
             <PortfolioHeader
@@ -61,6 +66,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                 totalDebt={loanStats.totalDebt}
                 totalCollateral={loanStats.totalCollateral}
                 totalLtv={loanStats.totalLtv}
+                futuresBalance={futuresBalance}
+                futuresPnl={futuresPnl}
+                futuresMarginBalance={futuresMarginBalance}
+                futuresTransferable={futuresTransferable}
             />
 
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">

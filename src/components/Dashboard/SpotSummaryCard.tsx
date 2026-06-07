@@ -47,20 +47,20 @@ const SpotSummaryCard: React.FC<SpotSummaryCardProps> = ({
                             </colgroup>
                             <thead>
                                 <tr className="text-[10px] uppercase tracking-wider text-gray-500 border-b border-gray-800">
-                                    <th className="text-left pb-2 font-medium">Activo</th>
-                                    <th className="text-right pb-2 font-medium">Valor</th>
+                                    <th className="text-center md:text-left pb-2 font-medium">Activo</th>
+                                    <th className="text-center md:text-right pb-2 font-medium">Valor</th>
                                     <th className="text-right pb-2 font-medium hidden md:table-cell">P. Compra</th>
                                     <th className="text-right pb-2 font-medium hidden md:table-cell">P. Actual</th>
-                                    <th className="text-right pb-2 font-medium">PNL</th>
+                                    <th className="text-center md:text-right pb-2 font-medium">PNL</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {sortedPositions.map((item) => (
                                     <tr key={item.id} className="border-b border-gray-800/50">
-                                        <td className={`py-1.5 text-xs font-bold ${getCoinTextColor(item.coin)}`}>
+                                        <td className={`py-1.5 text-xs font-bold text-center md:text-left ${getCoinTextColor(item.coin)}`}>
                                             {item.coin}
                                         </td>
-                                        <td className="py-1.5 text-right font-mono text-[11px] tabular-nums">
+                                        <td className="py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums">
                                             {fmtUSD(item.currentValue)}
                                         </td>
                                         <td className="py-1.5 text-right font-mono text-[11px] tabular-nums text-blue-400 hidden md:table-cell">
@@ -69,7 +69,7 @@ const SpotSummaryCard: React.FC<SpotSummaryCardProps> = ({
                                         <td className={`py-1.5 text-right font-mono text-[11px] tabular-nums hidden md:table-cell ${priceDirections[item.coin] === 'up' ? 'text-green-400' : priceDirections[item.coin] === 'down' ? 'text-red-400' : 'text-white'}`}>
                                             {fmtPrice(item.currentPrice)}
                                         </td>
-                                        <td className={`py-1.5 text-right font-mono text-[11px] tabular-nums font-bold ${item.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                        <td className={`py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums font-bold ${item.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                             <div>{item.profit >= 0 ? '+' : ''}{fmtUSD(item.profit)}</div>
                                             <div className="text-[10px] font-normal">({item.roi >= 0 ? '+' : ''}{item.roi.toFixed(2)}%)</div>
                                         </td>

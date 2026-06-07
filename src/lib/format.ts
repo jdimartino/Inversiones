@@ -27,3 +27,10 @@ export const fmtPercent = (n: number, decimals: number = 1): string => {
     const sign = n >= 0 ? "+" : "";
     return `${sign}${n.toFixed(decimals)}%`;
 };
+
+/** Compact USD format: "$1.2K" / "$3.4M" / "$500" */
+export const fmtCompact = (n: number): string => {
+    if (Math.abs(n) >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+    if (Math.abs(n) >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
+    return fmtCurrency.format(n);
+};

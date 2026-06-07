@@ -1,8 +1,5 @@
 import React from "react";
-import { TrendingUp, TrendingDown } from "lucide-react";
 import { FuturesData } from "../../lib/futures";
-import { fmtUSD } from "../../lib/format";
-import { getMarginColor } from "../../lib/futures";
 import { PriceDirection } from "../../hooks/usePrices";
 
 interface FuturesSummaryCardProps {
@@ -29,10 +26,6 @@ const FuturesSummaryCard: React.FC<FuturesSummaryCardProps> = ({
 
     const { account, positions } = futuresData;
     const openPositions = positions.length;
-    const totalPnl = account.totalUnrealizedProfit;
-    const isPositive = totalPnl >= 0;
-    const marginRatio = account.marginRatio ?? 0;
-    const marginColor = getMarginColor(marginRatio);
 
     return (
         <button
@@ -46,32 +39,6 @@ const FuturesSummaryCard: React.FC<FuturesSummaryCardProps> = ({
                         {openPositions} posiciones
                     </span>
                 </h3>
-            </div>
-
-            <div className="grid grid-cols-2 sm:flex sm:items-center sm:justify-evenly gap-2 sm:gap-0 text-[11px] sm:text-xs">
-                <div className="text-center">
-                    <div className="text-gray-500">Balance</div>
-                    <div className="text-white font-bold">{fmtUSD(account.totalWalletBalance)}</div>
-                </div>
-                <div className="text-center">
-                    <div className="text-gray-500">PnL</div>
-                    <div className={`font-bold flex items-center justify-center gap-1 ${isPositive ? "text-green-400" : "text-red-400"}`}>
-                        {isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                        {fmtUSD(totalPnl)}
-                    </div>
-                </div>
-                <div className="text-center">
-                    <div className="text-gray-500">Saldo del margen</div>
-                    <div className="text-white font-bold">{fmtUSD(account.totalMarginBalance)}</div>
-                </div>
-                <div className="text-center">
-                    <div className="text-gray-500">Transferible</div>
-                    <div className="text-white font-bold">{fmtUSD(account.availableBalance)}</div>
-                </div>
-                <div className="text-center col-span-2 sm:col-span-1">
-                    <div className="text-gray-500">Margen Cross</div>
-                    <div className={`font-bold ${marginColor}`}>{marginRatio.toFixed(2)}%</div>
-                </div>
             </div>
 
             {positions.length > 0 && (
@@ -90,14 +57,14 @@ const FuturesSummaryCard: React.FC<FuturesSummaryCardProps> = ({
                             </colgroup>
                             <thead>
                                 <tr className="text-[10px] uppercase tracking-wider text-gray-500 border-b border-gray-800">
-                                    <th className="text-left pb-2 font-medium">Tipo</th>
-                                    <th className="text-left pb-2 font-medium">Activo</th>
+                                    <th className="text-center md:text-left pb-2 font-medium">Tipo</th>
+                                    <th className="text-center md:text-left pb-2 font-medium">Activo</th>
                                     <th className="text-right pb-2 font-medium hidden md:table-cell">Entrada</th>
                                     <th className="text-right pb-2 font-medium hidden md:table-cell">Actual</th>
                                     <th className="text-right pb-2 font-medium hidden md:table-cell">Liq</th>
-                                    <th className="text-right pb-2 font-medium">Valor</th>
+                                    <th className="text-center md:text-right pb-2 font-medium">Valor</th>
                                     <th className="text-right pb-2 font-medium hidden md:table-cell">Margen</th>
-                                    <th className="text-right pb-2 font-medium">PnL</th>
+                                    <th className="text-center md:text-right pb-2 font-medium">PnL</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -108,10 +75,10 @@ const FuturesSummaryCard: React.FC<FuturesSummaryCardProps> = ({
                                     const actualColor = priceDirections[baseAsset] === 'up' ? 'text-green-400' : priceDirections[baseAsset] === 'down' ? 'text-red-400' : 'text-white';
                                     return (
                                     <tr key={pos.symbol} className="border-b border-gray-800/50">
-                                        <td className={`py-1.5 text-[11px] md:text-xs font-bold ${pos.side === 'LONG' ? 'text-green-400' : 'text-red-400'}`}>
+                                        <td className={`py-1.5 text-[11px] md:text-xs font-bold text-center md:text-left ${pos.side === 'LONG' ? 'text-green-400' : 'text-red-400'}`}>
                                             {pos.side}
                                         </td>
-                                        <td className="py-1.5 text-[11px] md:text-xs font-semibold">
+                                        <td className="py-1.5 text-[11px] md:text-xs font-semibold text-center md:text-left">
                                             {pos.symbol} <span className="text-[9px] text-gray-500">{pos.leverage}x</span>
                                         </td>
                                         <td className="py-1.5 text-right font-mono text-[11px] tabular-nums hidden md:table-cell">
@@ -123,9 +90,9 @@ const FuturesSummaryCard: React.FC<FuturesSummaryCardProps> = ({
                                         <td className="py-1.5 text-right font-mono text-[11px] tabular-nums text-red-400/70 hidden md:table-cell">
                                             ${pos.liquidationPrice.toLocaleString()}
                                         </td>
-                                        <td className="py-1.5 text-right font-mono text-[11px] tabular-nums">${pos.notional.toFixed(2)}</td>
+                                        <td className="py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums">${pos.notional.toFixed(2)}</td>
                                         <td className="py-1.5 text-right font-mono text-[11px] tabular-nums hidden md:table-cell">${pos.maintMargin.toFixed(2)}</td>
-                                        <td className={`py-1.5 text-right font-mono text-[11px] tabular-nums font-bold ${pos.unrealizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                        <td className={`py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums font-bold ${pos.unrealizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                             <div>{pos.unrealizedPnl >= 0 ? '+' : ''}{pos.unrealizedPnl.toFixed(2)}</div>
                                             <div className="text-[10px] font-normal">({pos.roe >= 0 ? '+' : ''}{pos.roe.toFixed(2)}%)</div>
                                         </td>
