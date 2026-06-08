@@ -314,10 +314,8 @@ async function checkFuturesAlerts(data: FuturesData): Promise<void> {
 
                 messages.push(
                     `${emoji} *${pos.symbol}* — Alerta de ${alert.type === "roe" ? "ROE %" : "ROE USD"}\n` +
-                    `━━━━━━━━━━━━━━━━━━━━\n` +
                     `Valor actual: *${valueStr}*\n` +
                     `Meta: ${alertLabel}\n` +
-                    `${pos.side} ${pos.leverage}x\n` +
                     `PnL: ${pos.unrealizedPnl >= 0 ? "+" : ""}$${pos.unrealizedPnl.toFixed(2)}` +
                     (alert.note ? `\n_${alert.note}_` : "")
                 );

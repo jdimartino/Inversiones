@@ -48,6 +48,7 @@ const SellSuite = React.lazy(() => import("./components/SellSuite"));
 const AlertSettings = React.lazy(() => import("./components/AlertSettings"));
 const FuturesTab = React.lazy(() => import("./components/FuturesTab"));
 const OpenCodeMonitor = React.lazy(() => import("./components/OpenCodeMonitor"));
+const LiquidezTab = React.lazy(() => import("./components/LiquidezTab"));
 
 const App: React.FC = () => {
   const { portfolio, addInvestment, removeInvestment, updateInvestment } = usePortfolio();
@@ -402,8 +403,6 @@ const App: React.FC = () => {
         <NavBar
           active={activeTab}
           onChange={setActiveTab}
-          onRefresh={refresh}
-          refreshing={loading}
           prices={prices}
           priceDirections={priceDirections}
           bcvRate={bcvRate}
@@ -523,6 +522,8 @@ const App: React.FC = () => {
                 <AlertSettings
                   config={config}
                   saveConfig={saveConfig}
+                  onRefresh={refresh}
+                  refreshing={loading}
                   onEditGlobal={handleEditGlobalAlert}
                   onEditInvestment={handleEditInvestmentAlert}
                   onOpenWatchlist={() => setIsWatchlistModalOpen(true)}
@@ -555,6 +556,15 @@ const App: React.FC = () => {
           <div key="monitor" className={tabClass}>
             <Suspense fallback={<div className="py-20 text-center text-slate-500 text-sm">Cargando monitor...</div>}>
               <OpenCodeMonitor />
+            </Suspense>
+          </div>
+        )}
+
+        {/* ── LIQUIDEZ ──────────────────────────────────────────────────── */}
+        {activeTab === "liquidez" && (
+          <div key="liquidez" className={tabClass}>
+            <Suspense fallback={<div className="py-20 text-center text-slate-500 text-sm">Cargando liquidez...</div>}>
+              <LiquidezTab />
             </Suspense>
           </div>
         )}

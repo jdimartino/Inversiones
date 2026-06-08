@@ -1,5 +1,5 @@
 import { useState, memo, useMemo } from "react";
-import { Trash2, Edit2, Repeat, Clock, History, CheckCircle, AlertTriangle, TrendingUp, TrendingDown, Loader2, Eye, Plus, Sun, Send, BarChart2, Settings, Check, Search } from "lucide-react";
+import { Trash2, Edit2, Repeat, Clock, History, CheckCircle, AlertTriangle, TrendingUp, TrendingDown, Loader2, Eye, Plus, Sun, Send, BarChart2, Settings, Check, Search, RefreshCw } from "lucide-react";
 import { AlertConfig, GlobalAlert, InvestmentAlert, WatchlistAlert, CandleAlert } from "../hooks/useAlerts";
 import type { SaleRecord } from "../lib/constants";
 import { usePortfolio } from "../hooks/usePortfolio";
@@ -12,6 +12,8 @@ import { FIREBASE_FUNCTIONS_URL } from "../lib/firebase";
 interface AlertSettingsProps {
     config: AlertConfig;
     saveConfig: (newConfig: AlertConfig) => Promise<boolean>;
+    onRefresh?: () => void;
+    refreshing?: boolean;
     onEditGlobal?: (index: number) => void;
     onEditInvestment?: (investmentId: string, index: number) => void;
     onOpenWatchlist?: () => void;
@@ -24,7 +26,7 @@ interface AlertSettingsProps {
     onSelectedCoinsChange?: (coins: string[]) => void;
 }
 
-function AlertSettings({ config, saveConfig, onEditGlobal, onEditInvestment, onOpenWatchlist, onEditWatchlistAlert, onOpenCandleAlert, onEditCandleAlert, sales, totalPnl = 0, selectedCoins = [], onSelectedCoinsChange }: AlertSettingsProps) {
+function AlertSettings({ config, saveConfig, onRefresh, refreshing, onEditGlobal, onEditInvestment, onOpenWatchlist, onEditWatchlistAlert, onOpenCandleAlert, onEditCandleAlert, sales, totalPnl = 0, selectedCoins = [], onSelectedCoinsChange }: AlertSettingsProps) {
     const { portfolio } = usePortfolio();
     const { prices } = usePrices();
     const { logs, loading: logsLoading } = useNotificationLogs(15);
@@ -62,6 +64,23 @@ function AlertSettings({ config, saveConfig, onEditGlobal, onEditInvestment, onO
 
     return (
         <div className="space-y-3 md:space-y-4">
+
+            {/* ── Header with Refresh ────────────────────── */}
+            <div className="flex items-center justify-between">
+                <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                    <Send className="w-4 h-4 text-yellow-400" /> Configuración de Alertas
+                </h2>
+                {onRefresh && (
+                    <button
+                        onClick={onRefresh}
+                        disabled={refreshing}
+                        className="flex items-center gap-1.5 bg-yellow-600 hover:bg-yellow-500 text-slate-900 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-lg active:scale-95 disabled:opacity-60"
+                    >
+                        <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
+                        <span className="hidden sm:inline">Actualizar Precios</span>
+                    </button>
+                )}
+            </div>
 
             {/* ── Ticker Coin Selector ──────────────────── */}
             <div className="bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 md:p-4">

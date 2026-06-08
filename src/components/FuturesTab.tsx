@@ -685,7 +685,7 @@ export default function FuturesTab({ prices, priceDirections }: FuturesTabProps)
                             <div className="text-gray-500">No hay posiciones abiertas</div>
                         </div>
                     ) : (
-                        livePositions.map((pos) => {
+                        [...livePositions].sort((a, b) => b.unrealizedPnl - a.unrealizedPnl).map((pos) => {
                             const posAlerts = alerts.positionAlerts?.[pos.symbol] || [];
                             return (
                                 <div key={`${pos.symbol}-${pos.side}`}>

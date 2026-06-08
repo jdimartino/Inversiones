@@ -64,13 +64,21 @@ const MarketWatchRow: React.FC<{
     const changeColor = direction === "up" ? "text-green-400" : direction === "down" ? "text-red-400" : "text-white";
 
     return (
-        <button
+        <div
+            role="button"
+            tabIndex={0}
             draggable
             onDragStart={() => onDragStart(index)}
             onDragOver={onDragOver}
             onDrop={() => onDrop(index)}
             onDragEnd={onDragEnd}
             onClick={onClick}
+            onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onClick();
+                }
+            }}
             className={`w-auto mx-auto md:w-full md:mx-0 flex items-center justify-center md:justify-start gap-0.5 px-1 py-[5px] rounded hover:bg-gray-800/40 transition-colors text-left group cursor-grab active:cursor-grabbing ${isDragging ? "opacity-30" : ""} ${flashClass}`}
         >
             <span className="text-gray-700 group-hover:text-gray-500 transition-colors flex-shrink-0 hidden md:block">
@@ -103,7 +111,7 @@ const MarketWatchRow: React.FC<{
             >
                 <X size={12} />
             </button>
-        </button>
+        </div>
     );
 };
 

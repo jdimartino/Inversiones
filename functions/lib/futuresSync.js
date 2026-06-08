@@ -217,10 +217,8 @@ async function checkFuturesAlerts(data) {
                     ? `${currentValue >= 0 ? "+" : ""}${currentValue.toFixed(1)}%`
                     : `${currentValue >= 0 ? "+" : ""}$${currentValue.toFixed(2)}`;
                 messages.push(`${emoji} *${pos.symbol}* — Alerta de ${alert.type === "roe" ? "ROE %" : "ROE USD"}\n` +
-                    `━━━━━━━━━━━━━━━━━━━━\n` +
                     `Valor actual: *${valueStr}*\n` +
                     `Meta: ${alertLabel}\n` +
-                    `${pos.side} ${pos.leverage}x\n` +
                     `PnL: ${pos.unrealizedPnl >= 0 ? "+" : ""}$${pos.unrealizedPnl.toFixed(2)}` +
                     (alert.note ? `\n_${alert.note}_` : ""));
                 // One-shot: delete after firing. Persistent: keep with updated _lastSide.

@@ -7,6 +7,7 @@ import { testFuturesAlerts } from "./testFuturesAlerts";
 import { getFuturesTrades } from "./getFuturesTrades";
 import { getBinancePrices } from "./getBinancePrices";
 import { proxyFetch } from "./proxyFetch";
+import { getBinanceWallet } from "./getBinanceWallet";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -622,7 +623,6 @@ async function runCheckAlerts() {
                 const directionEmoji = rule.direction === 'up' ? '🔼' : '🔽';
                 triggeredCandleMessages.push(
                     `${emoji} *${coin}* — Vela ${rule.interval.toUpperCase()}: *${pnlSign(changePct)}${changePct.toFixed(2)}%*\n` +
-                    `   Open: ${fmtPrice(open)} → Close: ${fmtPrice(close)}\n` +
                     `   Meta: ${directionEmoji} Variación ${rule.direction === 'up' ? '>=' : '<='} ${threshold}%` +
                     (rule.note ? `\n   _📝 ${rule.note}_` : '')
                 );
@@ -668,8 +668,6 @@ async function runCheckAlerts() {
         if (triggeredCandleMessages.length > 0) message += `*📊 Alertas de Vela:*\n${triggeredCandleMessages.join("\n")}\n\n`;
         if (triggeredIndividualMessages.length > 0) message += `${triggeredIndividualMessages.join("\n")}\n`;
         if (triggeredWatchlistMessages.length > 0) message += `${triggeredWatchlistMessages.join("\n")}\n`;
-        message += `${DIVIDER}\n*PNL Total:* ${pnlSign(globalPNL)}$${fmt(globalPNL)} | *Invertido:* $${fmt(totalInvested)} | *Valor:* $${fmt(totalCurrentValue)}`;
-
         const sent = await sendTelegram(message);
         if (sent) {
             console.log(`✅ Alerta enviada.`);
@@ -1285,4 +1283,4 @@ export const testDailyPnlSnapshot = functions
         }
     });
 
-export { testFutures, futuresSync, testFuturesAlerts, getBinancePrices, getFuturesTrades, proxyFetch };
+export { testFutures, futuresSync, testFuturesAlerts, getBinancePrices, getFuturesTrades, proxyFetch, getBinanceWallet };

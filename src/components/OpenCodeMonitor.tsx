@@ -33,17 +33,17 @@ const DEFAULT_MODELS: Record<string, ModelData> = {
   "deepseek-v4-flash": { name: "DeepSeek V4 Flash", reqs5h: 31650, reqsWeek: 79050, reqsMonth: 158150, tier: "ultra" },
   "mimo-v2.5": { name: "MiMo-V2.5", reqs5h: 30100, reqsWeek: 75200, reqsMonth: 150400, tier: "ultra" },
   "minimax-m2.5": { name: "MiniMax M2.5", reqs5h: 6300, reqsWeek: 15900, reqsMonth: 31800, tier: "light" },
-  "mimo-v2.5-pro": { name: "MiMo-V2.5-Pro", reqs5h: 3250, reqsWeek: 8150, reqsMonth: 16300, tier: "light" },
-  "deepseek-v4-pro": { name: "DeepSeek V4 Pro", reqs5h: 3450, reqsWeek: 8550, reqsMonth: 17150, tier: "medium" },
   "minimax-m2.7": { name: "MiniMax M2.7", reqs5h: 3400, reqsWeek: 8500, reqsMonth: 17000, tier: "medium" },
+  "qwen3.7-plus": { name: "Qwen3.7 Plus", reqs5h: 4300, reqsWeek: 10800, reqsMonth: 21600, tier: "medium" },
   "qwen3.6-plus": { name: "Qwen3.6 Plus", reqs5h: 3300, reqsWeek: 8200, reqsMonth: 16300, tier: "medium" },
   "kimi-k2.5": { name: "Kimi K2.5", reqs5h: 1850, reqsWeek: 4630, reqsMonth: 9250, tier: "heavy" },
-  "glm-5": { name: "GLM-5", reqs5h: 1150, reqsWeek: 2880, reqsMonth: 5750, tier: "heavy" },
-  "kimi-k2.6": { name: "Kimi K2.6", reqs5h: 1150, reqsWeek: 2880, reqsMonth: 5750, tier: "heavy" },
-  "qwen3.7-max": { name: "Qwen3.7 Max", reqs5h: 950, reqsWeek: 2390, reqsMonth: 4770, tier: "heavy" },
-  "glm-5.1": { name: "GLM-5.1", reqs5h: 880, reqsWeek: 2150, reqsMonth: 4300, tier: "heavy" },
   "minimax-m3": { name: "MiniMax M3", reqs5h: 1400, reqsWeek: 3500, reqsMonth: 7000, tier: "heavy" },
-  "qwen3.7-plus": { name: "Qwen3.7 Plus", reqs5h: 4300, reqsWeek: 10800, reqsMonth: 21600, tier: "medium" },
+  "kimi-k2.6": { name: "Kimi K2.6", reqs5h: 1150, reqsWeek: 2880, reqsMonth: 5750, tier: "heavy" },
+  "glm-5": { name: "GLM-5", reqs5h: 1150, reqsWeek: 2880, reqsMonth: 5750, tier: "heavy" },
+  "glm-5.1": { name: "GLM-5.1", reqs5h: 880, reqsWeek: 2150, reqsMonth: 4300, tier: "heavy" },
+  "deepseek-v4-pro": { name: "DeepSeek V4 Pro", reqs5h: 3450, reqsWeek: 8550, reqsMonth: 17150, tier: "medium" },
+  "mimo-v2.5-pro": { name: "MiMo-V2.5-Pro", reqs5h: 3250, reqsWeek: 8150, reqsMonth: 16300, tier: "light" },
+  "qwen3.7-max": { name: "Qwen3.7 Max", reqs5h: 950, reqsWeek: 2390, reqsMonth: 4770, tier: "heavy" },
 };
 
 
@@ -260,6 +260,8 @@ const OpenCodeMonitor: React.FC = () => {
     .filter(([_, m]) => m.tier === recommendedTier)
     .sort((a, b) => b[1].reqs5h - a[1].reqs5h)
     .slice(0, 3);
+
+  const sortedModels = Object.entries(models).sort((a, b) => b[1].reqs5h - a[1].reqs5h);
 
   const isAllZero = contPct === 0 && weekPct === 0 && monthPct === 0;
 
@@ -588,7 +590,7 @@ const OpenCodeMonitor: React.FC = () => {
                 </label>
                 <select className="om-select" value={estimatorModel} onChange={e => updateEstimator(e.target.value)}>
                   <option value="">-- Selecciona un modelo --</option>
-                  {Object.entries(models).map(([id, model]) => (
+                  {sortedModels.map(([id, model]) => (
                     <option key={id} value={id}>{model.name}</option>
                   ))}
                 </select>
@@ -629,7 +631,7 @@ const OpenCodeMonitor: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {Object.entries(models).map(([id, model]) => (
+                    {sortedModels.map(([id, model]) => (
                       <tr key={id}>
                         <td className="om-model-name">{model.name}</td>
                         <td className="om-model-reqs">{(model.reqs5h / 1000).toFixed(1)}k</td>

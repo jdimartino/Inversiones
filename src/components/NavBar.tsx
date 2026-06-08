@@ -7,40 +7,40 @@ import {
     PlusCircle,
     Send,
     TrendingUp,
-    RefreshCw,
     Activity,
     Zap,
+    Droplets,
 } from "lucide-react";
 import { PriceDirection } from "../hooks/usePrices";
 import { BcvRate } from "../hooks/useBcvRate";
 import { YadioRate } from "../hooks/useYadioRate";
 import PriceTicker from "./PriceTicker";
 
-export type TabId = "inicio" | "dashboard" | "futuros" | "prestamos" | "graficos" | "configuracion" | "venta" | "operaciones" | "monitor";
+export type TabId = "inicio" | "dashboard" | "futuros" | "prestamos" | "graficos" | "configuracion" | "venta" | "operaciones" | "monitor" | "liquidez";
 
 interface Tab {
     id: TabId;
     label: string;
+    short: string;
     icon: React.ReactNode;
 }
 
 const TABS: Tab[] = [
-    { id: "inicio", label: "Inicio", icon: <Home className="w-4 h-4" /> },
-    { id: "dashboard", label: "Spot", icon: <LayoutDashboard className="w-4 h-4" /> },
-    { id: "futuros", label: "Futuros", icon: <Activity className="w-4 h-4" /> },
-    { id: "prestamos", label: "Préstamos", icon: <CreditCard className="w-4 h-4" /> },
-    { id: "graficos", label: "Gráficos", icon: <BarChart3 className="w-4 h-4" /> },
-    { id: "configuracion", label: "Telegram", icon: <Send className="w-4 h-4" /> },
-    { id: "venta", label: "Compra/Venta", icon: <TrendingUp className="w-4 h-4" /> },
-    { id: "operaciones", label: "Operaciones", icon: <PlusCircle className="w-4 h-4" /> },
-    { id: "monitor", label: "Monitor", icon: <Zap className="w-4 h-4" /> },
+    { id: "inicio", label: "Inicio", short: "Inicio", icon: <Home className="w-4 h-4" /> },
+    { id: "dashboard", label: "Spot", short: "Spot", icon: <LayoutDashboard className="w-4 h-4" /> },
+    { id: "futuros", label: "Futuros", short: "Futuros", icon: <Activity className="w-4 h-4" /> },
+    { id: "prestamos", label: "Préstamos", short: "Prést.", icon: <CreditCard className="w-4 h-4" /> },
+    { id: "liquidez", label: "Liquidez", short: "Liquidez", icon: <Droplets className="w-4 h-4" /> },
+    { id: "graficos", label: "Gráficos", short: "Gráf.", icon: <BarChart3 className="w-4 h-4" /> },
+    { id: "configuracion", label: "Telegram", short: "Telegram", icon: <Send className="w-4 h-4" /> },
+    { id: "venta", label: "Compra/Venta", short: "Venta", icon: <TrendingUp className="w-4 h-4" /> },
+    { id: "operaciones", label: "Operaciones", short: "Ops", icon: <PlusCircle className="w-4 h-4" /> },
+    { id: "monitor", label: "Monitor", short: "Monitor", icon: <Zap className="w-4 h-4" /> },
 ];
 
 interface NavBarProps {
     active: TabId;
     onChange: (tab: TabId) => void;
-    onRefresh?: () => void;
-    refreshing?: boolean;
     prices?: Record<string, number>;
     priceDirections?: Record<string, PriceDirection>;
     bcvRate?: BcvRate;
@@ -51,8 +51,6 @@ interface NavBarProps {
 const NavBar: React.FC<NavBarProps> = ({
     active,
     onChange,
-    onRefresh,
-    refreshing,
     prices = {},
     priceDirections = {},
     bcvRate,
@@ -71,7 +69,7 @@ const NavBar: React.FC<NavBarProps> = ({
                                     key={tab.id}
                                     onClick={() => onChange(tab.id)}
                                     className={`
-                      flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap
+                      flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-xs font-semibold whitespace-nowrap
                       transition-all duration-200 flex-shrink-0
                       ${isActive
                                             ? "bg-yellow-500 text-slate-900 shadow-lg shadow-yellow-500/20 scale-105"
@@ -81,20 +79,11 @@ const NavBar: React.FC<NavBarProps> = ({
                                 >
                                     {tab.icon}
                                     <span className="hidden sm:block">{tab.label}</span>
-                                    <span className="sm:hidden">{tab.label}</span>
+                                    <span className="sm:hidden">{tab.short}</span>
                                 </button>
                             );
                         })}
                     </div>
-                    {onRefresh && (
-                        <button
-                            onClick={onRefresh}
-                            disabled={refreshing}
-                            className="flex-shrink-0 bg-yellow-600 p-1.5 sm:p-2 rounded-lg hover:bg-yellow-500 transition-colors shadow-lg active:scale-95 disabled:opacity-60"
-                        >
-                            <RefreshCw className={`w-4 h-4 sm:w-5 sm:h-5 ${refreshing ? "animate-spin" : ""}`} />
-                        </button>
-                    )}
                 </div>
             </div>
 

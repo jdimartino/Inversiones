@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.proxyFetch = exports.getFuturesTrades = exports.getBinancePrices = exports.testFuturesAlerts = exports.futuresSync = exports.testFutures = exports.testDailyPnlSnapshot = exports.dailyPnlSnapshot = exports.testDailyReport = exports.dailyPortfolioReport = exports.checkIntervalTasks = exports.testTradingSignals = exports.testAlerts = exports.setupTestAlerts = exports.debugLogs = exports.debugInversiones = exports.debugAlerts = exports.analyzeMarket = void 0;
+exports.getBinanceWallet = exports.proxyFetch = exports.getFuturesTrades = exports.getBinancePrices = exports.testFuturesAlerts = exports.futuresSync = exports.testFutures = exports.testDailyPnlSnapshot = exports.dailyPnlSnapshot = exports.testDailyReport = exports.dailyPortfolioReport = exports.checkIntervalTasks = exports.testTradingSignals = exports.testAlerts = exports.setupTestAlerts = exports.debugLogs = exports.debugInversiones = exports.debugAlerts = exports.analyzeMarket = void 0;
 const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 const axios_1 = require("axios");
@@ -16,6 +16,8 @@ const getBinancePrices_1 = require("./getBinancePrices");
 Object.defineProperty(exports, "getBinancePrices", { enumerable: true, get: function () { return getBinancePrices_1.getBinancePrices; } });
 const proxyFetch_1 = require("./proxyFetch");
 Object.defineProperty(exports, "proxyFetch", { enumerable: true, get: function () { return proxyFetch_1.proxyFetch; } });
+const getBinanceWallet_1 = require("./getBinanceWallet");
+Object.defineProperty(exports, "getBinanceWallet", { enumerable: true, get: function () { return getBinanceWallet_1.getBinanceWallet; } });
 admin.initializeApp();
 const db = admin.firestore();
 // ─── Telegram config (Ahora gestionados por Secret Manager) ──────────────────
@@ -533,7 +535,6 @@ async function runCheckAlerts() {
                 const emoji = changePct >= 0 ? '📈' : '📉';
                 const directionEmoji = rule.direction === 'up' ? '🔼' : '🔽';
                 triggeredCandleMessages.push(`${emoji} *${coin}* — Vela ${rule.interval.toUpperCase()}: *${pnlSign(changePct)}${changePct.toFixed(2)}%*\n` +
-                    `   Open: ${fmtPrice(open)} → Close: ${fmtPrice(close)}\n` +
                     `   Meta: ${directionEmoji} Variación ${rule.direction === 'up' ? '>=' : '<='} ${threshold}%` +
                     (rule.note ? `\n   _📝 ${rule.note}_` : ''));
                 console.log(`[CANDLE ALERT] ${coin} ${rule.interval}: ${changePct.toFixed(2)}% — Target: ${rule.direction === 'up' ? '>=' : '<='} ${threshold}% — Tipo: ${rule.isPersistent ? 'PERMANENTE' : 'UNA VEZ'}`);
@@ -580,7 +581,6 @@ async function runCheckAlerts() {
             message += `${triggeredIndividualMessages.join("\n")}\n`;
         if (triggeredWatchlistMessages.length > 0)
             message += `${triggeredWatchlistMessages.join("\n")}\n`;
-        message += `${DIVIDER}\n*PNL Total:* ${pnlSign(globalPNL)}$${fmt(globalPNL)} | *Invertido:* $${fmt(totalInvested)} | *Valor:* $${fmt(totalCurrentValue)}`;
         const sent = await sendTelegram(message);
         if (sent) {
             console.log(`✅ Alerta enviada.`);
