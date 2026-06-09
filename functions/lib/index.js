@@ -280,7 +280,7 @@ async function runCheckAlerts() {
                 dbUpdates[`investmentAlerts.${docSnap.id}`] = remaining;
             }
         }
-        individualAssets.push({ id: docSnap.id, coin: inv.coin, pnl, roi: roiPercent || 0 });
+        individualAssets.push({ id: docSnap.id, coin: inv.coin, pnl, roi: roiPercent || 0, invested: inv.invested || 0 });
     });
     // Cleanup orphaned alerts (IDs that no longer exist in 'inversiones' or 'ventas')
     const activeInvIds = new Set(snap.docs.map(d => d.id));
@@ -534,8 +534,15 @@ async function runCheckAlerts() {
             if (isTriggered) {
                 const emoji = changePct >= 0 ? '📈' : '📉';
                 const directionEmoji = rule.direction === 'up' ? '🔼' : '🔽';
+                // Calcular PNL del portfolio para esta moneda
+                const coinInvestments = individualAssets.filter(a => a.coin === coin);
+                const coinPnl = coinInvestments.reduce((s, a) => s + a.pnl, 0);
+                const coinInvested = coinInvestments.reduce((s, a) => s + a.invested, 0);
+                const coinRoi = coinInvested > 0 ? (coinPnl / coinInvested) * 100 : 0;
+                const hasCoinPnl = coinInvestments.length > 0;
                 triggeredCandleMessages.push(`${emoji} *${coin}* — Vela ${rule.interval.toUpperCase()}: *${pnlSign(changePct)}${changePct.toFixed(2)}%*\n` +
                     `   Meta: ${directionEmoji} Variación ${rule.direction === 'up' ? '>=' : '<='} ${threshold}%` +
+                    (hasCoinPnl ? `\n   ${pnlEmoji(coinPnl)} PNL: *${pnlSign(coinPnl)}$${Math.abs(coinPnl).toFixed(2)}* (${pnlSign(coinRoi)}${coinRoi.toFixed(1)}%)` : '') +
                     (rule.note ? `\n   _📝 ${rule.note}_` : ''));
                 console.log(`[CANDLE ALERT] ${coin} ${rule.interval}: ${changePct.toFixed(2)}% — Target: ${rule.direction === 'up' ? '>=' : '<='} ${threshold}% — Tipo: ${rule.isPersistent ? 'PERMANENTE' : 'UNA VEZ'}`);
                 if (rule.isPersistent) {

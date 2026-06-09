@@ -8,6 +8,9 @@ export interface LiquidezData {
   btcDisponible: number;
   otros: number;
   otrosNota: string;
+  btcMensual: number;
+  usdtMensual: number;
+  precioBtcSnapshot: number;
   updatedAt?: number;
 }
 
@@ -17,6 +20,9 @@ const DEFAULT_LIQUIDEZ: LiquidezData = {
   btcDisponible: 0,
   otros: 0,
   otrosNota: "",
+  btcMensual: 0,
+  usdtMensual: 0,
+  precioBtcSnapshot: 0,
 };
 
 const STORAGE_KEY = "liquidez_cache";
