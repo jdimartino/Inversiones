@@ -83,7 +83,7 @@ const OpenCodeMonitor: React.FC = () => {
       saveHistoryEntry();
     }, 60000);
     return () => { if (historyTimerRef.current) clearInterval(historyTimerRef.current); };
-  }, [state, saveHistoryEntry]);
+  }, [saveHistoryEntry]);
 
   const handleRange = useCallback((key: keyof typeof state, value: number) => {
     update({ [key]: value } as Partial<typeof state>);

@@ -124,3 +124,45 @@ export const getBinanceWallet = functions
       res.status(500).json({ error: error.message || "Failed to fetch wallet balances" });
     }
   });
+
+export const syncBinanceLoans = functions
+  .region("europe-west1")
+  .runWith({ secrets: ["FUNCTIONS_CONFIG_EXPORT"] })
+  .https.onRequest(async (req, res) => {
+    // Enable CORS
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
+    }
+
+    try {
+      const raw = binanceConfigRaw.value();
+      const bConfig = JSON.parse(raw).binance;
+      if (!bConfig?.api_key || !bConfig?.api_secret) {
+        res.status(500).json({ error: "Binance API keys not configured" });
+        return;
+      }
+
+      const apiKey = bConfig.api_key;
+      const apiSecret = bConfig.api_secret;
+
+      const [ongoing, collateral, loanable] = await Promise.all([
+        binanceRequest("/sapi/v2/loan/flexible/ongoing/orders", "GET", {}, apiKey, apiSecret).catch(e => ({ rows: [] })),
+        binanceRequest("/sapi/v2/loan/flexible/collateral/data", "GET", {}, apiKey, apiSecret).catch(e => ({ rows: [] })),
+        binanceRequest("/sapi/v2/loan/flexible/loanable/data", "GET", {}, apiKey, apiSecret).catch(e => ({ rows: [] }))
+      ]);
+
+      res.json({
+        ongoing: ongoing.rows || [],
+        collateral: collateral.rows || [],
+        loanable: loanable.rows || []
+      });
+    } catch (error: any) {
+      console.error("[syncBinanceLoans] Error:", error.message);
+      res.status(500).json({ error: error.message || "Failed to sync Binance loans" });
+    }
+  });

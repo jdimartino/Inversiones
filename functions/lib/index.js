@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getBinanceWallet = exports.proxyFetch = exports.getFuturesTrades = exports.getBinancePrices = exports.testFuturesAlerts = exports.futuresSync = exports.testFutures = exports.testDailyPnlSnapshot = exports.dailyPnlSnapshot = exports.testDailyReport = exports.dailyPortfolioReport = exports.checkIntervalTasks = exports.testTradingSignals = exports.testAlerts = exports.setupTestAlerts = exports.debugLogs = exports.debugInversiones = exports.debugAlerts = exports.analyzeMarket = void 0;
+exports.syncBybitLoans = exports.syncBinanceLoans = exports.getBinanceWallet = exports.proxyFetch = exports.getFuturesTrades = exports.getBinancePrices = exports.testFuturesAlerts = exports.futuresSync = exports.testFutures = exports.testDailyPnlSnapshot = exports.dailyPnlSnapshot = exports.testDailyReport = exports.dailyPortfolioReport = exports.checkIntervalTasks = exports.testTradingSignals = exports.testAlerts = exports.setupTestAlerts = exports.debugLogs = exports.debugInversiones = exports.debugAlerts = exports.analyzeMarket = void 0;
 const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 const axios_1 = require("axios");
@@ -18,6 +18,9 @@ const proxyFetch_1 = require("./proxyFetch");
 Object.defineProperty(exports, "proxyFetch", { enumerable: true, get: function () { return proxyFetch_1.proxyFetch; } });
 const getBinanceWallet_1 = require("./getBinanceWallet");
 Object.defineProperty(exports, "getBinanceWallet", { enumerable: true, get: function () { return getBinanceWallet_1.getBinanceWallet; } });
+Object.defineProperty(exports, "syncBinanceLoans", { enumerable: true, get: function () { return getBinanceWallet_1.syncBinanceLoans; } });
+const syncBybitLoans_1 = require("./syncBybitLoans");
+Object.defineProperty(exports, "syncBybitLoans", { enumerable: true, get: function () { return syncBybitLoans_1.syncBybitLoans; } });
 admin.initializeApp();
 const db = admin.firestore();
 // ─── Telegram config (Ahora gestionados por Secret Manager) ──────────────────
@@ -182,12 +185,14 @@ async function runCheckAlerts() {
         const inv = docSnap.data();
         const symbol = `${inv.coin}USDT`;
         const currentPrice = prices[symbol] || 0;
-        const currentValue = currentPrice * inv.quantity;
-        totalInvested += inv.invested || 0;
+        const qty = parseFloat(inv.quantity) || 0;
+        const invested = parseFloat(inv.invested) || 0;
+        const currentValue = currentPrice * qty;
+        totalInvested += invested;
         totalCurrentValue += currentValue;
-        const pnl = currentValue - (inv.invested || 0);
+        const pnl = currentValue - invested;
         const alertRules = investmentAlerts[docSnap.id];
-        const roiPercent = (inv.invested && inv.invested > 0) ? (pnl / inv.invested) * 100 : 0;
+        const roiPercent = (invested > 0) ? (pnl / invested) * 100 : 0;
         if (Array.isArray(alertRules) && alertRules.length > 0) {
             const remaining = [];
             let hasInvChanged = false;
@@ -201,14 +206,14 @@ async function runCheckAlerts() {
                 const prevSide = rule._lastSide;
                 // Base condition check
                 let conditionMet = false;
-                if (type === 'pnl' && inv.invested > 0) {
+                if (type === 'pnl' && invested > 0) {
                     const target = rule.targetPercent || 0;
                     if (direction === 'up' && roiPercent >= target)
                         conditionMet = true;
                     else if (direction === 'down' && roiPercent <= target)
                         conditionMet = true;
                 }
-                else if (type === 'pnl' && !(inv.invested > 0)) {
+                else if (type === 'pnl' && !(invested > 0)) {
                     console.warn(`[SKIP] Alerta PNL ignorada — invested=0 para ${inv.coin} (${docSnap.id})`);
                 }
                 else if (type === 'price') {
@@ -221,7 +226,7 @@ async function runCheckAlerts() {
                 // Persistent alerts fire on crossing OR on first evaluation (prevSide undefined) if condition is already met
                 const isTriggered = conditionMet && (!rule.isPersistent || prevSide === undefined || prevSide !== currentSide);
                 if (isTriggered) {
-                    if (type === 'pnl' && inv.invested > 0) {
+                    if (type === 'pnl' && invested > 0) {
                         const target = rule.targetPercent || 0;
                         if (direction === 'up') {
                             triggeredIndividualMessages.push(`🚀 *${inv.coin}* subió a *${pnlSign(roiPercent)}${roiPercent.toFixed(1)}%* (Meta: 🔼 >= ${target}%)`
@@ -534,15 +539,10 @@ async function runCheckAlerts() {
             if (isTriggered) {
                 const emoji = changePct >= 0 ? '📈' : '📉';
                 const directionEmoji = rule.direction === 'up' ? '🔼' : '🔽';
-                // Calcular PNL del portfolio para esta moneda
-                const coinInvestments = individualAssets.filter(a => a.coin === coin);
-                const coinPnl = coinInvestments.reduce((s, a) => s + a.pnl, 0);
-                const coinInvested = coinInvestments.reduce((s, a) => s + a.invested, 0);
-                const coinRoi = coinInvested > 0 ? (coinPnl / coinInvested) * 100 : 0;
-                const hasCoinPnl = coinInvestments.length > 0;
                 triggeredCandleMessages.push(`${emoji} *${coin}* — Vela ${rule.interval.toUpperCase()}: *${pnlSign(changePct)}${changePct.toFixed(2)}%*\n` +
-                    `   Meta: ${directionEmoji} Variación ${rule.direction === 'up' ? '>=' : '<='} ${threshold}%` +
-                    (hasCoinPnl ? `\n   ${pnlEmoji(coinPnl)} PNL: *${pnlSign(coinPnl)}$${Math.abs(coinPnl).toFixed(2)}* (${pnlSign(coinRoi)}${coinRoi.toFixed(1)}%)` : '') +
+                    `   Meta: ${directionEmoji} Variación ${rule.direction === 'up' ? '>=' : '<='} ${threshold}%\n` +
+                    `   Apertura: ${fmtPrice(open)}\n` +
+                    `   Cierre: ${fmtPrice(close)}` +
                     (rule.note ? `\n   _📝 ${rule.note}_` : ''));
                 console.log(`[CANDLE ALERT] ${coin} ${rule.interval}: ${changePct.toFixed(2)}% — Target: ${rule.direction === 'up' ? '>=' : '<='} ${threshold}% — Tipo: ${rule.isPersistent ? 'PERMANENTE' : 'UNA VEZ'}`);
                 if (rule.isPersistent) {
@@ -949,8 +949,8 @@ async function runDailyReport() {
         const inv = docSnap.data();
         const symbol = SYMBOL_MAP[inv.coin] || `${inv.coin}USDT`;
         const currentPrice = prices[symbol] || 0;
-        const qty = inv.quantity || 0;
-        const invested = inv.invested || 0;
+        const qty = parseFloat(inv.quantity) || 0;
+        const invested = parseFloat(inv.invested) || 0;
         const currentValue = currentPrice * qty;
         const pnl = currentValue - invested;
         const roi = invested > 0 ? (pnl / invested) * 100 : 0;

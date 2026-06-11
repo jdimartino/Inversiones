@@ -99,6 +99,8 @@ export const testFuturesAlerts = functions
                     if (liqPrice > 0 && markPrice > 0) {
                         distToLiqPercent = ((markPrice - liqPrice) / markPrice) * 100;
                     }
+                    const initialMargin = parseFloat(p.initialMargin);
+                    const roe = initialMargin > 0 ? (unrealizedPnl / initialMargin) * 100 : 0;
                     return {
                         symbol: p.symbol,
                         side: parseFloat(p.positionAmt) > 0 ? "LONG" : "SHORT",
@@ -108,8 +110,9 @@ export const testFuturesAlerts = functions
                         liquidationPrice: liqPrice,
                         leverage: parseInt(risk.leverage || "1"),
                         unrealizedPnl,
-                        initialMargin: parseFloat(p.initialMargin),
+                        initialMargin,
                         distToLiqPercent,
+                        roe,
                     };
                 });
 
@@ -160,9 +163,10 @@ export const testFuturesAlerts = functions
                 message =
                     `${emoji} *${pos.symbol}* — Alerta de ROE USD\n` +
                     `━━━━━━━━━━━━━━━━━━━━\n` +
-                    `PnL actual: *${pnl >= 0 ? "+" : ""}$${pnl.toFixed(2)}*\n` +
-                    `${pos.side} ${pos.leverage}x | ROE: ${pos.roe >= 0 ? "+" : ""}${(pos.roe || 0).toFixed(1)}%\n` +
-                    `Precio mark: $${pos.markPrice.toFixed(2)}`;
+                    `Valor actual: *${pnl >= 0 ? "+" : ""}$${pnl.toFixed(2)}*\n` +
+                    `${pos.side} ${pos.leverage}x\n` +
+                    `Precio mark: $${pos.markPrice.toFixed(2)}\n` +
+                    `PnL: ${pos.roe >= 0 ? "+" : ""}${(pos.roe || 0).toFixed(1)}%`;
             } else {
                 // Margin ratio alert
                 const emoji = marginRatio >= 90 ? "🔴" : marginRatio >= 80 ? "🟠" : "🟡";

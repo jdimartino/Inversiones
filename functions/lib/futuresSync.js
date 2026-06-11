@@ -216,10 +216,13 @@ async function checkFuturesAlerts(data) {
                 const valueStr = alert.type === "roe"
                     ? `${currentValue >= 0 ? "+" : ""}${currentValue.toFixed(1)}%`
                     : `${currentValue >= 0 ? "+" : ""}$${currentValue.toFixed(2)}`;
+                const pnlStr = alert.type === "roe"
+                    ? `${pos.unrealizedPnl >= 0 ? "+" : ""}$${pos.unrealizedPnl.toFixed(2)}`
+                    : `${pos.roe >= 0 ? "+" : ""}${pos.roe.toFixed(2)}%`;
                 messages.push(`${emoji} *${pos.symbol}* — Alerta de ${alert.type === "roe" ? "ROE %" : "ROE USD"}\n` +
                     `Valor actual: *${valueStr}*\n` +
                     `Meta: ${alertLabel}\n` +
-                    `PnL: ${pos.unrealizedPnl >= 0 ? "+" : ""}$${pos.unrealizedPnl.toFixed(2)}` +
+                    `PnL: ${pnlStr}` +
                     (alert.note ? `\n_${alert.note}_` : ""));
                 // One-shot: delete after firing. Persistent: keep with updated _lastSide.
                 if (alert.isPersistent) {

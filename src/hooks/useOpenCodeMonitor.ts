@@ -59,6 +59,8 @@ export function useOpenCodeMonitor() {
   const [history, setHistory] = useState<HistoryEntry[]>(loadHistoryLS);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
   const fsReady = useRef(false);
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   // Background sync from Firestore
   useEffect(() => {
@@ -89,6 +91,7 @@ export function useOpenCodeMonitor() {
       })
       .catch(() => {
         setSyncStatus("offline");
+        fsReady.current = true;
       });
   }, []);
 
@@ -111,10 +114,11 @@ export function useOpenCodeMonitor() {
   );
 
   const saveHistoryEntry = useCallback(() => {
+    const current = stateRef.current;
     setHistory((prev) => {
       const today = new Date().toLocaleDateString();
       if (prev.length > 0 && prev[prev.length - 1].date === today) return prev;
-      const entry: HistoryEntry = { date: today, cont: state.contPct, week: state.weekPct, month: state.monthPct };
+      const entry: HistoryEntry = { date: today, cont: current.contPct, week: current.weekPct, month: current.monthPct };
       const next = [...prev, entry];
       saveHistoryLS(next);
       if (fsReady.current) {
@@ -122,7 +126,7 @@ export function useOpenCodeMonitor() {
       }
       return next;
     });
-  }, [state.contPct, state.weekPct, state.monthPct]);
+  }, []);
 
   const setHistoryEntries = useCallback((entries: HistoryEntry[]) => {
     setHistory(entries);

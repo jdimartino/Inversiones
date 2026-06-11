@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldAlert, TrendingDown, AlertTriangle, Trash2, Plus, Clock, RefreshCw, CheckCircle, XCircle, FlaskConical } from 'lucide-react';
+import { ShieldAlert, TrendingDown, AlertTriangle, Trash2, Plus, RefreshCw, CheckCircle, XCircle, FlaskConical } from 'lucide-react';
 import { useLiquidationData, DebtItem, CollateralItem } from '../hooks/useLiquidationData';
 import { useBybitSync } from '../hooks/useBybitSync';
+import { useBinanceSync } from '../hooks/useBinanceSync';
 
 const generateId = () => {
   const _crypto = typeof window !== 'undefined' ? (window.crypto as any) : null;
@@ -43,7 +44,10 @@ export default function LiquidationDashboard() {
   const { exchangeData, saveExchangeData, loading: dataLoading } = useLiquidationData();
 
   // Bybit sync
-  const { syncLoansFromBybit, isSyncing, lastSyncedAt, syncError } = useBybitSync();
+  const { syncLoansFromBybit, isSyncing: isSyncingBybit, lastSyncedAt: lastSyncedBybit, syncError: syncErrorBybit } = useBybitSync();
+
+  // Binance sync
+  const { syncLoansFromBinance, isSyncing: isSyncingBinance, lastSyncedAt: lastSyncedBinance, syncError: syncErrorBinance } = useBinanceSync();
 
   // Usar precios del exchange (Bybit/Binance) directamente del sync
   const liveExchangeData = exchangeData;
@@ -55,7 +59,7 @@ export default function LiquidationDashboard() {
     }
   }, [toast]);
 
-  // Auto-sync al montar y cada 5 minutos (sin toast)
+  // Auto-sync Bybit al montar y cada 5 minutos (sin toast)
   useEffect(() => {
     const sync = async () => {
       try {
@@ -73,12 +77,26 @@ export default function LiquidationDashboard() {
     return () => clearInterval(interval);
   }, [saveExchangeData, syncLoansFromBybit]);
 
-  // Sync handler manual: con toast y validación de tab
+  // Auto-sync Binance al montar y cada 5 minutos (sin toast)
+  useEffect(() => {
+    const sync = async () => {
+      try {
+        const mapped = await syncLoansFromBinance();
+        if (mapped) {
+          await saveExchangeData(prev => ({
+            ...prev,
+            binance: { ...prev.binance, ...mapped }
+          }));
+        }
+      } catch {}
+    };
+    sync();
+    const interval = setInterval(sync, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [saveExchangeData, syncLoansFromBinance]);
+
+  // Sync handler manual Bybit: con toast
   const handleSyncBybit = async () => {
-    if (activeTab !== 'bybit') {
-      setToast({ message: 'Sync disponible solo para Bybit', type: 'error' });
-      return;
-    }
     try {
       const mapped = await syncLoansFromBybit();
       if (mapped) {
@@ -89,9 +107,37 @@ export default function LiquidationDashboard() {
         setToast({ message: 'Sincronizado con Bybit correctamente', type: 'success' });
       }
     } catch (err) {
-      setToast({ message: syncError || 'Error al sincronizar con Bybit', type: 'error' });
+      setToast({ message: syncErrorBybit || 'Error al sincronizar con Bybit', type: 'error' });
     }
   };
+
+  // Sync handler manual Binance: con toast
+  const handleSyncBinance = async () => {
+    try {
+      const mapped = await syncLoansFromBinance();
+      if (mapped) {
+        await saveExchangeData(prev => ({
+          ...prev,
+          binance: { ...prev.binance, ...mapped }
+        }));
+        setToast({ message: 'Sincronizado con Binance correctamente', type: 'success' });
+      }
+    } catch (err) {
+      setToast({ message: syncErrorBinance || 'Error al sincronizar con Binance', type: 'error' });
+    }
+  };
+
+  // Handler unificado del botón Sync
+  const handleSync = () => {
+    if (activeTab === 'bybit') {
+      handleSyncBybit();
+    } else {
+      handleSyncBinance();
+    }
+  };
+
+  const isSyncing = isSyncingBybit || isSyncingBinance;
+  const activeLastSynced = activeTab === 'bybit' ? lastSyncedBybit : lastSyncedBinance;
 
   if (dataLoading) {
     return <div className="text-center py-10 text-gray-500 animate-pulse">Cargando simulador...</div>;
@@ -240,19 +286,19 @@ export default function LiquidationDashboard() {
 
           <div className="flex flex-wrap gap-2">
             <button
-              onClick={handleSyncBybit}
-              disabled={isSyncing || activeTab !== 'bybit'}
+              onClick={handleSync}
+              disabled={isSyncing}
               className="px-2.5 py-1.5 rounded-md bg-[#181A20] border border-green-900/50 hover:border-green-700 hover:bg-gray-800 text-green-400 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-              title={activeTab !== 'bybit' ? 'Sync solo disponible para Bybit' : 'Sincronizar préstamos y colateral desde Bybit'}
+              title={`Sincronizar préstamos y colateral desde ${activeTab === 'bybit' ? 'Bybit' : 'Binance'}`}
             >
               <RefreshCw size={16} className={isSyncing ? "animate-spin" : ""} />
               <span className="hidden sm:inline text-sm font-medium">
-                {isSyncing ? 'Sincronizando...' : 'Sync Bybit'}
+                {isSyncing ? 'Sincronizando...' : `Sync ${activeTab === 'bybit' ? 'Bybit' : 'Binance'}`}
               </span>
             </button>
-            {lastSyncedAt && (
+            {activeLastSynced && (
               <span className="text-[10px] text-slate-500 self-center hidden md:inline">
-                Último sync: {new Date(lastSyncedAt).toLocaleTimeString()}
+                Último sync: {new Date(activeLastSynced).toLocaleTimeString()}
               </span>
             )}
             <button
@@ -420,7 +466,7 @@ export default function LiquidationDashboard() {
                   <div className="col-span-3 flex items-center gap-1">
                     <input type="text" value={item.id} onChange={(e) => handleDebtChange(index, 'id', e.target.value)} className="w-full bg-transparent text-white font-bold outline-none uppercase px-1.5 py-1.5" placeholder="USDT" />
                     {item.synced && (
-                      <span className="text-[9px] bg-green-500/20 text-green-400 px-1 rounded whitespace-nowrap flex-shrink-0">BYBIT</span>
+                      <span className="text-[9px] bg-green-500/20 text-green-400 px-1 rounded whitespace-nowrap flex-shrink-0">{activeTab.toUpperCase()}</span>
                     )}
                   </div>
                   <div className="col-span-3">
@@ -463,7 +509,7 @@ export default function LiquidationDashboard() {
                   <div className="col-span-3 flex items-center gap-1">
                     <input type="text" value={asset.id} onChange={(e) => handleCollateralChange(index, 'id', e.target.value)} className="w-full bg-transparent text-white font-bold outline-none uppercase px-1.5 py-1.5" placeholder="BTC" />
                     {asset.synced && (
-                      <span className="text-[9px] bg-green-500/20 text-green-400 px-1 rounded whitespace-nowrap flex-shrink-0">BYBIT</span>
+                      <span className="text-[9px] bg-green-500/20 text-green-400 px-1 rounded whitespace-nowrap flex-shrink-0">{activeTab.toUpperCase()}</span>
                     )}
                   </div>
                   <div className="col-span-4">
@@ -524,7 +570,7 @@ export default function LiquidationDashboard() {
                   {currentData.marginCallLTV && (
                     <div className="mt-2 flex items-center gap-2 text-xs text-yellow-400">
                       <AlertTriangle size={14} />
-                      <span>Alerta Bybit a LTV {currentData.marginCallLTV}%</span>
+                      <span>Alerta {currentData.name} a LTV {currentData.marginCallLTV}%</span>
                     </div>
                   )}
                 </>

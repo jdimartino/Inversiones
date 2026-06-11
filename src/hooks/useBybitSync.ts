@@ -1,6 +1,43 @@
 import { useState, useCallback } from "react";
-import { fetchCryptoLoanPosition, fetchOngoingFlexibleLoans, fetchCollateralData, CryptoLoanPosition, FlexibleLoanItem } from "../lib/bybit";
+import { FIREBASE_FUNCTIONS_URL } from "../lib/firebase";
 import type { ExchangeLiqData } from "./useLiquidationData";
+
+// ─── Tipos de la respuesta de la Cloud Function ───────────────────
+interface BybitPosition {
+  borrowList: Array<{
+    flexibleHourlyInterestRate: string;
+    flexibleTotalDebt: string;
+    loanCurrency: string;
+  }>;
+  collateralList: Array<{
+    amount: string;
+    amountUSD: string;
+    currency: string;
+  }>;
+  ltv: string;
+  totalCollateral: string;
+  totalDebt: string;
+}
+
+interface BybitFlexibleLoan {
+  hourlyInterestRate: string;
+  loanCurrency: string;
+  totalDebt: string;
+  unpaidInterest: string;
+}
+
+interface BybitCollateralEntry {
+  currency: string;
+  initialLTV: string;
+  marginCallLTV: string;
+  liquidationLTV: string;
+}
+
+interface BybitSyncResponse {
+  position: BybitPosition | null;
+  flexibleLoans: BybitFlexibleLoan[];
+  collateralData: Record<string, BybitCollateralEntry[]>;
+}
 
 // ─── Generador de IDs ─────────────────────────────────────────────
 const generateId = (): string => {
@@ -12,16 +49,15 @@ const generateId = (): string => {
 
 // ─── Conversión: API Bybit → Formato de la app ───────────────────
 function mapBybitToExchangeData(
-  position: CryptoLoanPosition,
-  flexibleLoans: FlexibleLoanItem[],
+  position: BybitPosition,
+  flexibleLoans: BybitFlexibleLoan[],
   collateralDataMap: Record<string, { initialLTV: number; marginCallLTV: number; liquidationLTV: number }>
 ): Partial<ExchangeLiqData> {
   const now = Date.now();
 
-  // Debts: borrowList → debts[]
   const debts = (position.borrowList || []).map((item) => {
     const hourlyRate = parseFloat(item.flexibleHourlyInterestRate) || 0;
-    const apy = hourlyRate * 24 * 365 * 100; // → percentage annual
+    const apy = hourlyRate * 24 * 365 * 100;
     const flexLoan = flexibleLoans.find(f => f.loanCurrency === item.loanCurrency);
     return {
       _id: generateId(),
@@ -36,7 +72,6 @@ function mapBybitToExchangeData(
     };
   });
 
-  // Collateral: collateralList → collateral[]
   const collateral = (position.collateralList || []).map((item) => {
     const amount = parseFloat(item.amount) || 0;
     const amountUSD = parseFloat(item.amountUSD) || 0;
@@ -51,12 +86,10 @@ function mapBybitToExchangeData(
     };
   });
 
-  // Usar agregados que Bybit ya calculó (coinciden exacto con la página)
   const totalDebt = parseFloat(position.totalDebt) || 0;
   const totalCollateral = parseFloat(position.totalCollateral) || 0;
-  const ltvFromExchange = parseFloat(position.ltv) * 100; // 0.6115 → 61.15%
+  const ltvFromExchange = parseFloat(position.ltv) * 100;
 
-  // LTV reales del API: per-coin liquidationLTV + weighted average
   const perCoinLiqLTV: Record<string, number> = {};
   const DEFAULT_LIQ = 92;
   let weightedSum = 0;
@@ -68,19 +101,17 @@ function mapBybitToExchangeData(
     weightedSum += item.amount * item.price * liqLTV;
   }
 
-  // Weighted average: each coin contributes proportionally to its USD weight
   const effectiveLiqLTV = totalCollateral > 0 ? weightedSum / totalCollateral : DEFAULT_LIQ;
   const weightedAvgLiqLTV = Math.round(effectiveLiqLTV * 100) / 100;
 
-  // Default slider value: 92 (user adjusts manually)
   const liquidationLTV = 92;
 
-  // Margin call: use the lowest per-coin value (earliest warning)
   let marginCallLTV = 100;
-  for (const [coin, data] of Object.entries(collateralDataMap)) {
+  for (const [, data] of Object.entries(collateralDataMap)) {
     if (data.marginCallLTV < marginCallLTV) marginCallLTV = data.marginCallLTV;
   }
-  if (marginCallLTV === 100) marginCallLTV = 87; // default fallback
+  if (marginCallLTV === 100) marginCallLTV = 87;
+
   return {
     debts,
     collateral,
@@ -104,22 +135,19 @@ export function useBybitSync() {
     setIsSyncing(true);
     setSyncError(null);
     try {
-      const [position, flexibleLoans] = await Promise.all([
-        fetchCryptoLoanPosition(),
-        fetchOngoingFlexibleLoans(),
-      ]);
+      const res = await fetch(`${FIREBASE_FUNCTIONS_URL}/syncBybitLoans`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      const data: BybitSyncResponse = await res.json();
+      if ((data as any).error) throw new Error((data as any).error);
 
-      // Fetch LTV thresholds per collateral coin from legacy endpoint
-      const collateralCoins = (position.collateralList || []).map(c => c.currency);
-      const collateralResults = await Promise.all(
-        collateralCoins.map(coin => fetchCollateralData(coin).catch(() => []))
-      );
+      if (!data.position) {
+        throw new Error("No se pudo obtener la posición de Bybit");
+      }
 
+      // Construir collateralDataMap desde la respuesta de la cloud function
       const collateralDataMap: Record<string, { initialLTV: number; marginCallLTV: number; liquidationLTV: number }> = {};
-      collateralCoins.forEach((coin, i) => {
-        const items = collateralResults[i];
-        // Find the entry matching this coin (flexible loan type)
-        const match = items.find(item => item.currency === coin);
+      for (const [coin, entries] of Object.entries(data.collateralData || {})) {
+        const match = entries.find((item) => item.currency === coin);
         if (match) {
           collateralDataMap[coin] = {
             initialLTV: (parseFloat(match.initialLTV) || 0.80) * 100,
@@ -127,9 +155,9 @@ export function useBybitSync() {
             liquidationLTV: (parseFloat(match.liquidationLTV) || 0.92) * 100,
           };
         }
-      });
+      }
 
-      const mapped = mapBybitToExchangeData(position, flexibleLoans, collateralDataMap);
+      const mapped = mapBybitToExchangeData(data.position, data.flexibleLoans, collateralDataMap);
       setLastSyncedAt(Date.now());
       return mapped;
     } catch (err: unknown) {
