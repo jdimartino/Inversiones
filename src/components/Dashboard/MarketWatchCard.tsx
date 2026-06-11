@@ -93,7 +93,7 @@ const MarketWatchRow: React.FC<{
                 }}
             />
             <span className="text-[11px] md:text-xs text-gray-300 font-semibold w-[48px] md:w-[56px] flex-shrink-0 truncate text-center md:text-left">{coin}</span>
-            <div className="flex items-center gap-0.5 md:gap-1">
+            <div className="flex items-center gap-0.5 md:gap-1 -ml-4">
                 <span className={`text-[11px] md:text-xs font-mono tabular-nums text-center md:text-right w-[82px] md:w-28 ${changeColor}`}>
                     {fmtUSD(price)}
                 </span>
@@ -151,11 +151,11 @@ const MarketWatchCard: React.FC<MarketWatchCardProps> = ({
 
     const renderColumn = (coins: string[]) => (
         <div className="flex flex-col items-center">
-            <div className="flex items-center justify-center md:justify-start gap-0.5 px-1 py-1.5 border-b border-gray-800/60 mb-0.5">
+            <div className="w-full flex items-center justify-center md:justify-start gap-0.5 px-1 py-1.5 border-b border-gray-800/60 mb-0.5">
                 <span className="text-[11px] text-gray-600 font-medium w-3 hidden md:block" />
                 <span className="text-[11px] text-gray-600 font-medium w-5 hidden md:block" />
                 <span className="text-[11px] text-gray-600 font-medium w-[48px] md:w-[56px] flex-shrink-0 truncate text-center md:text-left">Símbolo</span>
-                <div className="flex items-center gap-0.5 md:gap-1">
+                <div className="flex items-center gap-0.5 md:gap-1 -ml-4">
                     <span className="text-[11px] text-gray-600 text-center md:text-right w-[82px] md:w-28">Última</span>
                     <span className="text-[11px] text-gray-600 text-center md:text-right w-[60px] md:w-20">Cbo</span>
                     <span className="text-[11px] text-gray-600 text-center md:text-right w-[44px] md:w-14">Camb%</span>
