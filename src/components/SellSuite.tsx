@@ -5,7 +5,6 @@ import {
   Monitor, CheckCircle2,
   Save, FolderOpen, X, ShoppingCart
 } from 'lucide-react';
-import { usePrices } from '../hooks/usePrices';
 import { useSellStrategies, SellStrategy, SellStrategyData } from '../hooks/useSellStrategies';
 import { AVAILABLE_COINS, ProcessedInvestment } from '../lib/constants';
 import DeleteButton from './DeleteButton';
@@ -373,14 +372,15 @@ const SellCalculator = ({
   onOpenSaved,
   onSaveStrategy,
   loadedData,
-  strategyCount
+  strategyCount,
+  prices
 }: {
   onOpenSaved: () => void;
   onSaveStrategy: (name: string, data: SellStrategyData) => void;
   loadedData: SellStrategy | null;
   strategyCount: number;
+  prices: Record<string, number>;
 }) => {
-  const { prices } = usePrices();
   const [coin, setCoin] = useState('DOGE');
   const [quantity, setQuantity] = useState(55167.7);
   const [entryPrice, setEntryPrice] = useState(0.0915);
@@ -657,12 +657,13 @@ const BuyCalculator = ({
   loadedCoin,
   loadedUsdt,
   loadedSellPrice,
+  prices,
 }: {
   loadedCoin?: string;
   loadedUsdt?: number;
   loadedSellPrice?: number;
+  prices: Record<string, number>;
 }) => {
-  const { prices } = usePrices();
   const [coin, setCoin] = useState(loadedCoin || 'BTC');
   const [usdtAmount, setUsdtAmount] = useState(loadedUsdt || 1000);
   const [sellPrice, setSellPrice] = useState(loadedSellPrice || 0);
@@ -921,7 +922,7 @@ const BuyCalculator = ({
 };
 
 // --- EXPORTE GLOBAL ---
-export default function SellSuite({ preload, buyPreload }: { preload?: ProcessedInvestment | null; buyPreload?: BuyPreload | null }) {
+export default function SellSuite({ preload, buyPreload, prices }: { preload?: ProcessedInvestment | null; buyPreload?: BuyPreload | null; prices: Record<string, number> }) {
   const [mode, setMode] = useState<'sell' | 'buy'>('sell');
   const [view, setView] = useState<'sell' | 'saved'>('sell');
   const [loadedData, setLoadedData] = useState<SellStrategy | null>(null);
@@ -1009,6 +1010,7 @@ export default function SellSuite({ preload, buyPreload }: { preload?: Processed
           loadedCoin={buyPreload?.coin}
           loadedUsdt={buyPreload?.usdtAmount}
           loadedSellPrice={buyPreload?.sellPrice}
+          prices={prices}
         />
       ) : (
         <SellCalculator
@@ -1016,6 +1018,7 @@ export default function SellSuite({ preload, buyPreload }: { preload?: Processed
           onSaveStrategy={handleSaveStrategy}
           loadedData={loadedData}
           strategyCount={strategies.length}
+          prices={prices}
         />
       )}
       <Toast message={toastMessage} />

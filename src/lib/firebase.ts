@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import {
-    getFirestore,
+    initializeFirestore,
+    memoryLocalCache,
     collection,
     addDoc,
     updateDoc,
@@ -25,7 +26,7 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const db: Firestore = getFirestore(app);
+const db: Firestore = initializeFirestore(app, { localCache: memoryLocalCache(), experimentalForceLongPolling: true });
 
 /** Base URL for Firebase Cloud Functions — derived from projectId. */
 export const FIREBASE_FUNCTIONS_URL = `https://europe-west1-${firebaseConfig.projectId}.cloudfunctions.net`;

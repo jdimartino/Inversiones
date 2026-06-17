@@ -26,12 +26,20 @@ const DEFAULT_LIQUIDEZ: LiquidezData = {
 };
 
 const STORAGE_KEY = "liquidez_cache";
+const VERSION_KEY = "liquidez_version";
+const CURRENT_VERSION = 2;
+
 const DOC_PATH = doc(db, "settings", "liquidezData");
 
 type SaveStatus = "idle" | "guardando" | "guardado" | "error";
 
 function readCache(): LiquidezData | null {
   try {
+    const version = localStorage.getItem(VERSION_KEY);
+    if (version !== String(CURRENT_VERSION)) {
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) return JSON.parse(raw) as LiquidezData;
   } catch {}
@@ -41,6 +49,7 @@ function readCache(): LiquidezData | null {
 function writeCache(data: LiquidezData) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    localStorage.setItem(VERSION_KEY, String(CURRENT_VERSION));
   } catch {}
 }
 
@@ -55,36 +64,53 @@ export function useLiquidez() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const loadingRef = useRef(true);
+
   useEffect(() => {
+    const cached = readCache();
+    if (cached) {
+      const initial = { ...DEFAULT_LIQUIDEZ, ...cached };
+      dataRef.current = initial;
+      setLiquidez(initial);
+      setLoading(false);
+      loadingRef.current = false;
+    }
+
     const unsubscribe = onSnapshot(
       DOC_PATH,
       (snapshot) => {
-        if (snapshot.exists()) {
-          const data = { ...DEFAULT_LIQUIDEZ, ...snapshot.data() } as LiquidezData;
-          dataRef.current = data;
-          setLiquidez(data);
-          writeCache(data);
-        } else {
-          const cached = readCache();
-          const initial = { ...DEFAULT_LIQUIDEZ, ...cached };
-          dataRef.current = initial;
-          setLiquidez(initial);
-        }
+        const data = snapshot.exists()
+          ? { ...DEFAULT_LIQUIDEZ, ...snapshot.data() } as LiquidezData
+          : { ...DEFAULT_LIQUIDEZ, ...readCache() };
+        dataRef.current = data;
+        setLiquidez(data);
+        writeCache(data);
         setLoading(false);
+        loadingRef.current = false;
       },
       (err) => {
         console.error("Error fetching liquidez data", err);
         setError("Error de conexión");
-        const cached = readCache();
-        if (cached) {
-          const safeData = { ...DEFAULT_LIQUIDEZ, ...cached };
-          dataRef.current = safeData;
-          setLiquidez(safeData);
-        }
         setLoading(false);
+        loadingRef.current = false;
       }
     );
-    return () => unsubscribe();
+
+    const timeout = setTimeout(() => {
+      if (loadingRef.current) {
+        const cached = readCache();
+        const safe = { ...DEFAULT_LIQUIDEZ, ...cached };
+        dataRef.current = safe;
+        setLiquidez(safe);
+        setLoading(false);
+        loadingRef.current = false;
+      }
+    }, 8000);
+
+    return () => {
+      unsubscribe();
+      clearTimeout(timeout);
+    };
   }, []);
 
   const saveToFirestore = useCallback(async (data: LiquidezData) => {

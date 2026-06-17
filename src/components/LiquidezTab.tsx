@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Wallet, Bitcoin, CheckCircle, AlertCircle, Loader2, RefreshCw, Calendar } from "lucide-react";
 import { useLiquidez, useBinanceFundingBalance } from "../hooks/useLiquidez";
-import { usePrices } from "../hooks/usePrices";
 
 function formatNumber(n: number, decimals = 2): string {
   return n.toLocaleString("en-US", {
@@ -158,10 +157,9 @@ function NumericInput({
   );
 }
 
-export default function LiquidezTab() {
+export default function LiquidezTab({ prices }: { prices: Record<string, number> }) {
   const { liquidez, updateLiquidez, saveStatus, lastSavedAt, loading } = useLiquidez();
   const { usdtFunding, usdtSpot, loading: walletLoading, error: walletError, refresh: refreshWallet } = useBinanceFundingBalance();
-  const { prices } = usePrices(["BTC"]);
 
   const btcPrice = prices["BTC"] || 0;
   const totalFlujo = liquidez.saldoBancos + liquidez.efectivo + usdtFunding + liquidez.otros;

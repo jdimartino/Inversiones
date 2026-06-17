@@ -499,7 +499,7 @@ const App: React.FC = () => {
         {activeTab === "venta" && (
           <div key="venta" className={tabClass}>
             <Suspense fallback={<div className="py-20 text-center text-slate-500 text-sm">Cargando...</div>}>
-              <SellSuite preload={sellPreload} buyPreload={buyPreload} />
+              <SellSuite preload={sellPreload} buyPreload={buyPreload} prices={prices} />
             </Suspense>
           </div>
         )}
@@ -534,6 +534,7 @@ const App: React.FC = () => {
                   totalPnl={totalPnl}
                   selectedCoins={selectedCoins}
                   onSelectedCoinsChange={setSelectedCoins}
+                  prices={prices}
                 />
               </Suspense>
             </div>
@@ -564,7 +565,7 @@ const App: React.FC = () => {
         {activeTab === "liquidez" && (
           <div key="liquidez" className={tabClass}>
             <Suspense fallback={<div className="py-20 text-center text-slate-500 text-sm">Cargando liquidez...</div>}>
-              <LiquidezTab />
+              <LiquidezTab prices={prices} />
             </Suspense>
           </div>
         )}

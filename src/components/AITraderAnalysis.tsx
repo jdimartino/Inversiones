@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { Brain, Loader2, RefreshCw, AlertTriangle } from "lucide-react";
 import type { CoinSignal, FearGreedData } from "../lib/types/signals";
 import { getFunctions, httpsCallable } from "firebase/functions";
@@ -50,6 +50,12 @@ const AITraderAnalysis: React.FC<AITraderAnalysisProps> = ({ coin, signal, fearG
                 return prev - 1;
             });
         }, 1000);
+    }, []);
+
+    useEffect(() => {
+        return () => {
+            if (cooldownTimer.current) clearInterval(cooldownTimer.current);
+        };
     }, []);
 
     const handleAnalyze = useCallback(async () => {

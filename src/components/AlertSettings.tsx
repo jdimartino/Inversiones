@@ -3,7 +3,6 @@ import { Trash2, Edit2, Repeat, Clock, History, CheckCircle, AlertTriangle, Tren
 import { AlertConfig, GlobalAlert, InvestmentAlert, WatchlistAlert, CandleAlert } from "../hooks/useAlerts";
 import type { SaleRecord } from "../lib/constants";
 import { usePortfolio } from "../hooks/usePortfolio";
-import { usePrices } from "../hooks/usePrices";
 import { useNotificationLogs } from "../hooks/useNotificationLogs";
 import { useBinanceSymbols } from "../hooks/useBinanceSymbols";
 import { fmtUSD, fmtPrice } from "../lib/format";
@@ -24,11 +23,11 @@ interface AlertSettingsProps {
     totalPnl?: number;
     selectedCoins?: string[];
     onSelectedCoinsChange?: (coins: string[]) => void;
+    prices: Record<string, number>;
 }
 
-function AlertSettings({ config, saveConfig, onRefresh, refreshing, onEditGlobal, onEditInvestment, onOpenWatchlist, onEditWatchlistAlert, onOpenCandleAlert, onEditCandleAlert, sales, totalPnl = 0, selectedCoins = [], onSelectedCoinsChange }: AlertSettingsProps) {
+function AlertSettings({ config, saveConfig, onRefresh, refreshing, onEditGlobal, onEditInvestment, onOpenWatchlist, onEditWatchlistAlert, onOpenCandleAlert, onEditCandleAlert, sales, totalPnl = 0, selectedCoins = [], onSelectedCoinsChange, prices }: AlertSettingsProps) {
     const { portfolio } = usePortfolio();
-    const { prices } = usePrices();
     const { logs, loading: logsLoading } = useNotificationLogs(15);
     const [savingId, setSavingId] = useState<string | null>(null);
     const [showTickerConfig, setShowTickerConfig] = useState(false);
