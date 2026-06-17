@@ -48,7 +48,7 @@ const DEFAULT_MODELS: Record<string, ModelData> = {
 
 
 const OpenCodeMonitor: React.FC = () => {
-  const { state, syncStatus, update, history, setHistory, saveHistoryEntry, resetState } = useOpenCodeMonitor();
+  const { state, syncStatus, update, history, setHistory, saveHistoryEntry, saveModelChangeEntry, resetState } = useOpenCodeMonitor();
 
   const [showHistory, setShowHistory] = useState(false);
   const [estimatorModel, setEstimatorModel] = useState("");
@@ -172,6 +172,7 @@ const OpenCodeMonitor: React.FC = () => {
       if (!msg) {
         msg = "✅ Todos los modelos están actualizados";
       } else {
+        saveModelChangeEntry(msg.trim().replace(/\n/g, " | "));
         // Build the new models map by merging parsed data into current models
         const newModelCount = Object.keys(models).length - missingFromPage.length + newModels.length;
         setModels(prev => {
@@ -199,7 +200,7 @@ const OpenCodeMonitor: React.FC = () => {
       setCheckResult(`⚠️ No se pudo verificar: ${err.message}. Visita opencode.ai/docs/go/ manualmente`);
       setTimeout(() => setCheckResult(null), 8000);
     }
-  }, [models]);
+  }, [models, saveModelChangeEntry]);
 
   const saveNow = useCallback(() => {
     setSaveResult({ msg: "💾 Guardando...", type: "info" });
@@ -649,14 +650,18 @@ const OpenCodeMonitor: React.FC = () => {
                   {history.length === 0 ? (
                     <p style={{fontSize:".75rem", color:"var(--muted)"}}>Sin histórico aún</p>
                   ) : (
-                    history.slice(-7).reverse().map((h, i) => (
+                    history.slice(-14).reverse().map((h, i) => (
                       <div className="om-history-item" key={i}>
                         <span className="om-history-date">{h.date}</span>
-                        <div className="om-history-bars">
-                          <span style={{color:"var(--cont)"}}>{h.cont}%</span>
-                          <span style={{color:"var(--week)"}}>{h.week}%</span>
-                          <span style={{color:"var(--month)"}}>{h.month}%</span>
-                        </div>
+                        {h.type === "models" ? (
+                          <span style={{fontSize:".7rem", color:"var(--cont)", fontFamily:"'DM Mono', monospace", textAlign:"right", flex:1}}>{h.summary}</span>
+                        ) : (
+                          <div className="om-history-bars">
+                            <span style={{color:"var(--cont)"}}>{h.cont}%</span>
+                            <span style={{color:"var(--week)"}}>{h.week}%</span>
+                            <span style={{color:"var(--month)"}}>{h.month}%</span>
+                          </div>
+                        )}
                       </div>
                     ))
                   )}

@@ -17,9 +17,11 @@ export interface MonitorState {
 
 export interface HistoryEntry {
   date: string;
-  cont: number;
-  week: number;
-  month: number;
+  type?: "usage" | "models";
+  cont?: number;
+  week?: number;
+  month?: number;
+  summary?: string;
 }
 
 const LS_STATE_KEY = "opencode-v3-state";
@@ -136,6 +138,22 @@ export function useOpenCodeMonitor() {
     }
   }, []);
 
+  const saveModelChangeEntry = useCallback((summary: string) => {
+    setHistory((prev) => {
+      const entry: HistoryEntry = {
+        date: new Date().toLocaleString(),
+        type: "models",
+        summary,
+      };
+      const next = [...prev, entry];
+      saveHistoryLS(next);
+      if (fsReady.current) {
+        setDoc(doc(db, FS_DOC_PATH), { history: next }, { merge: true }).catch(() => {});
+      }
+      return next;
+    });
+  }, []);
+
   const resetState = useCallback(() => {
     const fresh = { ...defaultState, updatedAt: Date.now() };
     setState(fresh);
@@ -145,5 +163,5 @@ export function useOpenCodeMonitor() {
     }
   }, []);
 
-  return { state, syncStatus, update, history, setHistory: setHistoryEntries, saveHistoryEntry, resetState };
+  return { state, syncStatus, update, history, setHistory: setHistoryEntries, saveHistoryEntry, saveModelChangeEntry, resetState };
 }
