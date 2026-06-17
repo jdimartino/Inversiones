@@ -112,6 +112,14 @@ export function useLiquidez() {
 
   const updateLiquidez = useCallback(
     (field: keyof LiquidezData, value: number | string) => {
+      const current = dataRef.current[field];
+      if (current === value) return;
+
+      if (typeof current === "number" && typeof value === "number") {
+        if (current === 0 && value === 0) return;
+        if (current !== 0 && Math.abs((value - current) / current) < 0.0001) return;
+      }
+
       const newData = { ...dataRef.current, [field]: value };
       dataRef.current = newData;
       setLiquidez(newData);

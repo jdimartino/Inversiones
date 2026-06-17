@@ -171,15 +171,6 @@ export default function LiquidezTab() {
   const btcMensual = liquidez.btcDisponible / 240;
   const usdtMensual = btcMensual * btcPrice;
 
-  useEffect(() => {
-    if (liquidez.btcDisponible > 0 && btcPrice > 0) {
-      const mensual = liquidez.btcDisponible / 240;
-      updateLiquidez("btcMensual", mensual);
-      updateLiquidez("usdtMensual", mensual * btcPrice);
-      updateLiquidez("precioBtcSnapshot", btcPrice);
-    }
-  }, [liquidez.btcDisponible, btcPrice]);
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20 text-slate-500 text-sm">
@@ -387,7 +378,7 @@ export default function LiquidezTab() {
                     <div>
                       <div className="text-[10px] text-slate-500 uppercase">Precio ref.</div>
                       <div className="text-xs text-slate-400 font-mono mt-0.5">
-                        ${formatNumber(liquidez.precioBtcSnapshot || btcPrice)}
+                        ${formatNumber(btcPrice)}
                       </div>
                     </div>
                     <div>
