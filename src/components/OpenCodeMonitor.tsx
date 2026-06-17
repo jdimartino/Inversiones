@@ -53,7 +53,6 @@ const OpenCodeMonitor: React.FC = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [estimatorModel, setEstimatorModel] = useState("");
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
-  const [saveResult, setSaveResult] = useState<{ msg: string; type: string } | null>(null);
   const [checkResult, setCheckResult] = useState<string | null>(null);
   const [models, setModels] = useState<Record<string, ModelData>>(() => {
     try {
@@ -201,13 +200,6 @@ const OpenCodeMonitor: React.FC = () => {
       setTimeout(() => setCheckResult(null), 8000);
     }
   }, [models, saveModelChangeEntry]);
-
-  const saveNow = useCallback(() => {
-    setSaveResult({ msg: "💾 Guardando...", type: "info" });
-    update({ ...state });
-    setTimeout(() => setSaveResult({ msg: "✅ Guardado en la nube", type: "success" }), 400);
-    setTimeout(() => setSaveResult(null), 4000);
-  }, [update, state]);
 
   const updateEstimator = useCallback((modelId: string) => {
     setEstimatorModel(modelId);
@@ -418,9 +410,6 @@ const OpenCodeMonitor: React.FC = () => {
           <div className="om-header-buttons">
             <button className="om-btn" onClick={checkUpdates}>
               {checkResult && checkResult.startsWith("✅") ? "✅ Verificado" : "🔄 Verificar actualizaciones"}
-            </button>
-            <button className="om-btn primary" onClick={saveNow}>
-              💾 Guardar
             </button>
             <button className="om-btn" onClick={toggleHistory}>📈 Histórico</button>
             <button className="om-btn" onClick={resetAll}>🗑 Limpiar</button>
@@ -674,10 +663,6 @@ const OpenCodeMonitor: React.FC = () => {
 
       {copyFeedback && (
         <div className="om-copy-feedback">✓ Copiado: {copyFeedback}</div>
-      )}
-
-      {saveResult && (
-        <div className={`om-msg ${saveResult.type}`}>{saveResult.msg}</div>
       )}
 
       {checkResult && (
