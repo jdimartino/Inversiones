@@ -24,7 +24,7 @@
     <div id="root"></div>
   <script>
     (function(){
-      fetch('/asset-manifest.json', {cache: 'no-cache'})
+      fetch('/asset-manifest.json?v=' + Date.now(), {cache: 'no-cache'})
         .then(function(r){ return r.json(); })
         .then(function(data){
           var current = data.files && data.files['main.js'];
