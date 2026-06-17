@@ -57,37 +57,22 @@ export const getBinanceWallet = functions
 
       const { api_key: apiKey, api_secret: apiSecret } = bConfig;
 
-      let fundingAssets: any[];
-      try {
-        fundingAssets = await binanceRequest(
-          "/sapi/v1/asset/get-funding-asset",
-          "POST",
-          {},
-          apiKey,
-          apiSecret
-        );
-      } catch (e: any) {
-        console.error("[getBinanceWallet] Funding asset error:", e.response?.data || e.message);
-        fundingAssets = [];
-      }
+      const [fundingAssets, accountInfo] = await Promise.all([
+        binanceRequest("/sapi/v1/asset/get-funding-asset", "POST", {}, apiKey, apiSecret)
+          .catch((e: any) => {
+            console.error("[getBinanceWallet] Funding asset error:", e.response?.data || e.message);
+            return [];
+          }),
+        binanceRequest("/api/v3/account", "GET", {}, apiKey, apiSecret)
+          .catch((e: any) => {
+            console.error("[getBinanceWallet] Spot account error:", e.response?.data || e.message);
+            throw new Error("Spot fetch failed: " + (e.response?.data?.msg || e.message));
+          }),
+      ]);
 
-      let spotBalances: any[] = [];
-      try {
-        const accountInfo = await binanceRequest(
-          "/api/v3/account",
-          "GET",
-          {},
-          apiKey,
-          apiSecret
-        );
-        spotBalances = (accountInfo.balances || []).filter(
-          (b: any) => parseFloat(b.free) > 0 || parseFloat(b.locked) > 0
-        );
-      } catch (e: any) {
-        console.error("[getBinanceWallet] Spot account error:", e.response?.data || e.message);
-        res.status(500).json({ error: "Spot fetch failed: " + (e.response?.data?.msg || e.message) });
-        return;
-      }
+      const spotBalances = (accountInfo.balances || []).filter(
+        (b: any) => parseFloat(b.free) > 0 || parseFloat(b.locked) > 0
+      );
 
       const result: Record<string, { funding: number; spot: number }> = {};
 
