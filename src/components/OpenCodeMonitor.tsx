@@ -32,14 +32,13 @@ function detectTier(reqs5h: number): string {
 const DEFAULT_MODELS: Record<string, ModelData> = {
   "deepseek-v4-flash": { name: "DeepSeek V4 Flash", reqs5h: 31650, reqsWeek: 79050, reqsMonth: 158150, tier: "ultra" },
   "mimo-v2.5": { name: "MiMo-V2.5", reqs5h: 30100, reqsWeek: 75200, reqsMonth: 150400, tier: "ultra" },
-  "minimax-m2.5": { name: "MiniMax M2.5", reqs5h: 6300, reqsWeek: 15900, reqsMonth: 31800, tier: "light" },
   "minimax-m2.7": { name: "MiniMax M2.7", reqs5h: 3400, reqsWeek: 8500, reqsMonth: 17000, tier: "medium" },
   "qwen3.7-plus": { name: "Qwen3.7 Plus", reqs5h: 4300, reqsWeek: 10800, reqsMonth: 21600, tier: "medium" },
   "qwen3.6-plus": { name: "Qwen3.6 Plus", reqs5h: 3300, reqsWeek: 8200, reqsMonth: 16300, tier: "medium" },
-  "kimi-k2.5": { name: "Kimi K2.5", reqs5h: 1850, reqsWeek: 4630, reqsMonth: 9250, tier: "heavy" },
-  "minimax-m3": { name: "MiniMax M3", reqs5h: 1400, reqsWeek: 3500, reqsMonth: 7000, tier: "heavy" },
+  "kimi-k2.7-code": { name: "Kimi K2.7 Code", reqs5h: 1350, reqsWeek: 4630, reqsMonth: 9250, tier: "medium" },
+  "minimax-m3": { name: "MiniMax M3", reqs5h: 3200, reqsWeek: 8000, reqsMonth: 16000, tier: "light" },
   "kimi-k2.6": { name: "Kimi K2.6", reqs5h: 1150, reqsWeek: 2880, reqsMonth: 5750, tier: "heavy" },
-  "glm-5": { name: "GLM-5", reqs5h: 1150, reqsWeek: 2880, reqsMonth: 5750, tier: "heavy" },
+  "glm-5.2": { name: "GLM-5.2", reqs5h: 880, reqsWeek: 2150, reqsMonth: 4300, tier: "heavy" },
   "glm-5.1": { name: "GLM-5.1", reqs5h: 880, reqsWeek: 2150, reqsMonth: 4300, tier: "heavy" },
   "deepseek-v4-pro": { name: "DeepSeek V4 Pro", reqs5h: 3450, reqsWeek: 8550, reqsMonth: 17150, tier: "medium" },
   "mimo-v2.5-pro": { name: "MiMo-V2.5-Pro", reqs5h: 3250, reqsWeek: 8150, reqsMonth: 16300, tier: "light" },
@@ -122,24 +121,7 @@ const OpenCodeMonitor: React.FC = () => {
       const cleanNum = (s: string) => parseInt(stripHtml(s).replace(/[,.]/g, ""), 10);
       const rawName = stripHtml(cells[0]);
 
-      const nameMap: Record<string, string> = {
-        "DeepSeek V4 Flash": "deepseek-v4-flash",
-        "MiMo-V2.5": "mimo-v2.5",
-        "MiniMax M2.5": "minimax-m2.5",
-        "MiMo-V2.5-Pro": "mimo-v2.5-pro",
-        "DeepSeek V4 Pro": "deepseek-v4-pro",
-        "MiniMax M2.7": "minimax-m2.7",
-        "Qwen3.6 Plus": "qwen3.6-plus",
-        "Kimi K2.5": "kimi-k2.5",
-        "GLM-5": "glm-5",
-        "Kimi K2.6": "kimi-k2.6",
-        "Qwen3.7 Max": "qwen3.7-max",
-        "GLM-5.1": "glm-5.1",
-        "MiniMax M3": "minimax-m3",
-        "Qwen3.7 Plus": "qwen3.7-plus",
-      };
-
-      const id = nameMap[rawName];
+      const id = rawName.toLowerCase().replace(/\s+/g, '-');
       if (!id) continue;
 
       const reqs = [cells[1], cells[2], cells[3]].map(cleanNum);
