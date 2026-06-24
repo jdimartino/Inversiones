@@ -173,6 +173,18 @@ async function runCheckAlerts() {
         if (coin) prices[`${coin}USDT`] = parseFloat(item.price);
     }
 
+    const eurCoins = ["ADAEUR", "DOGEEUR"];
+    for (const coin of eurCoins) {
+        try {
+            const { data } = await axios.get(`https://api.bybit.com/v5/market/tickers?category=spot&symbol=${coin}`);
+            if (data.retCode === 0 && data.result?.list?.length > 0) {
+                prices[`${coin}USDT`] = parseFloat(data.result.list[0].lastPrice);
+            }
+        } catch (err) {
+            console.error(`[checkAlerts] Error fetching Bybit for ${coin}:`, err);
+        }
+    }
+
     const configSnap = await db.collection("config").doc("alerts").get();
     let investmentAlerts: Record<string, AlertRule[]> = {};
     let globalAlerts: GlobalAlertRule[] = [];

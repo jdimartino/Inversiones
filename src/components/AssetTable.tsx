@@ -132,11 +132,11 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                                 <div className="grid grid-cols-2 gap-2 text-sm">
                                     <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50 text-center">
                                         <p className="text-[10px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Valor Total</p>
-                                        <p className="text-slate-400 font-mono text-[13px] font-bold">{fmtUSD(item.currentValue)}</p>
+                                        <p className="text-slate-400 font-mono text-[13px] font-bold">{fmtUSD(item.currentValue, item.coin.endsWith("EUR"))}</p>
                                     </div>
                                     <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50 text-center">
                                         <p className="text-[10px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Precio Compra</p>
-                                        <p className="text-sky-400 font-mono text-[13px]">{fmtPrice(item.buyPrice)}</p>
+                                        <p className="text-sky-400 font-mono text-[13px]">{fmtPrice(item.buyPrice, item.coin.endsWith("EUR"))}</p>
                                     </div>
                                     <div
                                         className={`bg-slate-900/40 p-2 rounded-lg border border-slate-700/50 text-center ${onViewChart ? 'cursor-pointer hover:border-slate-500' : ''}`}
@@ -144,13 +144,13 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                                         title={onViewChart ? "Ver gráfico" : undefined}
                                     >
                                         <p className="text-[10px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">Precio Actual</p>
-                                        <p className={`font-mono text-[13px] font-bold ${priceColor(priceDirections[item.coin])}`}>{fmtPrice(item.currentPrice)}</p>
+                                        <p className={`font-mono text-[13px] font-bold ${priceColor(priceDirections[item.coin])}`}>{fmtPrice(item.currentPrice, item.coin.endsWith("EUR"))}</p>
                                     </div>
                                     <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50 text-center">
                                         <p className="text-[10px] uppercase text-slate-500 font-bold mb-0.5 tracking-wider">PNL Neto</p>
                                         <div className="flex items-baseline justify-center gap-1.5">
                                             <span className={`font-bold text-sm ${item.profit >= 0 ? "text-green-400" : "text-red-400"}`}>
-                                                {item.profit >= 0 ? "+" : ""}{fmtUSD(item.profit)}
+                                                {item.profit >= 0 ? "+" : ""}{fmtUSD(item.profit, item.coin.endsWith("EUR"))}
                                             </span>
                                             <span className={`text-[13px] font-bold ${item.profit >= 0 ? "text-green-600" : "text-red-600"}`}>
                                                 {item.profit >= 0 ? "+" : ""}{item.roi.toFixed(2)}%
@@ -221,17 +221,17 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                                         {fmt(item.quantity)}
                                     </td>
                                     <td className="p-5 text-right text-slate-400 font-mono font-bold">
-                                        {fmtUSD(item.currentValue)}
+                                        {fmtUSD(item.currentValue, item.coin.endsWith("EUR"))}
                                     </td>
                                     <td className="p-5 text-right text-sky-400 font-mono">
-                                        {fmtPrice(item.buyPrice)}
+                                        {fmtPrice(item.buyPrice, item.coin.endsWith("EUR"))}
                                     </td>
                                     <td
                                         className={`p-5 text-right font-mono font-bold ${priceColor(priceDirections[item.coin])} ${onViewChart ? 'cursor-pointer hover:underline' : ''}`}
                                         onClick={() => onViewChart?.(item)}
                                         title={onViewChart ? "Ver gráfico" : undefined}
                                     >
-                                        {fmtPrice(item.currentPrice)}
+                                        {fmtPrice(item.currentPrice, item.coin.endsWith("EUR"))}
                                     </td>
                                     <td className="p-5 text-right">
                                         <div
@@ -239,7 +239,7 @@ const AssetTable: React.FC<AssetTableProps> = React.memo(
                                                 }`}
                                         >
                                             {item.profit >= 0 ? "+" : ""}
-                                            {fmtUSD(item.profit)}
+                                            {fmtUSD(item.profit, item.coin.endsWith("EUR"))}
                                         </div>
                                         <div
                                             className={`text-xs font-bold ${item.profit >= 0 ? "text-green-600" : "text-red-600"

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect, useRef, Suspense } from "react";
+import React, { useState, useMemo, useCallback, useRef, Suspense } from "react";
 import { RefreshCw } from "lucide-react";
 import {
   RISK_PARAMS,

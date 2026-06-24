@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Wallet, Bitcoin, CheckCircle, AlertCircle, Loader2, RefreshCw, Calendar } from "lucide-react";
 import { useLiquidez, useBinanceFundingBalance } from "../hooks/useLiquidez";
+import { useFutures } from "../hooks/useFutures";
 
 function formatNumber(n: number, decimals = 2): string {
   return n.toLocaleString("en-US", {
@@ -160,11 +161,12 @@ function NumericInput({
 export default function LiquidezTab({ prices }: { prices: Record<string, number> }) {
   const { liquidez, updateLiquidez, saveStatus, lastSavedAt, loading } = useLiquidez();
   const { usdtFunding, usdtSpot, loading: walletLoading, error: walletError, refresh: refreshWallet } = useBinanceFundingBalance();
-
+  const { futuresData } = useFutures();
+  
+  const futuresBalance = futuresData?.account?.totalWalletBalance ?? 0;
   const btcPrice = prices["BTC"] || 0;
-  const totalFlujo = liquidez.saldoBancos + liquidez.efectivo + usdtFunding + liquidez.otros;
+  const totalFlujo = liquidez.saldoBancos + liquidez.efectivo + liquidez.inversionesSpot + usdtFunding + futuresBalance;
   const totalBtc = liquidez.btcDisponible * btcPrice;
-  const liquidezTotal = totalFlujo + totalBtc;
 
   const btcMensual = liquidez.btcDisponible / 240;
   const usdtMensual = btcMensual * btcPrice;
@@ -206,6 +208,17 @@ export default function LiquidezTab({ prices }: { prices: Record<string, number>
               <NumericInput
                 value={liquidez.efectivo}
                 onChange={(v) => updateLiquidez("efectivo", v)}
+                placeholder="0.00"
+              />
+              <span className="text-slate-500 text-xs w-10 text-right">USDT</span>
+            </div>
+
+            {/* Inversiones en Spot */}
+            <div className="flex items-center gap-3">
+              <label className="text-slate-400 text-sm w-28 flex-shrink-0">Inversiones en Spot</label>
+              <NumericInput
+                value={liquidez.inversionesSpot}
+                onChange={(v) => updateLiquidez("inversionesSpot", v)}
                 placeholder="0.00"
               />
               <span className="text-slate-500 text-xs w-10 text-right">USDT</span>
@@ -258,25 +271,17 @@ export default function LiquidezTab({ prices }: { prices: Record<string, number>
               <span className="text-slate-600 text-xs w-10 text-right">USDT</span>
             </div>
 
-            {/* Otros */}
-            <div className="flex items-center gap-2">
-              <label className="text-slate-400 text-sm w-28 flex-shrink-0">Otros</label>
-              <NumericInput
-                value={liquidez.otros}
-                onChange={(v) => updateLiquidez("otros", v)}
-                placeholder="0.00"
-              />
-              <span className="text-slate-500 text-xs w-10 text-right flex-shrink-0">USDT</span>
-              <input
-                type="text"
-                maxLength={60}
-                value={liquidez.otrosNota}
-                onChange={(e) => updateLiquidez("otrosNota" as any, e.target.value)}
-                placeholder="¿De qué es?"
-                className="bg-slate-800/50 border border-slate-700/50 rounded-lg px-2 py-2 text-slate-400 text-xs w-32
-                  focus:outline-none focus:ring-1 focus:ring-yellow-500/30 focus:border-yellow-500/50
-                  placeholder:text-slate-600 transition-colors"
-              />
+            {/* Futuros (Automático) */}
+            <div className="flex items-center gap-3">
+              <label className="text-slate-500 text-sm w-28 flex-shrink-0 flex items-center gap-1">
+                Futuros
+              </label>
+              <div className="flex-1 max-w-[180px] bg-slate-800/30 border border-slate-700/30 rounded-lg px-3 py-2 text-right">
+                <span className="text-slate-400 font-medium">
+                  {formatNumber(futuresBalance)}
+                </span>
+              </div>
+              <span className="text-slate-600 text-xs w-10 text-right">USDT</span>
             </div>
 
             {/* Total Flujo */}

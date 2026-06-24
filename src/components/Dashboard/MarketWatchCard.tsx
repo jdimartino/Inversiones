@@ -95,7 +95,7 @@ const MarketWatchRow: React.FC<{
             <span className="text-[11px] md:text-xs text-gray-300 font-semibold w-[48px] md:w-[56px] flex-shrink-0 truncate text-center md:text-left">{coin}</span>
             <div className="flex items-center gap-0.5 md:gap-1 -ml-4">
                 <span className={`text-[11px] md:text-xs font-mono tabular-nums text-center md:text-right w-[82px] md:w-28 ${changeColor}`}>
-                    {fmtUSD(price)}
+                    {fmtUSD(price, coin.endsWith("EUR"))}
                 </span>
                 <span className={`text-[11px] md:text-xs font-mono tabular-nums text-center md:text-right w-[60px] md:w-20 flex-shrink-0 ${changeColor}`}>
                     {fmtChange(change, price)}

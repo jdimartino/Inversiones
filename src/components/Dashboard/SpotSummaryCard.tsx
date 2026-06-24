@@ -61,16 +61,16 @@ const SpotSummaryCard: React.FC<SpotSummaryCardProps> = ({
                                             {item.coin}
                                         </td>
                                         <td className="py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums">
-                                            {fmtUSD(item.currentValue)}
+                                            {fmtUSD(item.currentValue, item.coin.endsWith("EUR"))}
                                         </td>
                                         <td className="py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums text-blue-400">
-                                            {fmtPrice(item.buyPrice)}
+                                            {fmtPrice(item.buyPrice, item.coin.endsWith("EUR"))}
                                         </td>
                                         <td className={`py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums ${priceDirections[item.coin] === 'up' ? 'text-green-400' : priceDirections[item.coin] === 'down' ? 'text-red-400' : 'text-white'}`}>
-                                            {fmtPrice(item.currentPrice)}
+                                            {fmtPrice(item.currentPrice, item.coin.endsWith("EUR"))}
                                         </td>
                                         <td className={`py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums font-bold ${item.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                            <div>{item.profit >= 0 ? '+' : ''}{fmtUSD(item.profit)}</div>
+                                            <div>{item.profit >= 0 ? '+' : ''}{fmtUSD(item.profit, item.coin.endsWith("EUR"))}</div>
                                             <div className="text-[10px] font-normal">({item.roi >= 0 ? '+' : ''}{item.roi.toFixed(2)}%)</div>
                                         </td>
                                     </tr>

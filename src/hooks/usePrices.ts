@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { fetchBinancePrices, fetchDynamicPrices, fetchPrevClosePrices } from "../lib/binance";
+import { fetchBybitTickers } from "../lib/bybit";
+import { AVAILABLE_COINS } from "../lib/constants";
 
 const POLL_INTERVAL_MS = 15_000;
 
@@ -33,13 +35,17 @@ export function usePrices(selectedCoins?: string[]) {
         try {
             let data: Record<string, number>;
 
-            if (selectedCoins && selectedCoins.length > 0) {
-                // Modo dinámico: fetch precios para monedas seleccionadas
-                data = await fetchDynamicPrices(selectedCoins, controller.signal);
-            } else {
-                // Modo legacy: fetch solo las 13 monedas hardcodeadas
-                data = await fetchBinancePrices(controller.signal);
-            }
+            const coinsToFetch = selectedCoins && selectedCoins.length > 0 ? selectedCoins : AVAILABLE_COINS;
+            const bybitCoins = coinsToFetch.filter(c => c.endsWith('EUR'));
+            const binanceCoins = coinsToFetch.filter(c => !c.endsWith('EUR'));
+
+            const [binanceData, bybitData] = await Promise.all([
+                binanceCoins.length > 0 ? fetchDynamicPrices(binanceCoins, controller.signal) : Promise.resolve({ USDT: 1.0 }),
+                bybitCoins.length > 0 ? fetchBybitTickers(bybitCoins) : Promise.resolve({})
+            ]);
+            
+            data = { ...binanceData, ...bybitData };
+            if (!data.USDT) data.USDT = 1.0;
 
             const dirs: Record<string, PriceDirection> = {};
             for (const coin of Object.keys(data)) {
@@ -67,10 +73,13 @@ export function usePrices(selectedCoins?: string[]) {
 
     // Fetch previous daily close prices once on mount / when coins change
     useEffect(() => {
-        if (!selectedCoins || selectedCoins.length === 0) return;
+        const coinsToFetch = selectedCoins && selectedCoins.length > 0 ? selectedCoins : AVAILABLE_COINS;
+        const binanceCoins = coinsToFetch.filter(c => !c.endsWith('EUR'));
+        
+        if (binanceCoins.length === 0) return;
 
         const controller = new AbortController();
-        fetchPrevClosePrices(selectedCoins, controller.signal)
+        fetchPrevClosePrices(binanceCoins, controller.signal)
             .then(setPrevDailyCloses)
             .catch((e) => {
                 if (e instanceof DOMException && e.name === "AbortError") return;

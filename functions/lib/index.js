@@ -105,7 +105,7 @@ function normalizeGlobalAlerts(rawArray) {
 }
 // ─── Core Logic ───────────────────────────────────────────────────────────────
 async function runCheckAlerts() {
-    var _a;
+    var _a, _b, _c;
     console.log("[v2.2] Iniciando comprobación de alertas...");
     // Use the same Binance API as the frontend to ensure price consistency
     const SYMBOL_MAP = {
@@ -125,6 +125,18 @@ async function runCheckAlerts() {
         const coin = reverseMap[item.symbol];
         if (coin)
             prices[`${coin}USDT`] = parseFloat(item.price);
+    }
+    const eurCoins = ["ADAEUR", "DOGEEUR"];
+    for (const coin of eurCoins) {
+        try {
+            const { data } = await axios_1.default.get(`https://api.bybit.com/v5/market/tickers?category=spot&symbol=${coin}`);
+            if (data.retCode === 0 && ((_b = (_a = data.result) === null || _a === void 0 ? void 0 : _a.list) === null || _b === void 0 ? void 0 : _b.length) > 0) {
+                prices[`${coin}USDT`] = parseFloat(data.result.list[0].lastPrice);
+            }
+        }
+        catch (err) {
+            console.error(`[checkAlerts] Error fetching Bybit for ${coin}:`, err);
+        }
     }
     const configSnap = await db.collection("config").doc("alerts").get();
     let investmentAlerts = {};
@@ -573,7 +585,7 @@ async function runCheckAlerts() {
     const shouldAlert = triggeredGlobalMessages.length > 0 || triggeredIndividualMessages.length > 0 || triggeredWatchlistMessages.length > 0 || triggeredCandleMessages.length > 0;
     // ── Always clean legacy assetAlerts field if present (no Telegram needed) ──
     const legacyCleanup = {};
-    if (configSnap.exists && ((_a = configSnap.data()) === null || _a === void 0 ? void 0 : _a.assetAlerts) !== undefined) {
+    if (configSnap.exists && ((_c = configSnap.data()) === null || _c === void 0 ? void 0 : _c.assetAlerts) !== undefined) {
         legacyCleanup.assetAlerts = admin.firestore.FieldValue.delete();
         await db.collection("config").doc("alerts").update(legacyCleanup);
         console.log("[CLEANUP] Campo legacy assetAlerts eliminado.");

@@ -162,3 +162,29 @@ export async function fetchCollateralData(currency: string): Promise<LoanCollate
   );
   return result.vipCoinList?.[0]?.list || [];
 }
+
+/**
+ * Fetch public tickers from Bybit
+ * GET /v5/market/tickers?category=spot&symbol=...
+ */
+export async function fetchBybitTickers(symbols: string[]): Promise<Record<string, number>> {
+  if (symbols.length === 0) return {};
+  const prices: Record<string, number> = {};
+
+  for (const symbol of symbols) {
+    try {
+      const url = `${BYBIT_BASE}/v5/market/tickers?category=spot&symbol=${symbol}`;
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (data.retCode === 0 && data.result?.list?.length > 0) {
+        prices[symbol] = parseFloat(data.result.list[0].lastPrice);
+      }
+    } catch (err) {
+      console.error(`Error fetching Bybit ticker for ${symbol}:`, err);
+    }
+  }
+
+  return prices;
+}
+

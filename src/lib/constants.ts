@@ -102,7 +102,7 @@ export const REVERSE_SYMBOL_MAP: Record<string, string> = Object.fromEntries(
     Object.entries(SYMBOL_MAP).map(([coin, pair]) => [pair, coin])
 );
 
-export const AVAILABLE_COINS = Object.keys(SYMBOL_MAP);
+export const AVAILABLE_COINS = [...Object.keys(SYMBOL_MAP), "ADAEUR", "DOGEEUR"];
 
 // ------------------------------------------------------------------
 //  COIN BADGE COLORS
@@ -121,6 +121,8 @@ export const COIN_COLORS: Record<string, string> = {
     SHIB: "bg-red-500/20 text-red-400 border-red-500/40",
     AVAX: "bg-red-600/20 text-red-500 border-red-600/40",
     LINK: "bg-blue-700/20 text-blue-400 border-blue-700/40",
+    ADAEUR: "bg-blue-600/20 text-blue-400 border-blue-600/40",
+    DOGEEUR: "bg-amber-400/20 text-amber-500 border-amber-400/40",
     DEFAULT: "bg-slate-700/20 text-slate-400 border-slate-700/40",
 };
 

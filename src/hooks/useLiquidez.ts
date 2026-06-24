@@ -5,6 +5,7 @@ import { FIREBASE_FUNCTIONS_URL } from "../lib/firebase";
 export interface LiquidezData {
   saldoBancos: number;
   efectivo: number;
+  inversionesSpot: number;
   btcDisponible: number;
   otros: number;
   otrosNota: string;
@@ -17,6 +18,7 @@ export interface LiquidezData {
 const DEFAULT_LIQUIDEZ: LiquidezData = {
   saldoBancos: 0,
   efectivo: 0,
+  inversionesSpot: 0,
   btcDisponible: 0,
   otros: 0,
   otrosNota: "",

@@ -48,7 +48,7 @@ const DEFAULT_MODELS: Record<string, ModelData> = {
 
 
 const OpenCodeMonitor: React.FC = () => {
-  const { state, syncStatus, update, history, setHistory, saveHistoryEntry, saveModelChangeEntry, resetState } = useOpenCodeMonitor();
+  const { state, syncStatus, update, history, saveHistoryEntry, saveModelChangeEntry, resetState } = useOpenCodeMonitor();
 
   const [showHistory, setShowHistory] = useState(false);
   const [estimatorModel, setEstimatorModel] = useState("");
@@ -146,7 +146,7 @@ const OpenCodeMonitor: React.FC = () => {
       const newModels = parsed.filter(p => !currentIds.has(p.id));
       const changedModels = parsed.filter(p => {
         const cur = models[p.id];
-        if (!cur || cur.reqs5h === p.reqs5h && cur.reqsWeek === p.reqsWeek && cur.reqsMonth === p.reqsMonth) return false;
+        if (!cur || (cur.reqs5h === p.reqs5h && cur.reqsWeek === p.reqsWeek && cur.reqsMonth === p.reqsMonth)) return false;
         return true;
       });
       const missingFromPage = Object.keys(models).filter(id => !parsed.some(p => p.id === id));
@@ -263,7 +263,7 @@ const OpenCodeMonitor: React.FC = () => {
     return "🟢";
   };
 
-  const syncIcon = syncStatus === "syncing" ? "⏳" : syncStatus === "synced" ? "☁️" : syncStatus === "offline" ? "📦" : "📦";
+
   const syncLabel = syncStatus === "syncing" ? "Sincronizando..." : syncStatus === "synced" ? "Sincronizado en la nube" : syncStatus === "offline" ? "Guardado localmente" : "Guardado localmente";
 
   return (
