@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.syncBybitLoans = exports.syncBinanceLoans = exports.getBinanceWallet = exports.proxyFetch = exports.getFuturesTrades = exports.getBinancePrices = exports.testFuturesAlerts = exports.futuresSync = exports.testFutures = exports.testDailyPnlSnapshot = exports.dailyPnlSnapshot = exports.testDailyReport = exports.dailyPortfolioReport = exports.checkIntervalTasks = exports.testTradingSignals = exports.testAlerts = exports.setupTestAlerts = exports.debugLogs = exports.debugInversiones = exports.debugAlerts = exports.analyzeMarket = void 0;
+exports.testDailyLoanSnapshot = exports.dailyLoanSnapshot = exports.syncBybitLoans = exports.syncBinanceLoans = exports.getBinanceWallet = exports.proxyFetch = exports.getFuturesTrades = exports.getBinancePrices = exports.testFuturesAlerts = exports.futuresSync = exports.testFutures = exports.testDailyPnlSnapshot = exports.dailyPnlSnapshot = exports.testDailyReport = exports.dailyPortfolioReport = exports.checkIntervalTasks = exports.testTradingSignals = exports.testAlerts = exports.setupTestAlerts = exports.debugLogs = exports.debugInversiones = exports.debugAlerts = exports.analyzeMarket = void 0;
 const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 const axios_1 = require("axios");
@@ -21,6 +21,9 @@ Object.defineProperty(exports, "getBinanceWallet", { enumerable: true, get: func
 Object.defineProperty(exports, "syncBinanceLoans", { enumerable: true, get: function () { return getBinanceWallet_1.syncBinanceLoans; } });
 const syncBybitLoans_1 = require("./syncBybitLoans");
 Object.defineProperty(exports, "syncBybitLoans", { enumerable: true, get: function () { return syncBybitLoans_1.syncBybitLoans; } });
+const dailyLoanSnapshot_1 = require("./dailyLoanSnapshot");
+Object.defineProperty(exports, "dailyLoanSnapshot", { enumerable: true, get: function () { return dailyLoanSnapshot_1.dailyLoanSnapshot; } });
+Object.defineProperty(exports, "testDailyLoanSnapshot", { enumerable: true, get: function () { return dailyLoanSnapshot_1.testDailyLoanSnapshot; } });
 admin.initializeApp();
 const db = admin.firestore();
 // ─── Telegram config (Ahora gestionados por Secret Manager) ──────────────────

@@ -1,46 +1,8 @@
 import * as functions from "firebase-functions/v1";
-import * as crypto from "crypto";
-import axios from "axios";
 import { defineSecret } from "firebase-functions/params";
+import { bybitRequest } from "./apiClients";
 
 const configRaw = defineSecret("FUNCTIONS_CONFIG_EXPORT");
-
-const BYBIT_BASE = "https://api.bybit.com";
-
-function sign(timestamp: string, apiKey: string, recvWindow: string, queryString: string, secret: string): string {
-  const signStr = timestamp + apiKey + recvWindow + queryString;
-  return crypto.createHmac("sha256", secret).update(signStr).digest("hex");
-}
-
-async function bybitRequest<T>(
-  path: string,
-  params: Record<string, string>,
-  apiKey: string,
-  apiSecret: string
-): Promise<T> {
-  const timestamp = Date.now().toString();
-  const recvWindow = "5000";
-  const queryString = new URLSearchParams(params).toString();
-  const signature = sign(timestamp, apiKey, recvWindow, queryString, apiSecret);
-
-  const url = `${BYBIT_BASE}${path}${queryString ? "?" + queryString : ""}`;
-
-  const { data } = await axios.get(url, {
-    headers: {
-      "X-BAPI-API-KEY": apiKey,
-      "X-BAPI-TIMESTAMP": timestamp,
-      "X-BAPI-SIGN": signature,
-      "X-BAPI-RECV-WINDOW": recvWindow,
-    },
-    timeout: 10000,
-  });
-
-  if (data.retCode !== 0) {
-    throw new Error(`Bybit error ${data.retCode}: ${data.retMsg}`);
-  }
-
-  return data.result as T;
-}
 
 export const syncBybitLoans = functions
   .region("europe-west1")

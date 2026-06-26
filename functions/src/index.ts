@@ -9,6 +9,7 @@ import { getBinancePrices } from "./getBinancePrices";
 import { proxyFetch } from "./proxyFetch";
 import { getBinanceWallet, syncBinanceLoans } from "./getBinanceWallet";
 import { syncBybitLoans } from "./syncBybitLoans";
+import { dailyLoanSnapshot, testDailyLoanSnapshot } from "./dailyLoanSnapshot";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -1301,4 +1302,4 @@ export const testDailyPnlSnapshot = functions
         }
     });
 
-export { testFutures, futuresSync, testFuturesAlerts, getBinancePrices, getFuturesTrades, proxyFetch, getBinanceWallet, syncBinanceLoans, syncBybitLoans };
+export { testFutures, futuresSync, testFuturesAlerts, getBinancePrices, getFuturesTrades, proxyFetch, getBinanceWallet, syncBinanceLoans, syncBybitLoans, dailyLoanSnapshot, testDailyLoanSnapshot };

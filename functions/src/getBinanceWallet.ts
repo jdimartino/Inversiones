@@ -1,38 +1,8 @@
 import * as functions from "firebase-functions/v1";
-import * as crypto from "crypto";
-import axios from "axios";
 import { defineSecret } from "firebase-functions/params";
+import { binanceRequest } from "./apiClients";
 
 const binanceConfigRaw = defineSecret("FUNCTIONS_CONFIG_EXPORT");
-
-function sign(queryString: string, secret: string): string {
-  return crypto.createHmac("sha256", secret).update(queryString).digest("hex");
-}
-
-async function binanceRequest(
-  path: string,
-  method: "GET" | "POST",
-  params: Record<string, string>,
-  apiKey: string,
-  apiSecret: string
-): Promise<any> {
-  const timestamp = Date.now();
-  const baseParams = { ...params, timestamp: String(timestamp), recvWindow: "5000" };
-  const qs = new URLSearchParams(baseParams).toString();
-  const signature = sign(qs, apiSecret);
-  const url = `https://api.binance.com${path}?${qs}&signature=${signature}`;
-  const config: any = {
-    headers: { "X-MBX-APIKEY": apiKey },
-    timeout: 10000,
-  };
-  if (method === "POST") {
-    config.headers["Content-Type"] = "application/json";
-  }
-  const { data } = method === "POST"
-    ? await axios.post(url, null, config)
-    : await axios.get(url, config);
-  return data;
-}
 
 export const getBinanceWallet = functions
   .region("europe-west1")

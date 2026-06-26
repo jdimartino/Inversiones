@@ -3,6 +3,7 @@ import { ShieldAlert, TrendingDown, AlertTriangle, Trash2, Plus, RefreshCw, Chec
 import { useLiquidationData, DebtItem, CollateralItem } from '../hooks/useLiquidationData';
 import { useBybitSync } from '../hooks/useBybitSync';
 import { useBinanceSync } from '../hooks/useBinanceSync';
+import InterestHistoryModal from './InterestHistoryModal';
 
 const generateId = () => {
   const _crypto = typeof window !== 'undefined' ? (window.crypto as any) : null;
@@ -39,6 +40,7 @@ export default function LiquidationDashboard() {
   const [toast, setToast] = useState<{message: string; type: 'success' | 'error'} | null>(null);
   const [showSimulator, setShowSimulator] = useState(false);
   const [simulationDrop, setSimulationDrop] = useState(20);
+  const [showInterestHistory, setShowInterestHistory] = useState(false);
 
   // Estado persistido en Firebase (cantidades y config, NO precios live)
   const { exchangeData, saveExchangeData, loading: dataLoading } = useLiquidationData();
@@ -265,6 +267,7 @@ export default function LiquidationDashboard() {
   const getInputClass = (val: number) => `w-full bg-transparent text-white outline-none rounded px-1.5 py-1.5 transition-all ${val <= 0 ? 'ring-1 ring-red-500 bg-red-500/10' : ''}`;
 
   const fmtNum = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 });
+  const fmtNumShort = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
     <div className="bg-[#0E1014] text-gray-100 p-3 sm:p-4 font-sans relative rounded-2xl border border-gray-800/80 shadow-2xl">
@@ -412,7 +415,7 @@ export default function LiquidationDashboard() {
             <div className="text-gray-400 text-sm mb-1">Valor del Colateral</div>
             <div className="text-xl font-bold text-white">${totalCollateralValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
           </div>
-          <div className="bg-[#181A20] p-3 rounded-xl border border-gray-800 text-center flex flex-col items-center justify-center min-h-[110px] col-span-2 md:col-span-1">
+          <div className="bg-[#181A20] p-3 rounded-xl border border-gray-800 text-center flex flex-col items-center justify-center min-h-[110px] col-span-2 md:col-span-1 cursor-pointer hover:border-orange-500/50 transition-colors" onClick={() => setShowInterestHistory(true)}>
             <div className="text-gray-400 text-sm mb-1 capitalize">Intereses {monthLabel}</div>
             <div className="text-sm font-bold text-orange-400">+${interestMTD.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
             <div className="text-[10px] text-orange-400/60">acumulado</div>
@@ -453,34 +456,34 @@ export default function LiquidationDashboard() {
               </div>
               
               <div className="overflow-x-auto">
-                <div className="grid grid-cols-12 gap-2 text-xs font-medium text-gray-400 px-1 uppercase tracking-wider min-w-[500px]">
-                  <div className="col-span-3">Activo</div>
-                  <div className="col-span-2 text-right">Cantidad</div>
-                  <div className="col-span-3 text-right">Precio ($)</div>
-                  <div className="col-span-3 text-right" title="Tasa de interés Anual">Tasa (%)</div>
-                  <div className="col-span-1"></div>
+                <div className="grid grid-cols-12 gap-2 text-xs font-medium text-gray-400 px-1 uppercase tracking-wider">
+                  <div className="col-span-4 sm:col-span-3">Activo</div>
+                  <div className="col-span-4 sm:col-span-2 text-right">Cantidad</div>
+                  <div className="col-span-4 sm:col-span-3 text-right" title="Tasa de interés Anual">Tasa (%)</div>
+                  <div className="col-span-3 text-right hidden sm:block">Precio ($)</div>
+                  <div className="col-span-1 hidden sm:block"></div>
                 </div>
 
                 {currentData.debts.map((item, index) => (
-                  <div key={item._id} className="grid grid-cols-12 gap-2 items-center bg-[#0E1014] p-2 rounded-lg border border-gray-800 focus-within:border-blue-500 transition-colors min-w-[500px]">
-                  <div className="col-span-3 flex items-center gap-1">
+                  <div key={item._id} className="grid grid-cols-12 gap-2 items-center bg-[#0E1014] p-2 rounded-lg border border-gray-800 focus-within:border-blue-500 transition-colors">
+                  <div className="col-span-4 sm:col-span-3 flex items-center gap-1">
                     <input type="text" value={item.id} onChange={(e) => handleDebtChange(index, 'id', e.target.value)} className="w-full bg-transparent text-white font-bold outline-none uppercase px-1.5 py-1.5" placeholder="USDT" />
                     {item.synced && (
                       <span className="text-[9px] bg-green-500/20 text-green-400 px-1 rounded whitespace-nowrap flex-shrink-0">{activeTab.toUpperCase()}</span>
                     )}
                   </div>
-                  <div className="col-span-3">
+                  <div className="col-span-4 sm:col-span-2">
                     <input type="text" value={fmtNum(item.amount)} onChange={(e) => handleDebtChange(index, 'amount', e.target.value)} className={`${getInputClass(item.amount)} text-right`} />
                   </div>
-                  <div className="col-span-3 flex items-center justify-end">
-                    <span className="text-gray-500 mr-1">$</span>
-                    <input type="text" value={fmtNum(item.price)} onChange={(e) => handleDebtChange(index, 'price', e.target.value)} className={`${getInputClass(item.price)} text-right w-20`} />
-                  </div>
-                  <div className="col-span-3 flex items-center justify-end">
+                  <div className="col-span-4 sm:col-span-3 flex items-center justify-end">
                     <input type="text" value={fmtNum(item.rate || 0)} onChange={(e) => handleDebtChange(index, 'rate', e.target.value)} className="w-full bg-transparent text-white outline-none px-1.5 py-1.5 text-right" />
                     <span className="text-gray-500 ml-0.5">%</span>
                   </div>
-                  <div className="col-span-1 text-right flex justify-end">
+                  <div className="col-span-3 flex items-center justify-end hidden sm:flex">
+                    <span className="text-gray-500 mr-1">$</span>
+                    <input type="text" value={fmtNum(item.price)} onChange={(e) => handleDebtChange(index, 'price', e.target.value)} className={`${getInputClass(item.price)} text-right w-20`} />
+                  </div>
+                  <div className="col-span-1 text-right flex justify-end hidden sm:flex">
                     <button onClick={() => removeDebt(index)} className="text-gray-500 hover:text-red-400 transition-colors p-1"><Trash2 size={16}/></button>
                   </div>
                 </div>
@@ -497,29 +500,29 @@ export default function LiquidationDashboard() {
               </div>
 
               <div className="overflow-x-auto">
-                <div className="grid grid-cols-12 gap-2 text-xs font-medium text-gray-400 px-1 uppercase tracking-wider min-w-[500px]">
-                  <div className="col-span-3">Activo</div>
+                <div className="grid grid-cols-12 gap-2 text-xs font-medium text-gray-400 px-1 uppercase tracking-wider">
+                  <div className="col-span-4 sm:col-span-3">Activo</div>
                   <div className="col-span-4 text-right">Cantidad</div>
                   <div className="col-span-4 text-right">Precio ($)</div>
-                  <div className="col-span-1"></div>
+                  <div className="col-span-1 hidden sm:block"></div>
                 </div>
                 
                 {currentData.collateral.map((asset, index) => (
-                  <div key={asset._id} className={`grid grid-cols-12 gap-2 items-center bg-[#0E1014] p-2 rounded-lg border border-gray-800 ${theme.borderHover} transition-colors focus-within:border-gray-600 min-w-[500px]`}>
-                  <div className="col-span-3 flex items-center gap-1">
+                  <div key={asset._id} className={`grid grid-cols-12 gap-2 items-center bg-[#0E1014] p-2 rounded-lg border border-gray-800 ${theme.borderHover} transition-colors focus-within:border-gray-600`}>
+                  <div className="col-span-4 sm:col-span-3 flex items-center gap-1">
                     <input type="text" value={asset.id} onChange={(e) => handleCollateralChange(index, 'id', e.target.value)} className="w-full bg-transparent text-white font-bold outline-none uppercase px-1.5 py-1.5" placeholder="BTC" />
                     {asset.synced && (
-                      <span className="text-[9px] bg-green-500/20 text-green-400 px-1 rounded whitespace-nowrap flex-shrink-0">{activeTab.toUpperCase()}</span>
+                      <span className="text-[8px] sm:text-[9px] bg-green-500/20 text-green-400 px-1 rounded whitespace-nowrap flex-shrink-0">{activeTab.toUpperCase()}</span>
                     )}
                   </div>
                   <div className="col-span-4">
-                    <input type="text" value={fmtNum(asset.amount)} onChange={(e) => handleCollateralChange(index, 'amount', e.target.value)} className={`${getInputClass(asset.amount)} text-right`} />
+                    <input type="text" value={fmtNumShort(asset.amount)} onChange={(e) => handleCollateralChange(index, 'amount', e.target.value)} className={`${getInputClass(asset.amount)} text-right text-[11px] sm:text-xs`} />
                   </div>
                   <div className="col-span-4 flex items-center justify-end">
-                    <span className="text-gray-500 mr-1">$</span>
-                    <span className="text-white px-1.5 py-1.5 text-right" title="Precio automático desde el mercado global">{fmtNum(asset.price)}</span>
+                    <span className="text-gray-500 mr-1 text-[11px] sm:text-xs">$</span>
+                    <span className="text-white px-1 sm:px-1.5 py-1.5 text-right text-[11px] sm:text-xs" title="Precio automático desde el mercado global">{fmtNumShort(asset.price)}</span>
                   </div>
-                  <div className="col-span-1 text-right flex justify-end">
+                  <div className="col-span-1 text-right flex justify-end hidden sm:flex">
                     <button onClick={() => removeCollateral(index)} className="text-gray-500 hover:text-red-400 transition-colors p-1"><Trash2 size={16}/></button>
                   </div>
                 </div>
@@ -647,6 +650,17 @@ export default function LiquidationDashboard() {
           </div>
         </div>
       </div>
+
+      {showInterestHistory && (
+        <InterestHistoryModal
+          isOpen={showInterestHistory}
+          onClose={() => setShowInterestHistory(false)}
+          exchange={activeTab}
+          exchangeName={currentData.name}
+          currentMonthInterest={interestMTD}
+          currentMonthEstimate={interestFullMonth}
+        />
+      )}
     </div>
   );
 }

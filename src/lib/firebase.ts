@@ -9,8 +9,11 @@ import {
     doc,
     setDoc,
     getDoc,
+    getDocs,
     onSnapshot,
     query,
+    where,
+    orderBy,
     Firestore,
     DocumentData,
 } from "firebase/firestore";
@@ -31,5 +34,5 @@ const db: Firestore = initializeFirestore(app, { localCache: memoryLocalCache(),
 /** Base URL for Firebase Cloud Functions — derived from projectId. */
 export const FIREBASE_FUNCTIONS_URL = `https://europe-west1-${firebaseConfig.projectId}.cloudfunctions.net`;
 
-export { db, collection, addDoc, updateDoc, deleteDoc, doc, setDoc, getDoc, onSnapshot, query };
+export { db, collection, addDoc, updateDoc, deleteDoc, doc, setDoc, getDoc, getDocs, onSnapshot, query, where, orderBy };
 export type { DocumentData };
