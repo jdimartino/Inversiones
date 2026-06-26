@@ -164,6 +164,7 @@ export default function LiquidezTab({ prices }: { prices: Record<string, number>
   const { futuresData } = useFutures();
   
   const futuresBalance = futuresData?.account?.totalWalletBalance ?? 0;
+  const futuresTransferible = futuresData?.account?.maxWithdrawAmount ?? 0;
   const btcPrice = prices["BTC"] || 0;
   const totalFlujo = liquidez.saldoBancos + liquidez.efectivo + liquidez.inversionesSpot + usdtFunding + futuresBalance;
   const totalBtc = liquidez.btcDisponible * btcPrice;
@@ -282,9 +283,22 @@ export default function LiquidezTab({ prices }: { prices: Record<string, number>
                 </span>
               </div>
               <span className="text-slate-600 text-xs w-10 text-right">USDT</span>
-            </div>
-
-            {/* Total Flujo */}
+             </div>
+ 
+             {/* Transferible (Referencia) */}
+             <div className="flex items-center gap-3">
+               <label className="text-slate-500 text-sm w-28 flex-shrink-0 flex items-center gap-1">
+                 Transferible
+               </label>
+               <div className="flex-1 max-w-[180px] bg-slate-800/30 border border-slate-700/30 rounded-lg px-3 py-2 text-right">
+                 <span className="text-slate-400 font-medium">
+                   {formatNumber(futuresTransferible)}
+                 </span>
+               </div>
+               <span className="text-slate-600 text-xs w-10 text-right">USDT</span>
+             </div>
+ 
+             {/* Total Flujo */}
             <div className="border-t border-slate-700/50 pt-3 mt-3">
               <div className="flex items-center justify-between">
                 <span className="text-slate-300 font-medium">Total Flujo de Caja</span>
