@@ -257,7 +257,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
 
     useEffect(() => {
         if (initialCoin && coins.includes(initialCoin)) setSelectedCoin(initialCoin);
-    }, [initialCoin]);
+    }, [initialCoin, coins]);
 
     useEffect(() => {
         onCoinChange?.(selectedCoin);
@@ -302,7 +302,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                 }));
             })
             .finally(() => setLoading(false));
-    }, [selectedCoin, klinesMap]);
+    }, [selectedCoin, klinesMap, extraKlines]);
 
     // Fetch non-1h klines on demand
     useEffect(() => {
@@ -317,7 +317,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                 }));
             })
             .finally(() => setLoading(false));
-    }, [selectedCoin, selectedInterval]);
+    }, [selectedCoin, selectedInterval, extraKlines]);
 
     // Create chart once on mount
     useEffect(() => {
@@ -582,7 +582,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                 candleSeriesRef.current?.priceScale().applyOptions({ autoScale: false });
             });
         }
-    }, [selectedCoin, selectedInterval, extraKlines, klinesMap, aggregated, items, sales]);
+    }, [selectedCoin, selectedInterval, extraKlines, klinesMap, aggregated, items, sales, getCurrentKlines]);
 
     const currentPrice = aggregated.find(a => a.coin === selectedCoin)?.currentPrice ?? 0;
     const coinItems = items.filter((inv) => inv.coin === selectedCoin);

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { fetchBinancePrices, fetchDynamicPrices, fetchPrevClosePrices } from "../lib/binance";
+import { fetchDynamicPrices, fetchPrevClosePrices } from "../lib/binance";
 import { fetchBybitTickers } from "../lib/bybit";
 import { AVAILABLE_COINS } from "../lib/constants";
 
