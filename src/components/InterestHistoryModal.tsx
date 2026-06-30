@@ -187,14 +187,6 @@ const InterestHistoryModal: React.FC<InterestHistoryModalProps> = ({
                     <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={chartData} margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
                       <defs>
-                        <linearGradient id="debtGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#f97316" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#f97316" stopOpacity={0.02} />
-                        </linearGradient>
-                        <linearGradient id="collateralGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.2} />
-                          <stop offset="95%" stopColor="#60a5fa" stopOpacity={0.02} />
-                        </linearGradient>
                         <linearGradient id="interestGradient" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#4ade80" stopOpacity={0.3} />
                           <stop offset="95%" stopColor="#4ade80" stopOpacity={0.02} />
@@ -217,20 +209,12 @@ const InterestHistoryModal: React.FC<InterestHistoryModalProps> = ({
                       <Tooltip
                         content={({ active, payload, label }: any) => {
                           if (!active || !payload?.length) return null;
-                          const deuda = payload.find((p: any) => p.dataKey === "deuda")?.value;
-                          const colateral = payload.find((p: any) => p.dataKey === "colateral")?.value;
-                          const intereses = payload.find((p: any) => p.dataKey === "interesesAcumulados")?.value;
+                          const intereses = payload[0]?.value;
                           return (
                             <div className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs shadow-xl">
                               <p className="text-slate-400 font-bold mb-1">Día {label}</p>
-                              {deuda != null && (
-                                <p className="text-orange-400">Deuda: {fmtUSD(deuda)}</p>
-                              )}
-                              {colateral != null && (
-                                <p className="text-blue-400">Colateral: {fmtUSD(colateral)}</p>
-                              )}
                               {intereses != null && (
-                                <p className="text-green-400">Intereses: {fmtUSD(intereses)}</p>
+                                <p className="text-green-400">Interés: {fmtUSD(intereses)}</p>
                               )}
                             </div>
                           );
@@ -239,24 +223,8 @@ const InterestHistoryModal: React.FC<InterestHistoryModalProps> = ({
                       <Legend wrapperStyle={{ fontSize: "10px", color: "#64748b" }} />
                       <Area
                         type="monotone"
-                        dataKey="deuda"
-                        name="Deuda"
-                        stroke="#f97316"
-                        strokeWidth={2}
-                        fill="url(#debtGradient)"
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="colateral"
-                        name="Colateral"
-                        stroke="#60a5fa"
-                        strokeWidth={2}
-                        fill="url(#collateralGradient)"
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="interesesAcumulados"
-                        name="Intereses"
+                        dataKey="interesesDiarios"
+                        name="Interés Diario"
                         stroke="#4ade80"
                         strokeWidth={2}
                         fill="url(#interestGradient)"
@@ -280,9 +248,8 @@ const InterestHistoryModal: React.FC<InterestHistoryModalProps> = ({
                       <tr className="text-gray-500 uppercase tracking-wider border-b border-gray-800">
                         <th className="px-3 py-2 text-left">Fecha</th>
                         <th className="px-3 py-2 text-right">Deuda</th>
-                        <th className="px-3 py-2 text-right">Colateral</th>
-                        <th className="px-3 py-2 text-right">LTV</th>
-                        <th className="px-3 py-2 text-right">Intereses</th>
+                        <th className="px-3 py-2 text-right">Interés (Día)</th>
+                        <th className="px-3 py-2 text-right">Acumulado</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -300,23 +267,10 @@ const InterestHistoryModal: React.FC<InterestHistoryModalProps> = ({
                           <td className="px-3 py-2 text-right text-orange-400">
                             {fmtUSD(row.deuda)}
                           </td>
-                          <td className="px-3 py-2 text-right text-blue-400">
-                            {fmtUSD(row.colateral)}
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <span
-                              className={`font-medium ${
-                                row.ltv > 85
-                                  ? "text-red-400"
-                                  : row.ltv > 75
-                                  ? "text-yellow-400"
-                                  : "text-green-400"
-                              }`}
-                            >
-                              {row.ltv.toFixed(2)}%
-                            </span>
-                          </td>
                           <td className="px-3 py-2 text-right text-green-400">
+                            {fmtUSD(row.interesesDiarios)}
+                          </td>
+                          <td className="px-3 py-2 text-right text-white">
                             {fmtUSD(row.interesesAcumulados)}
                           </td>
                         </tr>

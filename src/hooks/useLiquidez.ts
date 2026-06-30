@@ -6,6 +6,7 @@ export interface LiquidezData {
   saldoBancos: number;
   efectivo: number;
   inversionesSpot: number;
+  aporteFondoVitalicio: number;
   btcDisponible: number;
   otros: number;
   otrosNota: string;
@@ -19,6 +20,7 @@ const DEFAULT_LIQUIDEZ: LiquidezData = {
   saldoBancos: 0,
   efectivo: 0,
   inversionesSpot: 0,
+  aporteFondoVitalicio: 0,
   btcDisponible: 0,
   otros: 0,
   otrosNota: "",

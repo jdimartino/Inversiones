@@ -45,6 +45,7 @@ export interface DaySnapshot {
   deuda: number;
   colateral: number;
   ltv: number;
+  interesesDiarios: number;
   interesesAcumulados: number;
 }
 
@@ -125,15 +126,23 @@ export function snapshotsToChartData(
   snapshots: LoanSnapshot[],
   exchange: 'bybit' | 'binance'
 ): DaySnapshot[] {
-  let cumulativeInterest = 0;
-
-  return snapshots.map((snap) => {
+  return snapshots.map((snap, index) => {
     const data = snap[exchange];
-    const dayInterest = data.debts.reduce((sum, d) => sum + d.accruedInterest, 0);
-    cumulativeInterest = dayInterest;
+    const totalAccrued = data.debts.reduce((sum, d) => sum + d.accruedInterest, 0);
+
+    // Interés del día = hoy - ayer (si es el primer día, es el interés mismo)
+    const prevSnapshot = index > 0 ? snapshots[index - 1] : null;
+    const prevAccrued = prevSnapshot 
+      ? prevSnapshot[exchange].debts.reduce((sum, d) => sum + d.accruedInterest, 0)
+      : 0;
 
     const date = new Date(snap.date + "T12:00:00");
     const dia = date.getDate();
+
+    // Sin snapshot previo no podemos calcular el interés del día
+    const interesesDiarios = prevSnapshot 
+      ? Math.max(0, totalAccrued - prevAccrued)
+      : 0;
 
     return {
       date: snap.date,
@@ -141,7 +150,8 @@ export function snapshotsToChartData(
       deuda: data.totalDebt,
       colateral: data.totalCollateral,
       ltv: data.ltvFromExchange,
-      interesesAcumulados: cumulativeInterest,
+      interesesDiarios,
+      interesesAcumulados: totalAccrued,
     };
   });
 }

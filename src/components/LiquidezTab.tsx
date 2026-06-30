@@ -166,7 +166,7 @@ export default function LiquidezTab({ prices }: { prices: Record<string, number>
   const futuresBalance = futuresData?.account?.totalWalletBalance ?? 0;
   const futuresTransferible = futuresData?.account?.maxWithdrawAmount ?? 0;
   const btcPrice = prices["BTC"] || 0;
-  const totalFlujo = liquidez.saldoBancos + liquidez.efectivo + liquidez.inversionesSpot + usdtFunding + futuresBalance;
+  const totalFlujo = liquidez.saldoBancos + liquidez.efectivo + liquidez.inversionesSpot + liquidez.aporteFondoVitalicio + usdtFunding + futuresBalance;
   const totalBtc = liquidez.btcDisponible * btcPrice;
 
   const btcMensual = liquidez.btcDisponible / 240;
@@ -225,78 +225,66 @@ export default function LiquidezTab({ prices }: { prices: Record<string, number>
               <span className="text-slate-500 text-xs w-10 text-right">USDT</span>
             </div>
 
-            {/* USDT Binance Fondos (auto) - usado en cálculo */}
+            {/* Aporte Fondo Vitalicio */}
             <div className="flex items-center gap-3">
-              <label className="text-slate-400 text-sm w-28 flex-shrink-0 flex items-center gap-1">
-                USDT Fondos
-                {!walletLoading && !walletError && (
-                  <button
-                    onClick={refreshWallet}
-                    className="text-slate-600 hover:text-yellow-500 transition-colors"
-                    title="Actualizar saldo"
-                  >
-                    <RefreshCw className="w-3 h-3" />
-                  </button>
-                )}
-              </label>
-              <div className="flex-1 max-w-[180px] bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-right">
-                {walletLoading ? (
-                  <span className="text-slate-500 text-sm">Cargando...</span>
-                ) : walletError ? (
-                  <span className="text-red-400 text-sm">Error</span>
-                ) : (
-                  <span className="text-green-400 font-medium">
-                    {formatNumber(usdtFunding)}
-                  </span>
-                )}
-              </div>
+              <label className="text-slate-400 text-sm w-28 flex-shrink-0">Aporte Fondo Vitalicio</label>
+              <NumericInput
+                value={liquidez.aporteFondoVitalicio}
+                onChange={(v) => updateLiquidez("aporteFondoVitalicio", v)}
+                placeholder="0.00"
+              />
               <span className="text-slate-500 text-xs w-10 text-right">USDT</span>
             </div>
 
-            {/* USDT Binance Spot (auto) - solo informativo */}
-            <div className="flex items-center gap-3">
-              <label className="text-slate-500 text-sm w-28 flex-shrink-0 flex items-center gap-1">
-                USDT Spot
-              </label>
-              <div className="flex-1 max-w-[180px] bg-slate-800/30 border border-slate-700/30 rounded-lg px-3 py-2 text-right">
+            {/* ── Campos automáticos (2 columnas) ── */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* USDT Fondos */}
+              <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 flex items-center justify-between gap-2">
+                <span className="text-slate-400 text-xs flex items-center gap-1">
+                  Fondos
+                  {!walletLoading && !walletError && (
+                    <button
+                      onClick={refreshWallet}
+                      className="text-slate-600 hover:text-yellow-500 transition-colors"
+                      title="Actualizar saldo"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                    </button>
+                  )}
+                </span>
                 {walletLoading ? (
-                  <span className="text-slate-600 text-sm">Cargando...</span>
+                  <span className="text-slate-500 text-xs">...</span>
                 ) : walletError ? (
-                  <span className="text-red-400/60 text-sm">Error</span>
+                  <span className="text-red-400 text-xs">Err</span>
                 ) : (
-                  <span className="text-slate-400 font-medium">
-                    {formatNumber(usdtSpot)}
-                  </span>
+                  <span className="text-green-400 text-xs font-medium">{formatNumber(usdtFunding)}</span>
                 )}
               </div>
-              <span className="text-slate-600 text-xs w-10 text-right">USDT</span>
-            </div>
 
-            {/* Futuros (Automático) */}
-            <div className="flex items-center gap-3">
-              <label className="text-slate-500 text-sm w-28 flex-shrink-0 flex items-center gap-1">
-                Futuros
-              </label>
-              <div className="flex-1 max-w-[180px] bg-slate-800/30 border border-slate-700/30 rounded-lg px-3 py-2 text-right">
-                <span className="text-slate-400 font-medium">
-                  {formatNumber(futuresBalance)}
-                </span>
+              {/* USDT Spot */}
+              <div className="bg-slate-800/30 border border-slate-700/30 rounded-lg px-3 py-2 flex items-center justify-between gap-2">
+                <span className="text-slate-500 text-xs">Spot</span>
+                {walletLoading ? (
+                  <span className="text-slate-600 text-xs">...</span>
+                ) : walletError ? (
+                  <span className="text-red-400/60 text-xs">Err</span>
+                ) : (
+                  <span className="text-slate-400 text-xs">{formatNumber(usdtSpot)}</span>
+                )}
               </div>
-              <span className="text-slate-600 text-xs w-10 text-right">USDT</span>
-             </div>
- 
-             {/* Transferible (Referencia) */}
-             <div className="flex items-center gap-3">
-               <label className="text-slate-500 text-sm w-28 flex-shrink-0 flex items-center gap-1">
-                 Transferible
-               </label>
-               <div className="flex-1 max-w-[180px] bg-slate-800/30 border border-slate-700/30 rounded-lg px-3 py-2 text-right">
-                 <span className="text-slate-400 font-medium">
-                   {formatNumber(futuresTransferible)}
-                 </span>
-               </div>
-               <span className="text-slate-600 text-xs w-10 text-right">USDT</span>
-             </div>
+
+              {/* Futuros */}
+              <div className="bg-slate-800/30 border border-slate-700/30 rounded-lg px-3 py-2 flex items-center justify-between gap-2">
+                <span className="text-slate-500 text-xs">Futuros</span>
+                <span className="text-slate-400 text-xs">{formatNumber(futuresBalance)}</span>
+              </div>
+
+              {/* Transferible */}
+              <div className="bg-slate-800/30 border border-slate-700/30 rounded-lg px-3 py-2 flex items-center justify-between gap-2">
+                <span className="text-slate-500 text-xs">Transferible</span>
+                <span className="text-slate-400 text-xs">{formatNumber(futuresTransferible)}</span>
+              </div>
+            </div>
  
              {/* Total Flujo */}
             <div className="border-t border-slate-700/50 pt-3 mt-3">
