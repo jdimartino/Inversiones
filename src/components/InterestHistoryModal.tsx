@@ -49,12 +49,12 @@ const InterestHistoryModal: React.FC<InterestHistoryModalProps> = ({
   const canGoNext = !isFutureMonth(getNextMonth(selectedMonth));
 
   const summary = useMemo(() => {
-    if (snapshots.length === 0) {
+    if (snapshots.length === 0 || (isCurrentMonth && snapshots.length <= 1)) {
       return {
         realAccumulated: isCurrentMonth ? currentMonthInterest : 0,
         estimatedEndOfMonth: isCurrentMonth ? currentMonthEstimate : 0,
         avgDailyRate: 0,
-        daysRecorded: 0,
+        daysRecorded: snapshots.length,
       };
     }
     return {

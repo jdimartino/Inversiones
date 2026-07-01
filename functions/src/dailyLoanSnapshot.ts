@@ -18,6 +18,7 @@ interface SnapshotDebt {
   hourlyRate: number;
   rate: number;
   accruedInterest: number;
+  interestMTD: number;
 }
 
 interface SnapshotCollateral {
@@ -40,6 +41,7 @@ interface LoanSnapshotDoc {
   timestamp: number;
   bybit: ExchangeSnapshot;
   binance: ExchangeSnapshot;
+  totalInterestMTD: { bybit: number; binance: number };
 }
 
 // ─── Binance data fetcher ─────────────────────────────────────────
@@ -88,6 +90,7 @@ async function fetchBinanceLoanData(
       hourlyRate,
       rate: parseFloat(yearlyRate.toFixed(2)),
       accruedInterest: 0,
+      interestMTD: 0,
     };
   });
 
@@ -144,6 +147,7 @@ async function fetchBybitLoanData(
       hourlyRate,
       rate: parseFloat(apy.toFixed(2)),
       accruedInterest: flexLoan ? parseFloat(flexLoan.unpaidInterest) || 0 : 0,
+      interestMTD: 0,
     };
   });
 
@@ -187,6 +191,30 @@ async function fetchPrices(coins: string[]): Promise<Record<string, number>> {
   }
 
   return prices;
+}
+
+// ─── InterestMTD calculator ────────────────────────────────────────
+
+function calcInterestMTD(
+  data: ExchangeSnapshot,
+  firstSnapshot: ExchangeSnapshot | null
+): { debts: SnapshotDebt[]; total: number } {
+  if (!firstSnapshot) {
+    return {
+      debts: data.debts.map((d) => ({ ...d, interestMTD: 0 })),
+      total: 0,
+    };
+  }
+
+  let total = 0;
+  const debts = data.debts.map((d) => {
+    const firstDebt = firstSnapshot.debts.find((fd) => fd.id === d.id);
+    const interestMTD = Math.max(0, d.accruedInterest - (firstDebt?.accruedInterest || 0));
+    total += interestMTD;
+    return { ...d, interestMTD };
+  });
+
+  return { debts, total };
 }
 
 // ─── Main snapshot function ───────────────────────────────────────
@@ -243,11 +271,35 @@ async function runDailyLoanSnapshot(): Promise<void> {
     console.error("[loanSnapshot] Error fetching data:", e);
   }
 
+  // Obtener el primer snapshot del mes para calcular interestMTD
+  const monthStart = today.substring(0, 8) + "01";
+  const firstSnapQuery = await db()
+    .collection("loanSnapshots")
+    .where("date", ">=", monthStart)
+    .where("date", "<=", today)
+    .orderBy("date", "asc")
+    .limit(1)
+    .get();
+
+  const firstBybit = firstSnapQuery.docs.length > 0
+    ? firstSnapQuery.docs[0].data().bybit as ExchangeSnapshot
+    : null;
+  const firstBinance = firstSnapQuery.docs.length > 0
+    ? firstSnapQuery.docs[0].data().binance as ExchangeSnapshot
+    : null;
+
+  const bybitMTD = calcInterestMTD(bybitData, firstBybit);
+  const binanceMTD = calcInterestMTD(binanceData, firstBinance);
+
+  bybitData.debts = bybitMTD.debts;
+  binanceData.debts = binanceMTD.debts;
+
   const snapshot: LoanSnapshotDoc = {
     date: today,
     timestamp: Date.now(),
     bybit: bybitData,
     binance: binanceData,
+    totalInterestMTD: { bybit: bybitMTD.total, binance: binanceMTD.total },
   };
 
   await db().collection("loanSnapshots").doc(today).set(snapshot);
