@@ -3,6 +3,31 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.analyzeMarket = void 0;
 const functions = require("firebase-functions/v1");
 const groq_sdk_1 = require("groq-sdk");
+const axios_1 = require("axios");
+// ─── Fetch crypto news from CryptoPanic (free tier) ───────────────────────────
+async function fetchNews(coin) {
+    var _a, _b;
+    try {
+        const symbol = coin.toLowerCase();
+        // CryptoPanic free API — pública, sin key
+        const res = await axios_1.default.get(`https://cryptopanic.com/api/free/v1/posts/?currencies=${symbol}&kind=news&filter=hot&regions=en`, { timeout: 8000 });
+        const items = (_b = (_a = res.data) === null || _a === void 0 ? void 0 : _a.results) !== null && _b !== void 0 ? _b : [];
+        return items.slice(0, 8).map((item) => {
+            var _a;
+            return ({
+                title: item.title || "",
+                source: ((_a = item.source) === null || _a === void 0 ? void 0 : _a.title) || "Unknown",
+                sentiment: item.votes
+                    ? (item.votes.positive > item.votes.negative ? "positive" : item.votes.negative > item.votes.positive ? "negative" : "neutral")
+                    : "neutral",
+                url: item.url,
+            });
+        });
+    }
+    catch (_c) {
+        return [];
+    }
+}
 // ─── Detector de señal de VENTA para ciclo venta→recompra ────────────────────
 function detectSellSetup(data) {
     const reasons = [];
@@ -99,6 +124,11 @@ exports.analyzeMarket = functions
     if (!data.coin || !data.price) {
         throw new functions.https.HttpsError("invalid-argument", "Datos de mercado incompletos.");
     }
+    // ─── Fetch news if not provided ────────────────────────────────────
+    const fetchedNews = (!data.news || data.news.length === 0)
+        ? await fetchNews(data.coin)
+        : null;
+    const newsItems = data.news && data.news.length > 0 ? data.news : (fetchedNews !== null && fetchedNews !== void 0 ? fetchedNews : []);
     // ─── Detección bidireccional ─────────────────────────────────────────
     const { sellSignalStrength, sellReasons, sellScore } = detectSellSetup(data);
     const cycleMetrics = calcCycleMetrics(data);
@@ -194,16 +224,23 @@ exports.analyzeMarket = functions
 Eres Marco, swing trader con 15 años en spot y préstamos colateralizados.
 NO operas futuros, NO apalancamiento direccional, NO derivados.
 
+# CONTEXTO DE MERCADO
+Antes de analizar la moneda, evalúa las noticias y eventos de las últimas 48h:
+- Si hay noticia negativa fuerte (hack, delisting, regulación, exploits): PRIORIZA sobre indicadores técnicos
+- Si hay noticia positiva fuerte (ETF approval, partnerships, upgrade, listing): boostea convicción en longs
+- Las noticias tienen PRIORIDAD sobre los indicadores técnicos en crypto
+
 # JERARQUÍA DE DECISIÓN (en este orden estricto)
-1. Identifica RÉGIMEN de mercado (bull / bear / rango / transición)
-2. Aplica REGLAS DURAS — si alguna se viola, el trade NO existe:
+1. Evalúa NOTICIAS y eventos de las últimas 48h — si hay algo crítico, determina la dirección
+2. Identifica RÉGIMEN de mercado (bull / bear / rango / transición)
+3. Aplica REGLAS DURAS — si alguna se viola, el trade NO existe:
    - Sin stop-loss definido → NO trade
    - Riesgo > 10% del capital → NO trade
    - Ciclo venta→recompra con potencial <3% → NO ciclo (fees lo comen)
    - Ratio R:R < 1:2 → NO trade
-3. Busca CONFLUENCIA mínima de 3 indicadores alineados
-4. Evalúa estrategia BIDIRECCIONAL: ¿entrar long, vender para recomprar, o esperar?
-5. Calcula TAMAÑO de posición según convicción
+4. Busca CONFLUENCIA mínima de 3 indicadores alineados
+5. Evalúa estrategia BIDIRECCIONAL: ¿entrar long, vender para recomprar, o esperar?
+6. Calcula TAMAÑO de posición según convicción
 
 # HORIZONTE Y OBJETIVOS
 - Timeframe: 1–3 días
@@ -220,9 +257,9 @@ ya no genera ventaja vs hacer hold.
 
 # CALIBRACIÓN DE CONFIANZA
 Toda decisión debe incluir nivel de convicción:
-- ALTA (80–95%): 4+ indicadores alineados + régimen claro
+- ALTA (80–95%): 4+ indicadores alineados + régimen claro + noticias favorables
 - MEDIA (60–79%): 3 indicadores alineados + régimen identificado
-- BAJA (<60%): señales mixtas → default es esperar
+- BAJA (<60%): señales mixtas o noticias contrarias → default es esperar
 
 # MANEJO DEL CAMPO notes
 notes contiene la intención del trader. Úsalo para enfocar el análisis
@@ -234,6 +271,11 @@ Empieza SIEMPRE con esta línea de veredicto:
 🎲 VEREDICTO: [BUY/SELL/HOLD/CICLO/NO_TRADE] · Convicción: [ALTA/MEDIA/BAJA] · R:R [X:Y]
 
 Luego las 4 secciones exactas:
+
+📰 NOTICIAS Y EVENTOS
+- Si hay noticias: listar las más relevantes con sentimiento (positivo/negativo/neutral)
+- Si no hay noticias: "Sin eventos relevantes en las últimas 48h"
+- Impacto esperado en el precio a corto plazo
 
 📡 LECTURA DEL MERCADO
 - Régimen identificado (bull/bear/rango/transición)
@@ -259,20 +301,25 @@ Luego las 4 secciones exactas:
 - Sin saludos, sin disclaimers
 - Sin frases como "como modelo de IA"
 - Si no hay setup viable: ⛔ No hay trade claro + razón en 1 línea
-- Máximo 1100 tokens
+- Máximo 1200 tokens
 - Números siempre con 2 decimales
 - Cero relleno`;
     // ─── User Message ────────────────────────────────────────────────────
+    const newsBlock = newsItems.length > 0
+        ? newsItems.map((n) => `  • ${n.title} [${n.source}] — sentimiento: ${n.sentiment}`).join("\n")
+        : "  • Sin eventos relevantes detectados";
     const userMessage = `Analizá ${data.coin}/USDT — evaluación BIDIRECCIONAL: entrada long Y posible ciclo venta→recompra.
 ${data.notes ? `\n🗒️ INSTRUCCIÓN ESPECÍFICA DEL TRADER (PRIORITARIA — respondé esto directamente en tu análisis):\n"${data.notes}"\n` : ""}${positionBlock}
 
 💰 Precio actual: $${data.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
 
-📊 Indicadores técnicos:
+📰 NOTICIAS DE LAS ÚLTIMAS 48H:
+${newsBlock}
+
+${fgLine ? `${fgLine}\n` : ""}📊 Indicadores técnicos:
   • RSI(14): ${data.rsi.toFixed(1)} → ${rsiCtx}
   • SMA20: $${data.sma20.toLocaleString("en-US", { minimumFractionDigits: 2 })} | SMA50: $${data.sma50.toLocaleString("en-US", { minimumFractionDigits: 2 })} → Tendencia ${trendCtx}
   • MACD: ${data.macd.toFixed(6)} / Señal: ${data.macdSignal.toFixed(6)} → ${macdCtx}
-${fgLine ? `  ${fgLine}` : ""}
 ${range24h ? `  ${range24h}` : ""}
 ${volumeLine ? `  ${volumeLine}` : ""}
 ${volumeRatioLine ? `  ${volumeRatioLine}` : ""}
@@ -299,8 +346,11 @@ ${cycleBlock}
 
 Respondé con este formato exacto:
 
+📰 **NOTICIAS Y EVENTOS**
+[Listar las noticias más relevantes con sentimiento e impacto esperado]
+
 📡 **LECTURA DEL MERCADO**
-[Qué dicen los indicadores en conjunto. ¿Hay confluencia alcista, bajista o mixta? ¿El volumen acompaña? ¿El sentimiento macro favorece entrada o salida?]
+[Qué dicen los indicadores en conjunto. ¿Hay confluencia alcista, bajista o mixta?]
 
 🎯 **PLAN DE TRADE**
 [Si NO tiene posición — evaluar entrada LONG:]
@@ -323,7 +373,7 @@ Respondé con este formato exacto:
   • Modo recomendado: ACUMULACIÓN DE ACTIVO / GANANCIA USDT / ESPERAR
   • ¿Vale el ciclo?: [evaluación del potencial neto vs riesgo de no retroceso]
   • Ganancia mínima necesaria para cubrir fees y tener sentido: [precio mínimo de retroceso]
-  • Contexto macro: [cómo afecta el Fear & Greed al ciclo]
+  • Contexto macro: [cómo afecta el Fear & Greed y noticias al ciclo]
 
 ⚡ **SEÑALES DE ALERTA**
 [Niveles clave que si se rompen cambian todo. Divergencias a vigilar. Riesgo de quedarse sin activo si el precio no retrocede.]`;
@@ -335,7 +385,7 @@ Respondé con este formato exacto:
                 { role: "system", content: systemPrompt },
                 { role: "user", content: userMessage },
             ],
-            max_tokens: 1100,
+            max_tokens: 1200,
             temperature: 0.15,
             top_p: 0.85,
             frequency_penalty: 0.2,

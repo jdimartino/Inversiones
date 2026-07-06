@@ -481,6 +481,7 @@ const App: React.FC = () => {
                 initialCoin={graficoCoin}
                 priceDirections={priceDirections}
                 sales={sales}
+                futuresData={futuresData}
               />
             </div>
           </div>

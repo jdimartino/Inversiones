@@ -22,7 +22,7 @@ import {
   getNextMonth,
   isFutureMonth,
 } from "../lib/loanHistory";
-import { fmtUSD, fmtPrice } from "../lib/format";
+import { fmtUSD } from "../lib/format";
 
 interface InterestHistoryModalProps {
   isOpen: boolean;

@@ -9,9 +9,10 @@ import {
 } from "lightweight-charts";
 import { AggregatedAsset, ProcessedInvestment, SaleRecord } from "../../lib/constants";
 import type { Kline, CoinSignal } from "../../lib/types/signals";
+import { FuturesPosition } from "../../lib/futures"; // Need to import FuturesPosition
 import ChartCard from "./ChartCard";
 import { coinColor } from "./chartColors";
-import { fmtPrice, fmt } from "../../lib/format";
+import { fmtPrice, fmt, fmtUSD } from "../../lib/format";
 import { Maximize2, Minimize2, Bell, Ruler, Plus, X } from "lucide-react";
 import { useAlerts, WatchlistAlert } from "../../hooks/useAlerts";
 
@@ -121,6 +122,7 @@ interface CandlestickChartProps {
     onCoinChange?: (coin: string) => void;
     priceDirections?: Record<string, "up" | "down" | "neutral">;
     sales?: SaleRecord[];
+    futuresPositions?: FuturesPosition[];
 }
 
 type Interval = "15m" | "1h" | "4h" | "1d" | "1M";
@@ -194,11 +196,12 @@ async function fetchKlines(coin: string, interval: Interval): Promise<Kline[]> {
 // ── Component ───────────────────────────────────────────────────────
 
 const CandlestickChart: React.FC<CandlestickChartProps> = ({
-    aggregated, klinesMap = {}, items, initialCoin, signals = [], onCoinChange, priceDirections = {}, sales = [],
+    aggregated, klinesMap = {}, items, initialCoin, signals = [], onCoinChange, priceDirections = {}, sales = [], futuresPositions = [],
 }) => {
     const portfolioCoins = aggregated.filter((a) => a.currentValue > 0).map((a) => a.coin);
-    const extraCoins = Object.keys(klinesMap).filter(c => !portfolioCoins.includes(c));
-    const coins = portfolioCoins;
+    const futuresCoins = futuresPositions.map((p) => p.symbol.replace("USDT", ""));
+    const coins = Array.from(new Set([...portfolioCoins, ...futuresCoins]));
+    const extraCoins = Object.keys(klinesMap).filter(c => !coins.includes(c));
     const { config, saveConfig } = useAlerts();
 
     const [selectedCoin, setSelectedCoin] = useState<string>(
@@ -537,6 +540,21 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
             );
         });
 
+        // Futures entries
+        const coinFutures = futuresPositions.filter((p) => p.symbol.replace("USDT", "") === selectedCoin);
+        coinFutures.forEach((p) => {
+            priceLinesRef.current.push(
+                candleSeriesRef.current!.createPriceLine({
+                    price: p.entryPrice,
+                    color: "#a855f7",
+                    lineWidth: 1,
+                    lineStyle: LineStyle.Dashed,
+                    axisLabelVisible: true,
+                    title: `Fut: ${p.side}`,
+                })
+            );
+        });
+
         if (asset?.avgBuyPrice && coinItems.length > 1) {
             priceLinesRef.current.push(
                 candleSeriesRef.current!.createPriceLine({
@@ -587,6 +605,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
     const currentPrice = aggregated.find(a => a.coin === selectedCoin)?.currentPrice ?? 0;
     const coinItems = items.filter((inv) => inv.coin === selectedCoin);
     const coinSales = sales.filter((s) => s.coin === selectedCoin);
+    const coinFutures = futuresPositions.filter((p) => p.symbol.replace("USDT", "") === selectedCoin);
 
     const handleSelectExplorerCoin = useCallback(async (coin: string) => {
         const upper = coin.toUpperCase().trim();
@@ -1058,31 +1077,53 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                     <span className="w-5 border-t-2 border-dashed border-[#ef4444] inline-block" />
                     Venta
                 </span>
+                <span className="flex items-center gap-1">
+                    <span className="w-5 border-t border-dashed border-[#a855f7] inline-block" />
+                    Futuro
+                </span>
             </div>
 
             {/* Precios de referencia para la moneda seleccionada */}
-            {(coinSales.length > 0 || coinItems.length > 0) && (
-                <div className="flex items-center gap-x-4 gap-y-0.5 text-[9px] flex-wrap">
-                    {coinSales.map((s, i) => {
-                        const aboveRange = klinesRange && s.sellPrice > klinesRange.max * 1.05;
-                        const belowRange = klinesRange && s.sellPrice < klinesRange.min * 0.95;
-                        const outOfRange = aboveRange || belowRange;
-                        return (
-                            <span key={s.id} className="flex items-center gap-1 text-red-400 font-mono font-bold">
-                                Venta{coinSales.length > 1 ? ` ${i + 1}` : ""}: {fmtPrice(s.sellPrice)} · {fmt(s.quantity)} {s.coin}
-                                {outOfRange && (
-                                    <span className="text-yellow-400 font-normal text-[8px]">
-                                        {aboveRange ? "↑" : "↓"} fuera del gráfico
+            {(coinSales.length > 0 || coinItems.length > 0 || coinFutures.length > 0) && (
+                <div className="flex flex-col gap-1 mt-2 text-[9px]">
+                    {coinSales.length > 0 && (
+                        <div className="flex items-center gap-x-4 gap-y-0.5 flex-wrap">
+                            <span className="text-slate-500 font-bold uppercase">Ventas:</span>
+                            {coinSales.map((s, i) => (
+                                <span key={s.id} className="text-red-400 font-mono">
+                                    Venta{coinSales.length > 1 ? ` ${i + 1}` : ""}: {fmtPrice(s.sellPrice)}
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                    {coinItems.length > 0 && (
+                        <div className="flex items-center gap-x-4 gap-y-0.5 flex-wrap">
+                            <span className="text-slate-500 font-bold uppercase">Spot:</span>
+                            {coinItems.map((inv, i) => {
+                                const pnl = (currentPrice - inv.buyPrice) * inv.quantity;
+                                return (
+                                    <span key={inv.id} className="text-sky-400 font-mono">
+                                        Compra{coinItems.length > 1 ? ` ${i + 1}` : ""}: {fmtPrice(inv.buyPrice)}
+                                        <span className={pnl >= 0 ? "text-green-400" : "text-red-400"}> ({pnl >= 0 ? "+" : ""}{fmtUSD(pnl)})</span>
                                     </span>
-                                )}
-                            </span>
-                        );
-                    })}
-                    {coinItems.map((inv, i) => (
-                        <span key={inv.id} className="text-sky-400 font-mono">
-                            Compra{coinItems.length > 1 ? ` ${i + 1}` : ""}: {fmtPrice(inv.buyPrice)}
-                        </span>
-                    ))}
+                                )
+                            })}
+                        </div>
+                    )}
+                    {coinFutures.length > 0 && (
+                        <div className="flex items-center gap-x-4 gap-y-0.5 flex-wrap">
+                            <span className="text-slate-500 font-bold uppercase">Futuros:</span>
+                            {coinFutures.map((p, i) => {
+                                const pnl = p.unrealizedPnl;
+                                return (
+                                    <span key={i} className="text-purple-400 font-mono">
+                                        {p.side}: {fmtPrice(p.entryPrice)}
+                                        <span className={pnl >= 0 ? "text-green-400" : "text-red-400"}> ({pnl >= 0 ? "+" : ""}{fmtUSD(pnl)})</span>
+                                    </span>
+                                )
+                            })}
+                        </div>
+                    )}
                 </div>
             )}
 

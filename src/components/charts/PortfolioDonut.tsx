@@ -43,7 +43,7 @@ const PortfolioDonut: React.FC<{ aggregated: AggregatedAsset[]; totalValue: numb
         const x = cx + r * Math.cos(-midAngle * RADIAN);
         const y = cy + r * Math.sin(-midAngle * RADIAN);
         const d = data[index];
-        if (Number(d.pct) < 3) return null;
+        if (!d || Number(d.pct) < 3) return null;
         return (
             <text
                 x={x}

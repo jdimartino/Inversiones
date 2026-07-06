@@ -2,11 +2,15 @@ import React, { useState, useCallback, useRef, useEffect } from "react";
 import { Brain, Loader2, RefreshCw, AlertTriangle } from "lucide-react";
 import type { CoinSignal, FearGreedData } from "../lib/types/signals";
 import { getFunctions, httpsCallable } from "firebase/functions";
+import { SYMBOL_MAP } from "../lib/constants";
+import { parseKlines, computeIndicators } from "../lib/indicators";
+import { computeSignal } from "../lib/signalEngine";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface AITraderAnalysisProps {
     coin: string;
+    price?: number;
     signal?: CoinSignal;
     fearGreed: FearGreedData | null | undefined;
 }
@@ -14,6 +18,20 @@ interface AITraderAnalysisProps {
 type Status = "idle" | "loading" | "done" | "error";
 
 const COOLDOWN_MS = 60_000;
+
+// ─── Fetch indicators from Binance (same as MarcoAnalysisModal) ───────────────
+
+async function fetchIndicators(coin: string) {
+    const symbol = SYMBOL_MAP[coin] ?? `${coin}USDT`;
+    const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1h&limit=100`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Binance ${res.status}`);
+    const raw = await res.json();
+    const klines = parseKlines(raw);
+    if (klines.length < 50) throw new Error("Datos insuficientes");
+    const indicators = computeIndicators(klines);
+    return { indicators, klines };
+}
 
 // ─── Markdown simple: bold y saltos de línea ─────────────────────────────────
 
@@ -31,7 +49,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-const AITraderAnalysis: React.FC<AITraderAnalysisProps> = ({ coin, signal, fearGreed }) => {
+const AITraderAnalysis: React.FC<AITraderAnalysisProps> = ({ coin, price, signal, fearGreed }) => {
     const [status, setStatus] = useState<Status>("idle");
     const [analysis, setAnalysis] = useState<string>("");
     const [error, setError] = useState<string>("");
@@ -59,31 +77,42 @@ const AITraderAnalysis: React.FC<AITraderAnalysisProps> = ({ coin, signal, fearG
     }, []);
 
     const handleAnalyze = useCallback(async () => {
-        if (!signal || status === "loading" || cooldownLeft > 0) return;
+        if (!coin || status === "loading" || cooldownLeft > 0) return;
 
         setStatus("loading");
         setAnalysis("");
         setError("");
 
         try {
+            // Fetch indicators if signal not provided
+            let currentSignal = signal;
+            if (!currentSignal) {
+                try {
+                    const result = await fetchIndicators(coin);
+                    currentSignal = computeSignal(coin, result.indicators, fearGreed ?? undefined);
+                } catch {
+                    // Fallback: analyze without technical indicators
+                }
+            }
+
             const functions = getFunctions(undefined, "europe-west1");
             const analyzeMarket = httpsCallable<any, { analysis: string }>(functions, "analyzeMarket");
 
             const response = await analyzeMarket({
                 coin: coin,
-                price: signal.indicators.currentPrice,
-                rsi: signal.indicators.rsi14,
-                macd: signal.indicators.macdLine,
-                macdSignal: signal.indicators.macdSignal,
-                sma20: signal.indicators.sma20,
-                sma50: signal.indicators.sma50,
+                price: currentSignal?.indicators.currentPrice ?? price ?? 0,
+                rsi: currentSignal?.indicators.rsi14 ?? 50,
+                macd: currentSignal?.indicators.macdLine ?? 0,
+                macdSignal: currentSignal?.indicators.macdSignal ?? 0,
+                sma20: currentSignal?.indicators.sma20 ?? 0,
+                sma50: currentSignal?.indicators.sma50 ?? 0,
                 fearGreed: fearGreed,
-                signalStrength: signal.signal,
-                reasons: signal.reasons,
+                signalStrength: currentSignal?.signal ?? "hold",
+                reasons: currentSignal?.reasons ?? [],
                 notes: notes.trim() || undefined,
-                volumeRatio: signal.indicators.volumeRatio,
-                dailySignal: signal.dailySignal,
-                timeframeAgree: signal.timeframeAgree,
+                volumeRatio: currentSignal?.indicators.volumeRatio,
+                dailySignal: currentSignal?.dailySignal,
+                timeframeAgree: currentSignal?.timeframeAgree,
             });
 
             const text = response.data.analysis;
@@ -97,9 +126,9 @@ const AITraderAnalysis: React.FC<AITraderAnalysisProps> = ({ coin, signal, fearG
             setError(e?.message ?? "Error desconocido al contactar al analista.");
             setStatus("error");
         }
-    }, [coin, signal, fearGreed, status, cooldownLeft, startCooldown, notes]);
+    }, [coin, price, signal, fearGreed, status, cooldownLeft, startCooldown, notes]);
 
-    const canAnalyze = !!signal && status !== "loading" && cooldownLeft === 0;
+    const canAnalyze = !!coin && (price ?? 0) > 0 && status !== "loading" && cooldownLeft === 0;
 
     return (
         <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 mt-4">
@@ -156,8 +185,10 @@ const AITraderAnalysis: React.FC<AITraderAnalysisProps> = ({ coin, signal, fearG
                         <RefreshCw className="w-3.5 h-3.5" />
                         Disponible en {cooldownLeft}s
                     </>
-                ) : !signal ? (
+                ) : !coin ? (
                     "Selecciona una moneda en el gráfico"
+                ) : (price ?? 0) === 0 ? (
+                    "Esperando precio..."
                 ) : (
                     <>
                         <Brain className="w-4 h-4" />
