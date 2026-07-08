@@ -49,10 +49,12 @@ function VesItem({ rate }: { rate: number }) {
 
 function CryptoItem({ coin, price, direction }: { coin: string; price: number; direction: PriceDirection }) {
     const colorClass = direction === "up" ? "text-green-400" : direction === "down" ? "text-red-400" : "text-yellow-400";
+    const isFiat = coin === "EUR";
+    const displayPrice = isFiat ? `€${price.toFixed(3)}` : formatPrice(price);
     return (
         <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
             <span className="text-yellow-400 font-semibold text-xs">{coin}</span>
-            <span className={`${colorClass} font-bold text-xs`}>{formatPrice(price)}</span>
+            <span className={`${colorClass} font-bold text-xs`}>{displayPrice}</span>
             <DirectionIcon direction={direction} />
         </span>
     );

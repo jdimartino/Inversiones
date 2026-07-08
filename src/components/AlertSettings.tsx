@@ -33,6 +33,7 @@ function AlertSettings({ config, saveConfig, onRefresh, refreshing, onEditGlobal
     const [showTickerConfig, setShowTickerConfig] = useState(false);
     const [draftCoins, setDraftCoins] = useState<string[]>(selectedCoins);
     const [coinSearch, setCoinSearch] = useState("");
+    const [tickerSaved, setTickerSaved] = useState(false);
     const { symbols, loading: symbolsLoading, error: symbolsError } = useBinanceSymbols();
 
     const globalCount = config.globalAlerts?.length ?? 0;
@@ -40,11 +41,14 @@ function AlertSettings({ config, saveConfig, onRefresh, refreshing, onEditGlobal
         ? Object.values(config.investmentAlerts).reduce((sum, a) => sum + (Array.isArray(a) ? a.length : 0), 0)
         : 0;
 
+    const FIAT_COINS = ["EUR"];
+
     const filteredSymbols = useMemo(() => {
-        if (!symbols) return [];
-        if (!coinSearch.trim()) return symbols;
         const q = coinSearch.trim().toUpperCase();
-        return symbols.filter((s) => s.includes(q));
+        const fiatMatch = FIAT_COINS.filter(c => !q || c.includes(q));
+        if (!symbols) return q ? fiatMatch : [];
+        const cryptoMatch = q ? symbols.filter((s) => s.includes(q)) : symbols;
+        return [...fiatMatch, ...cryptoMatch];
     }, [symbols, coinSearch]);
 
     const toggleDraftCoin = (coin: string) => {
@@ -59,6 +63,9 @@ function AlertSettings({ config, saveConfig, onRefresh, refreshing, onEditGlobal
             localStorage.setItem("ticker_selected_coins", JSON.stringify(draftCoins));
         } catch { /* ignore */ }
         onSelectedCoinsChange?.(draftCoins);
+        setShowTickerConfig(false);
+        setTickerSaved(true);
+        setTimeout(() => setTickerSaved(false), 2000);
     };
 
     return (
@@ -91,6 +98,11 @@ function AlertSettings({ config, saveConfig, onRefresh, refreshing, onEditGlobal
                         <span className="text-[10px] text-slate-500 bg-slate-900/80 px-2 py-0.5 rounded-full border border-slate-700/50 font-bold">
                             {selectedCoins.length}
                         </span>
+                        {tickerSaved && (
+                            <span className="flex items-center gap-1 text-[10px] font-bold text-green-400 bg-green-500/10 border border-green-500/20 px-2 py-1 rounded-lg">
+                                <Check size={12} /> Guardado
+                            </span>
+                        )}
                         <button
                             onClick={() => {
                                 if (showTickerConfig) {
