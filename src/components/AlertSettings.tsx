@@ -1,5 +1,22 @@
 import { useState, memo, useMemo } from "react";
 import { Trash2, Edit2, Repeat, Clock, History, CheckCircle, AlertTriangle, TrendingUp, TrendingDown, Loader2, Eye, Plus, Sun, Send, BarChart2, Settings, Check, Search, RefreshCw } from "lucide-react";
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent
+} from '@dnd-kit/core';
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    horizontalListSortingStrategy,
+    useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { AlertConfig, GlobalAlert, InvestmentAlert, WatchlistAlert, CandleAlert } from "../hooks/useAlerts";
 import type { SaleRecord } from "../lib/constants";
 import { usePortfolio } from "../hooks/usePortfolio";
@@ -23,18 +40,82 @@ interface AlertSettingsProps {
     totalPnl?: number;
     selectedCoins?: string[];
     onSelectedCoinsChange?: (coins: string[]) => void;
+    tickerSpeed?: number;
+    onTickerSpeedChange?: (speed: number) => void;
     prices: Record<string, number>;
 }
 
-function AlertSettings({ config, saveConfig, onRefresh, refreshing, onEditGlobal, onEditInvestment, onOpenWatchlist, onEditWatchlistAlert, onOpenCandleAlert, onEditCandleAlert, sales, totalPnl = 0, selectedCoins = [], onSelectedCoinsChange, prices }: AlertSettingsProps) {
+function SortableCoinChip({ coin, onRemove }: { coin: string, onRemove: (c: string) => void }) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+    } = useSortable({ id: coin });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+    };
+
+    return (
+        <span
+            ref={setNodeRef}
+            style={style}
+            {...attributes}
+            {...listeners}
+            className="inline-flex items-center gap-1 text-[11px] font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2 py-1 rounded-md touch-none"
+        >
+            <span className="cursor-grab active:cursor-grabbing opacity-50 hover:opacity-100 transition-opacity mr-0.5">⣿</span>
+            {coin}
+            <button
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onRemove(coin);
+                }}
+                className="ml-0.5 text-yellow-500/60 hover:text-yellow-300 transition-colors cursor-pointer"
+                title={`Quitar ${coin}`}
+            >
+                ×
+            </button>
+        </span>
+    );
+}
+
+function AlertSettings({ config, saveConfig, onRefresh, refreshing, onEditGlobal, onEditInvestment, onOpenWatchlist, onEditWatchlistAlert, onOpenCandleAlert, onEditCandleAlert, sales, totalPnl = 0, selectedCoins = [], onSelectedCoinsChange, tickerSpeed = 35, onTickerSpeedChange, prices }: AlertSettingsProps) {
     const { portfolio } = usePortfolio();
     const { logs, loading: logsLoading } = useNotificationLogs(15);
     const [savingId, setSavingId] = useState<string | null>(null);
     const [showTickerConfig, setShowTickerConfig] = useState(false);
     const [draftCoins, setDraftCoins] = useState<string[]>(selectedCoins);
+    const [draftSpeed, setDraftSpeed] = useState<number>(tickerSpeed);
     const [coinSearch, setCoinSearch] = useState("");
     const [tickerSaved, setTickerSaved] = useState(false);
     const { symbols, loading: symbolsLoading, error: symbolsError } = useBinanceSymbols();
+
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 5,
+            },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
+
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (over && active.id !== over.id) {
+            const oldIndex = selectedCoins.indexOf(active.id as string);
+            const newIndex = selectedCoins.indexOf(over.id as string);
+            const updated = arrayMove(selectedCoins, oldIndex, newIndex);
+            try { localStorage.setItem("ticker_selected_coins", JSON.stringify(updated)); } catch { /* ignore */ }
+            onSelectedCoinsChange?.(updated);
+        }
+    };
 
     const globalCount = config.globalAlerts?.length ?? 0;
     const individualCount = config.investmentAlerts
@@ -61,8 +142,10 @@ function AlertSettings({ config, saveConfig, onRefresh, refreshing, onEditGlobal
         if (draftCoins.length === 0) return;
         try {
             localStorage.setItem("ticker_selected_coins", JSON.stringify(draftCoins));
+            localStorage.setItem("ticker_speed", draftSpeed.toString());
         } catch { /* ignore */ }
         onSelectedCoinsChange?.(draftCoins);
+        onTickerSpeedChange?.(draftSpeed);
         setShowTickerConfig(false);
         setTickerSaved(true);
         setTimeout(() => setTickerSaved(false), 2000);
@@ -107,6 +190,7 @@ function AlertSettings({ config, saveConfig, onRefresh, refreshing, onEditGlobal
                             onClick={() => {
                                 if (showTickerConfig) {
                                     setDraftCoins(selectedCoins);
+                                    setDraftSpeed(tickerSpeed);
                                     setCoinSearch("");
                                 }
                                 setShowTickerConfig(!showTickerConfig);
@@ -124,25 +208,31 @@ function AlertSettings({ config, saveConfig, onRefresh, refreshing, onEditGlobal
 
                 {/* Current coins display */}
                 {!showTickerConfig && (
-                    <div className="flex flex-wrap gap-1.5">
-                        {selectedCoins.map((coin) => (
-                            <span key={coin} className="inline-flex items-center gap-1 text-[11px] font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2 py-1 rounded-md">
-                                {coin}
-                                <button
-                                    onClick={() => {
-                                        const updated = selectedCoins.filter((c) => c !== coin);
-                                        if (updated.length === 0) return;
-                                        try { localStorage.setItem("ticker_selected_coins", JSON.stringify(updated)); } catch { /* ignore */ }
-                                        onSelectedCoinsChange?.(updated);
-                                    }}
-                                    className="ml-0.5 text-yellow-500/60 hover:text-yellow-300 transition-colors"
-                                    title={`Quitar ${coin}`}
-                                >
-                                    ×
-                                </button>
-                            </span>
-                        ))}
-                    </div>
+                    <DndContext 
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd}
+                    >
+                        <SortableContext 
+                            items={selectedCoins}
+                            strategy={horizontalListSortingStrategy}
+                        >
+                            <div className="flex flex-wrap gap-1.5">
+                                {selectedCoins.map((coin) => (
+                                    <SortableCoinChip
+                                        key={coin}
+                                        coin={coin}
+                                        onRemove={(c) => {
+                                            const updated = selectedCoins.filter((x) => x !== c);
+                                            if (updated.length === 0) return;
+                                            try { localStorage.setItem("ticker_selected_coins", JSON.stringify(updated)); } catch { /* ignore */ }
+                                            onSelectedCoinsChange?.(updated);
+                                        }}
+                                    />
+                                ))}
+                            </div>
+                        </SortableContext>
+                    </DndContext>
                 )}
 
                 {/* Expanded config panel */}
@@ -203,6 +293,27 @@ function AlertSettings({ config, saveConfig, onRefresh, refreshing, onEditGlobal
                                     </button>
                                 );
                             })}
+                        </div>
+
+                        {/* Speed slider */}
+                        <div className="pt-2 border-t border-slate-700/50">
+                            <label className="flex items-center justify-between text-xs font-semibold text-slate-400 mb-2">
+                                <span>Velocidad del Scroll:</span>
+                                <span>{draftSpeed}s</span>
+                            </label>
+                            <input
+                                type="range"
+                                min="10"
+                                max="100"
+                                step="1"
+                                value={draftSpeed}
+                                onChange={(e) => setDraftSpeed(parseInt(e.target.value, 10))}
+                                className="w-full accent-yellow-500 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer"
+                            />
+                            <div className="flex justify-between text-[10px] text-slate-500 mt-1">
+                                <span>Rápido (10s)</span>
+                                <span>Lento (100s)</span>
+                            </div>
                         </div>
 
                         {/* Save button */}

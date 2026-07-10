@@ -4,20 +4,8 @@ import { fetchBybitTickers } from "../lib/bybit";
 import { AVAILABLE_COINS } from "../lib/constants";
 
 const POLL_INTERVAL_MS = 15_000;
-const EUR_COIN = "EUR";
 
 export type PriceDirection = "up" | "down" | "neutral";
-
-async function fetchEuroPrice(): Promise<number | null> {
-    try {
-        const res = await fetch("https://api.frankfurter.dev/v1/latest?from=EUR&to=USD");
-        if (!res.ok) return null;
-        const data = await res.json();
-        return data.rates?.USD ?? null;
-    } catch {
-        return null;
-    }
-}
 
 /**
  * Hook para obtener precios de Binance.
@@ -48,20 +36,13 @@ export function usePrices(selectedCoins?: string[]) {
             let data: Record<string, number>;
 
             const coinsToFetch = selectedCoins && selectedCoins.length > 0 ? selectedCoins : AVAILABLE_COINS;
-            const needsEuro = coinsToFetch.includes(EUR_COIN);
-            const bybitCoins = coinsToFetch.filter(c => c.endsWith('EUR') && c !== EUR_COIN);
-            const binanceCoins = coinsToFetch.filter(c => !c.endsWith('EUR') && c !== EUR_COIN);
+            const bybitCoins = coinsToFetch.filter(c => c.endsWith('EUR') && c !== "EUR");
+            const binanceCoins = coinsToFetch.filter(c => !c.endsWith('EUR') || c === "EUR");
 
             const promises: Promise<Record<string, number>>[] = [
                 binanceCoins.length > 0 ? fetchDynamicPrices(binanceCoins, controller.signal) : Promise.resolve({ USDT: 1.0 }),
                 bybitCoins.length > 0 ? fetchBybitTickers(bybitCoins) : Promise.resolve({})
             ];
-
-            if (needsEuro) {
-                promises.push(
-                    fetchEuroPrice().then(price => price ? { [EUR_COIN]: price } as Record<string, number> : {})
-                );
-            }
 
             const results = await Promise.all(promises);
             data = Object.assign({}, ...results);

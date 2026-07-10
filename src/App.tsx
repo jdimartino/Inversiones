@@ -57,6 +57,14 @@ const App: React.FC = () => {
   const { loans, updateLoan } = useLoans();
   const { config, saveConfig } = useAlerts();
   const [selectedCoins, setSelectedCoins] = useState<string[]>(getSelectedCoins);
+  const [tickerSpeed, setTickerSpeed] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem("ticker_speed");
+      return saved ? parseInt(saved, 10) : 35;
+    } catch {
+      return 35;
+    }
+  });
   const { data: fearGreed, loading: fgLoading } = useFearGreed();
   const bcvRate = useBcvRate();
   const yadioRate = useYadioRate();
@@ -408,6 +416,7 @@ const App: React.FC = () => {
           bcvRate={bcvRate}
           yadioRate={yadioRate}
           selectedCoins={selectedCoins}
+          tickerSpeed={tickerSpeed}
         />
       </header>
 
@@ -535,6 +544,8 @@ const App: React.FC = () => {
                   totalPnl={totalPnl}
                   selectedCoins={selectedCoins}
                   onSelectedCoinsChange={setSelectedCoins}
+                  tickerSpeed={tickerSpeed}
+                  onTickerSpeedChange={setTickerSpeed}
                   prices={prices}
                 />
               </Suspense>

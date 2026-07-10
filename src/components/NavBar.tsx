@@ -46,6 +46,7 @@ interface NavBarProps {
     bcvRate?: BcvRate;
     yadioRate?: YadioRate;
     selectedCoins?: string[];
+    tickerSpeed?: number;
 }
 
 const NavBar: React.FC<NavBarProps> = ({
@@ -56,6 +57,7 @@ const NavBar: React.FC<NavBarProps> = ({
     bcvRate,
     yadioRate,
     selectedCoins = [],
+    tickerSpeed = 35,
 }) => {
     return (
         <nav className="sm:sticky sm:top-0 sm:z-40 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800 mb-0">
@@ -94,6 +96,7 @@ const NavBar: React.FC<NavBarProps> = ({
                 bcvRate={bcvRate || { usd: 0, eur: 0, updatedAt: "", loading: true, error: null }}
                 yadioRate={yadioRate || { p2pRate: 0, loading: true, error: null }}
                 selectedCoins={selectedCoins}
+                tickerSpeed={tickerSpeed}
             />
         </nav>
     );

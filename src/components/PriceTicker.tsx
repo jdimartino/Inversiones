@@ -10,6 +10,7 @@ interface PriceTickerProps {
     bcvRate: BcvRate;
     yadioRate: YadioRate;
     selectedCoins: string[];
+    tickerSpeed?: number;
 }
 
 function formatPrice(price: number): string {
@@ -70,6 +71,7 @@ const PriceTicker: React.FC<PriceTickerProps> = ({
     bcvRate,
     yadioRate,
     selectedCoins,
+    tickerSpeed = 35,
 }) => {
     const items: React.ReactNode[] = [];
 
@@ -86,11 +88,17 @@ const PriceTicker: React.FC<PriceTickerProps> = ({
         items.push(<VesItem key="ves-p2p" rate={yadioRate.p2pRate} />);
     }
 
-    // Crypto coins
+    // Crypto coins (after log for debugging)
+    console.log("DEBUG PriceTicker - selectedCoins:", selectedCoins);
+    console.log("DEBUG PriceTicker - prices:", prices);
     for (const coin of selectedCoins) {
         const price = prices[coin];
-        if (!price) continue;
+        if (!price) {
+            console.log(`DEBUG PriceTicker - Skipping ${coin}: price=${price}`);
+            continue;
+        }
         const direction = priceDirections[coin] || "neutral";
+        console.log(`DEBUG PriceTicker - Adding ${coin}: price=${price}, direction=${direction}`);
 
         if (items.length > 0) items.push(<Separator key={`sep-${coin}`} />);
         items.push(
@@ -108,7 +116,7 @@ const PriceTicker: React.FC<PriceTickerProps> = ({
 
     return (
         <div className="relative overflow-hidden border-t border-slate-800 bg-slate-900/50">
-            <div className="animate-ticker flex items-center gap-0 py-1.5 px-2">
+            <div className="animate-ticker w-max flex items-center gap-0 py-1.5 px-2" style={{ animationDuration: `${tickerSpeed}s` }}>
                 <div className="flex items-center gap-0 pr-8">
                     {items}
                 </div>
