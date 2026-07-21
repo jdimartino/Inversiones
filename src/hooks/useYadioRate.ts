@@ -30,7 +30,7 @@ export function useYadioRate(): YadioRate {
             if (!res.ok) throw new Error(`Yadio API ${res.status}`);
             const data = await res.json();
 
-            const p2pRate = data?.VES?.rate_p2p ?? 0;
+            const p2pRate = data?.USD?.rate ?? 0;
 
             setRate({ p2pRate, loading: false, error: null });
         } catch (e: unknown) {
