@@ -10,6 +10,16 @@ import { proxyFetch } from "./proxyFetch";
 import { getBinanceWallet, syncBinanceLoans } from "./getBinanceWallet";
 import { syncBybitLoans } from "./syncBybitLoans";
 import { dailyLoanSnapshot, testDailyLoanSnapshot } from "./dailyLoanSnapshot";
+import { testRegion } from "./testRegion";
+import { testSingapur } from "./testSingapur";
+import { testSingapurPublic } from "./testSingapurPublic";
+import { testTokyoPublic } from "./testTokyoPublic";
+import { testCanadaPublic } from "./testCanadaPublic";
+import { testUSACentralPublic } from "./testUSACentralPublic";
+import { testUSEastPublic } from "./testUSEastPublic";
+import { testUSWestPublic } from "./testUSWestPublic";
+import { syncFuturesFromBinance } from "./syncFuturesFromBinance";
+import { signBinanceRequest } from "./signBinanceRequest";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -1302,4 +1312,5 @@ export const testDailyPnlSnapshot = functions
         }
     });
 
-export { testFutures, futuresSync, testFuturesAlerts, getBinancePrices, getFuturesTrades, proxyFetch, getBinanceWallet, syncBinanceLoans, syncBybitLoans, dailyLoanSnapshot, testDailyLoanSnapshot };
+export { testFutures, futuresSync, testFuturesAlerts, getBinancePrices, getFuturesTrades, proxyFetch, getBinanceWallet, syncBinanceLoans, syncBybitLoans, dailyLoanSnapshot, testDailyLoanSnapshot, testRegion, testSingapur, testSingapurPublic, testTokyoPublic, testCanadaPublic, testUSACentralPublic, testUSEastPublic, testUSWestPublic, syncFuturesFromBinance, signBinanceRequest };
+export { testRegionHttp } from "./testRegionHttp";

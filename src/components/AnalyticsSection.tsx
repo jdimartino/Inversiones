@@ -58,32 +58,33 @@ const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
 
     const futuresAggregated = useMemo(() => {
         if (!futuresData?.positions) return [];
-        const map = new Map<string, { totalQty: number; totalInvested: number; currentValue: number; pnl: number }>();
+        // Map: coin -> { totalSize, totalInvested, totalPnl, weightedMarkPriceSum }
+        const map = new Map<string, { totalSize: number; totalInvested: number; totalPnl: number; weightedMarkPriceSum: number }>();
 
         for (const pos of futuresData.positions) {
-            const qty = Math.abs(pos.size);
+            const size = Math.abs(pos.size);
             const invested = pos.initialMargin;
-            const currentValue = pos.initialMargin + pos.unrealizedPnl;
             const pnl = pos.unrealizedPnl;
             const coin = pos.symbol.replace("USDT", "");
             
-            const entry = map.get(coin) || { totalQty: 0, totalInvested: 0, currentValue: 0, pnl: 0 };
-            entry.totalQty += qty;
+            const entry = map.get(coin) || { totalSize: 0, totalInvested: 0, totalPnl: 0, weightedMarkPriceSum: 0 };
+            entry.totalSize += size;
             entry.totalInvested += invested;
-            entry.currentValue += currentValue;
-            entry.pnl += pnl;
+            entry.totalPnl += pnl;
+            entry.weightedMarkPriceSum += size * pos.markPrice;
             map.set(coin, entry);
         }
 
         return Array.from(map.entries()).map(([coin, data]) => ({
             coin: `${coin} (F)`,
-            totalQty: data.totalQty,
+            totalQty: data.totalSize,
             totalInvested: data.totalInvested,
-            avgBuyPrice: data.totalQty > 0 ? data.totalInvested / data.totalQty : 0,
-            currentPrice: data.totalQty > 0 ? data.currentValue / data.totalQty : 0,
-            currentValue: data.currentValue,
-            pnl: data.pnl,
-            priceDiffPercent: data.totalInvested > 0 ? (data.pnl / data.totalInvested) * 100 : 0,
+            avgBuyPrice: data.totalSize > 0 ? data.totalInvested / data.totalSize : 0,
+            // Using actual Mark Price (weighted average) instead of synthetic calculation
+            currentPrice: data.totalSize > 0 ? data.weightedMarkPriceSum / data.totalSize : 0,
+            currentValue: data.totalSize > 0 ? data.weightedMarkPriceSum : 0,
+            pnl: data.totalPnl,
+            priceDiffPercent: data.totalInvested > 0 ? (data.totalPnl / data.totalInvested) * 100 : 0,
         }));
     }, [futuresData]);
 

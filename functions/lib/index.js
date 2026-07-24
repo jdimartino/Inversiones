@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.testDailyLoanSnapshot = exports.dailyLoanSnapshot = exports.syncBybitLoans = exports.syncBinanceLoans = exports.getBinanceWallet = exports.proxyFetch = exports.getFuturesTrades = exports.getBinancePrices = exports.testFuturesAlerts = exports.futuresSync = exports.testFutures = exports.testDailyPnlSnapshot = exports.dailyPnlSnapshot = exports.testDailyReport = exports.dailyPortfolioReport = exports.checkIntervalTasks = exports.testTradingSignals = exports.testAlerts = exports.setupTestAlerts = exports.debugLogs = exports.debugInversiones = exports.debugAlerts = exports.analyzeMarket = void 0;
+exports.testRegionHttp = exports.signBinanceRequest = exports.syncFuturesFromBinance = exports.testUSWestPublic = exports.testUSEastPublic = exports.testUSACentralPublic = exports.testCanadaPublic = exports.testTokyoPublic = exports.testSingapurPublic = exports.testSingapur = exports.testRegion = exports.testDailyLoanSnapshot = exports.dailyLoanSnapshot = exports.syncBybitLoans = exports.syncBinanceLoans = exports.getBinanceWallet = exports.proxyFetch = exports.getFuturesTrades = exports.getBinancePrices = exports.testFuturesAlerts = exports.futuresSync = exports.testFutures = exports.testDailyPnlSnapshot = exports.dailyPnlSnapshot = exports.testDailyReport = exports.dailyPortfolioReport = exports.checkIntervalTasks = exports.testTradingSignals = exports.testAlerts = exports.setupTestAlerts = exports.debugLogs = exports.debugInversiones = exports.debugAlerts = exports.analyzeMarket = void 0;
 const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 const axios_1 = require("axios");
@@ -24,6 +24,26 @@ Object.defineProperty(exports, "syncBybitLoans", { enumerable: true, get: functi
 const dailyLoanSnapshot_1 = require("./dailyLoanSnapshot");
 Object.defineProperty(exports, "dailyLoanSnapshot", { enumerable: true, get: function () { return dailyLoanSnapshot_1.dailyLoanSnapshot; } });
 Object.defineProperty(exports, "testDailyLoanSnapshot", { enumerable: true, get: function () { return dailyLoanSnapshot_1.testDailyLoanSnapshot; } });
+const testRegion_1 = require("./testRegion");
+Object.defineProperty(exports, "testRegion", { enumerable: true, get: function () { return testRegion_1.testRegion; } });
+const testSingapur_1 = require("./testSingapur");
+Object.defineProperty(exports, "testSingapur", { enumerable: true, get: function () { return testSingapur_1.testSingapur; } });
+const testSingapurPublic_1 = require("./testSingapurPublic");
+Object.defineProperty(exports, "testSingapurPublic", { enumerable: true, get: function () { return testSingapurPublic_1.testSingapurPublic; } });
+const testTokyoPublic_1 = require("./testTokyoPublic");
+Object.defineProperty(exports, "testTokyoPublic", { enumerable: true, get: function () { return testTokyoPublic_1.testTokyoPublic; } });
+const testCanadaPublic_1 = require("./testCanadaPublic");
+Object.defineProperty(exports, "testCanadaPublic", { enumerable: true, get: function () { return testCanadaPublic_1.testCanadaPublic; } });
+const testUSACentralPublic_1 = require("./testUSACentralPublic");
+Object.defineProperty(exports, "testUSACentralPublic", { enumerable: true, get: function () { return testUSACentralPublic_1.testUSACentralPublic; } });
+const testUSEastPublic_1 = require("./testUSEastPublic");
+Object.defineProperty(exports, "testUSEastPublic", { enumerable: true, get: function () { return testUSEastPublic_1.testUSEastPublic; } });
+const testUSWestPublic_1 = require("./testUSWestPublic");
+Object.defineProperty(exports, "testUSWestPublic", { enumerable: true, get: function () { return testUSWestPublic_1.testUSWestPublic; } });
+const syncFuturesFromBinance_1 = require("./syncFuturesFromBinance");
+Object.defineProperty(exports, "syncFuturesFromBinance", { enumerable: true, get: function () { return syncFuturesFromBinance_1.syncFuturesFromBinance; } });
+const signBinanceRequest_1 = require("./signBinanceRequest");
+Object.defineProperty(exports, "signBinanceRequest", { enumerable: true, get: function () { return signBinanceRequest_1.signBinanceRequest; } });
 admin.initializeApp();
 const db = admin.firestore();
 // ─── Telegram config (Ahora gestionados por Secret Manager) ──────────────────
@@ -1191,4 +1211,6 @@ exports.testDailyPnlSnapshot = functions
         res.status(500).send(e.message);
     }
 });
+var testRegionHttp_1 = require("./testRegionHttp");
+Object.defineProperty(exports, "testRegionHttp", { enumerable: true, get: function () { return testRegionHttp_1.testRegionHttp; } });
 //# sourceMappingURL=index.js.map

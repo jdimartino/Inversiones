@@ -16,6 +16,7 @@ import {
     ArrowUpRight,
 } from "lucide-react";
 import { useFutures, useFuturesAlerts } from "../hooks/useFutures";
+import { useFuturesSync } from "../hooks/useFuturesSync";
 import {
     FuturesPosition,
     FuturesPositionAlert,
@@ -490,13 +491,13 @@ function CrossMarginSimulator({
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 interface FuturesTabProps {
-    prices: Record<string, number>;
     priceDirections: Record<string, PriceDirection>;
 }
 
-export default function FuturesTab({ prices, priceDirections }: FuturesTabProps) {
+export default function FuturesTab({ priceDirections }: FuturesTabProps) {
     const { futuresData, loading: dataLoading } = useFutures();
     const { alerts, saveAlerts } = useFuturesAlerts();
+    const { syncFutures } = useFuturesSync();
 
     const { account, positions, lastSync } = futuresData;
 
@@ -504,6 +505,8 @@ export default function FuturesTab({ prices, priceDirections }: FuturesTabProps)
     const [selectedPosition, setSelectedPosition] = useState<FuturesPosition | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [expandedPosition, setExpandedPosition] = useState<string | null>(null);
+    const [syncing, setSyncing] = useState(false);
+    const [syncError, setSyncError] = useState<string | null>(null);
 
     // Re-render every 60s to update stale data indicator
     const [now, setNow] = useState(Date.now());
@@ -511,6 +514,28 @@ export default function FuturesTab({ prices, priceDirections }: FuturesTabProps)
         const id = setInterval(() => setNow(Date.now()), 60_000);
         return () => clearInterval(id);
     }, []);
+
+    // Sincronizar al montar el componente
+    useEffect(() => {
+        console.log("[FuturesTab] Mounting - starting sync...");
+        const performSync = async () => {
+            try {
+                setSyncing(true);
+                setSyncError(null);
+                console.log("[FuturesTab] Calling syncFutures...");
+                const result = await syncFutures();
+                console.log("[FuturesTab] Sync result:", result?.message);
+            } catch (error: any) {
+                console.error("[FuturesTab] Sync FAILED:", error?.code, error?.message, error);
+                setSyncError(`Error: ${error?.message || "Error al sincronizar"}`);
+            } finally {
+                setSyncing(false);
+                console.log("[FuturesTab] Sync finished");
+            }
+        };
+
+        performSync();
+    }, [syncFutures]);
 
     const handleOpenAlertModal = (pos: FuturesPosition) => {
         setSelectedPosition(pos);
@@ -538,35 +563,36 @@ export default function FuturesTab({ prices, priceDirections }: FuturesTabProps)
         saveAlerts({ ...alerts, positionAlerts: updatedPositionAlerts });
     };
 
-    // Enrich positions with live prices from Binance spot
-    const enrichedPositions = useMemo(() => {
-        if (Object.keys(prices).length === 0) return positions;
-        return positions.map((pos) => {
-            const coin = pos.symbol.replace("USDT", "");
-            const livePrice = prices[coin] || pos.markPrice;
-            return { ...pos, markPrice: livePrice };
-        });
-    }, [positions, prices]);
+    // Manual sync button handler
+    const handleManualSync = async () => {
+        try {
+            setSyncing(true);
+            setSyncError(null);
+            const result = await syncFutures();
+            console.log("[FuturesTab] Manual sync result:", result?.message);
+        } catch (error: any) {
+            console.error("[FuturesTab] Manual sync FAILED:", error?.code, error?.message, error);
+            setSyncError(`Error: ${error?.message || "Error al sincronizar"}`);
+        } finally {
+            setSyncing(false);
+        }
+    };
 
-    // Recalculate PnL with live prices
-    const livePositions = useMemo(() => {
-        return enrichedPositions.map((pos) => {
-            const priceDiff = pos.markPrice - pos.entryPrice;
-            const livePnl =
-                pos.side === "LONG"
-                    ? priceDiff * pos.size
-                    : -priceDiff * pos.size;
-            const liveRoe =
-                pos.initialMargin > 0 ? (livePnl / pos.initialMargin) * 100 : 0;
-            const liveDistToLiq =
-                pos.liquidationPrice > 0
-                    ? pos.side === "LONG"
-                        ? ((pos.markPrice - pos.liquidationPrice) / pos.markPrice) * 100
-                        : ((pos.liquidationPrice - pos.markPrice) / pos.markPrice) * 100
-                    : 999;
-            return { ...pos, unrealizedPnl: livePnl, roe: liveRoe, distToLiqPercent: liveDistToLiq };
-        });
-    }, [enrichedPositions]);
+    // ──────────────────────────────────────────────────────────────────────────
+    // ⚠️ IMPORTANTE: Los datos de futuros (markPrice, unrealizedPnl, roe, etc.)
+    // SIEMPRE vienen de la API de Binance Futures (/fapi/*) a través de
+    // futuresSync.ts (Cloud Function cada 3 minutos).
+    //
+    // NO sobrescribir markPrice con precios spot ni recalcular PnL en el frontend.
+    // Binance calcula el PnL considerando funding fees acumulados, comisiones,
+    // break-even price real y otros factores que no se pueden replicar con una
+    // simple fórmula de (markPrice - entryPrice) * size.
+    //
+    // Referencia: futuresSync.ts línea 144 usa unrealizedProfit directo de Binance,
+    // y línea 160 calcula ROE con los valores exactos de la exchange.
+    // ──────────────────────────────────────────────────────────────────────────
+    const livePositions = positions;
+    console.log("[FuturesTab] Render:", { positionsCount: livePositions.length, lastSync, syncing, syncError });
 
     const totalPnl = account.totalUnrealizedProfit;
     const marginRatio = account.marginRatio ?? (account as any).marginUsedPercent ?? 0;
@@ -675,10 +701,44 @@ export default function FuturesTab({ prices, priceDirections }: FuturesTabProps)
 
             {/* ── Positions ── */}
             <div>
-                <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
-                    <Activity className="text-purple-400" size={18} />
-                    Posiciones Abiertas
-                </h3>
+                <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-white font-semibold flex items-center gap-2">
+                        <Activity className="text-purple-400" size={18} />
+                        Posiciones Abiertas
+                    </h3>
+                    
+                    <button
+                        onClick={handleManualSync}
+                        disabled={syncing}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                            syncing
+                                ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                                : "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/30"
+                        }`}
+                    >
+                        {syncing ? (
+                            <>
+                                <Clock size={14} className="animate-spin" />
+                                Sincronizando...
+                            </>
+                        ) : (
+                            <>
+                                <Zap size={14} />
+                                Sincronizar
+                            </>
+                        )}
+                    </button>
+                </div>
+                
+                {syncError && (
+                    <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-3">
+                        <div className="flex items-center gap-2 text-red-400 text-sm">
+                            <AlertTriangle size={16} />
+                            {syncError}
+                        </div>
+                    </div>
+                )}
+                
                 <div className="space-y-3">
                     {livePositions.length === 0 ? (
                         <div className="bg-[#181A20] rounded-xl border border-gray-800 p-8 text-center">

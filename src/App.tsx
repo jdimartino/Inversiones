@@ -96,11 +96,15 @@ const App: React.FC = () => {
     return Array.from(new Set(portfolio.map(item => item.coin)));
   }, [portfolio]);
 
-  // Fetch prices for BOTH ticker coins AND portfolio coins AND watchlist coins
+  const futuresCoins = useMemo(() => {
+    return Array.from(new Set(futuresData?.positions.map(p => p.symbol.replace("USDT", "")) ?? []));
+  }, [futuresData]);
+
+  // Fetch prices for BOTH ticker coins AND portfolio coins AND watchlist coins AND futures coins
   const allNeededCoins = useMemo(() => {
-    const set = new Set([...selectedCoins, ...portfolioCoins, ...watchlistCoins]);
+    const set = new Set([...selectedCoins, ...portfolioCoins, ...watchlistCoins, ...futuresCoins]);
     return Array.from(set);
-  }, [selectedCoins, portfolioCoins, watchlistCoins]);
+  }, [selectedCoins, portfolioCoins, watchlistCoins, futuresCoins]);
   const { prices, priceDirections, prevDailyCloses, loading, refresh } = usePrices(allNeededCoins);
   const pricesRef = useRef(prices);
   pricesRef.current = prices;
@@ -558,7 +562,7 @@ const App: React.FC = () => {
           <div key="futuros" className={tabClass}>
             <div className="max-w-6xl mx-auto space-y-3">
               <Suspense fallback={<div className="py-20 text-center text-slate-500 text-sm">Cargando futuros...</div>}>
-                <FuturesTab prices={prices} priceDirections={priceDirections} />
+                <FuturesTab priceDirections={priceDirections} />
               </Suspense>
             </div>
           </div>
