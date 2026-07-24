@@ -61,7 +61,7 @@ const MarketWatchRow: React.FC<{
 
     const change = prevClose != null ? price - prevClose : 0;
     const changePct = prevClose ? ((price - prevClose) / prevClose) * 100 : 0;
-    const changeColor = direction === "up" ? "text-green-400" : direction === "down" ? "text-red-400" : "text-white";
+    const changeColor = direction === "up" ? "text-green-400" : direction === "down" ? "text-red-400" : "text-yellow-400";
 
     return (
         <div

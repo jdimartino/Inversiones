@@ -22,6 +22,7 @@ export function usePrices(selectedCoins?: string[]) {
     const [error, setError] = useState<string | null>(null);
     const abortRef = useRef<AbortController | null>(null);
     const prevPricesRef = useRef<Record<string, number>>({});
+    const prevDirsRef = useRef<Record<string, PriceDirection>>({});
 
     const refresh = useCallback(async () => {
         // Cancel any in-flight request
@@ -51,16 +52,18 @@ export function usePrices(selectedCoins?: string[]) {
             const dirs: Record<string, PriceDirection> = {};
             for (const coin of Object.keys(data)) {
                 const prev = prevPricesRef.current[coin];
+                const lastDir = prevDirsRef.current[coin] || "neutral";
                 dirs[coin] =
                     prev === undefined
-                        ? "neutral"
+                        ? lastDir
                         : data[coin] > prev
                           ? "up"
                           : data[coin] < prev
                             ? "down"
-                            : "neutral";
+                            : lastDir;
             }
             prevPricesRef.current = data;
+            prevDirsRef.current = dirs;
             setPriceDirections(dirs);
             setPrices(data);
         } catch (e: unknown) {
