@@ -95,6 +95,14 @@ export const SYMBOL_MAP: Record<string, string> = {
     SHIB: "SHIBUSDT",
     AVAX: "AVAXUSDT",
     LINK: "LINKUSDT",
+    UNI: "UNIUSDT",
+    ATOM: "ATOMUSDT",
+    NEAR: "NEARUSDT",
+    ARB: "ARBUSDT",
+    OP: "OPUSDT",
+    FIL: "FILUSDT",
+    APT: "APTUSDT",
+    SUI: "SUIUSDT",
 };
 
 /** Reverse lookup: "BTCUSDT" → "BTC"  (O(1) instead of Array.find) */
