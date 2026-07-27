@@ -14,6 +14,7 @@ function sign(queryString: string, secret: string): string {
 
 export const signBinanceRequest = functions
     .region("us-central1")
+    .runWith({ secrets: ["FUNCTIONS_CONFIG_EXPORT"] })
     .https.onCall(async (data: any, context) => {
         const { path, params } = data;
         

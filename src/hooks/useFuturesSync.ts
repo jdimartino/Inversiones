@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef } from "react";
-import { getAuth } from "firebase/auth";
 import { getFirestore, doc, setDoc } from "firebase/firestore";
 import { fetchBinanceFutures } from "../lib/binanceFutures";
 
@@ -13,29 +12,15 @@ export function useFuturesSync() {
     const syncRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const isMountedRef = useRef(false);
 
+    // ⚠️ La CF signBinanceRequest NO requiere Firebase Auth (no verifica context.auth).
+    // Se eliminó el chequeo de autenticación que bloqueaba la sincronización cuando
+    // Anonymous Auth no está habilitado en el proyecto Firebase.
     const syncFutures = useCallback(async (): Promise<SyncFuturesResult> => {
-        console.log("[useFuturesSync] syncFutures called");
-        const auth = getAuth();
-        const user = auth.currentUser;
-
-        if (!user) {
-            console.error("[useFuturesSync] No user authenticated");
-            throw new Error("Usuario no autenticado");
-        }
-        console.log("[useFuturesSync] User authenticated:", user.uid);
-
         try {
-            console.log("[useFuturesSync] Step 1: Fetching account + positions from Binance...");
             const [accountRes, positionRes] = await Promise.all([
                 fetchBinanceFutures("/fapi/v3/account", {}),
                 fetchBinanceFutures("/fapi/v2/positionRisk", {}),
             ]);
-
-            console.log("[useFuturesSync] Step 2: Raw data received", {
-                accountKeys: accountRes ? Object.keys(accountRes).slice(0, 10) : null,
-                positionsCount: Array.isArray(positionRes) ? positionRes.length : "not array",
-                allPositionsCount: accountRes?.positions?.length,
-            });
 
             const positionMap = new Map<string, any>();
             for (const p of positionRes) {
@@ -43,7 +28,6 @@ export function useFuturesSync() {
                     positionMap.set(p.symbol, p);
                 }
             }
-            console.log("[useFuturesSync] Step 3: Active positions from positionRisk:", positionMap.size);
 
             const positions: any[] = (accountRes.positions || [])
                 .filter((p: any) => parseFloat(p.positionAmt) !== 0)
@@ -87,8 +71,6 @@ export function useFuturesSync() {
                     };
                 });
 
-            console.log("[useFuturesSync] Step 4: Processed positions:", positions.length);
-
             const account = {
                 totalWalletBalance: parseFloat(accountRes.totalWalletBalance),
                 totalUnrealizedProfit: parseFloat(accountRes.totalUnrealizedProfit),
@@ -101,7 +83,6 @@ export function useFuturesSync() {
                     ? (parseFloat(accountRes.totalMaintMargin) / parseFloat(accountRes.totalMarginBalance)) * 100
                     : 0,
             };
-            console.log("[useFuturesSync] Step 5: Account processed. Balance:", account.totalWalletBalance);
 
             const futuresData = {
                 account,
@@ -110,11 +91,8 @@ export function useFuturesSync() {
                 syncSource: "browser",
             };
 
-            console.log("[useFuturesSync] Step 6: Saving to Firestore...");
             const db = getFirestore();
             await setDoc(doc(db, "settings", "futuresData"), futuresData);
-
-            console.log("[useFuturesSync] Step 7: DONE! Positions saved:", positions.length);
 
             return {
                 success: true,
@@ -122,7 +100,7 @@ export function useFuturesSync() {
                 message: `Sincronizados ${positions.length} posiciones`
             };
         } catch (error: any) {
-            console.error("[useFuturesSync] Error at step:", error?.message, error?.code, error);
+            console.error("[useFuturesSync] Error:", error?.message, error?.code);
             throw error;
         }
     }, []);

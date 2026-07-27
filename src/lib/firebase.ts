@@ -17,7 +17,7 @@ import {
     Firestore,
     DocumentData,
 } from "firebase/firestore";
-import { getAuth, signInAnonymously } from "firebase/auth";
+
 
 const firebaseConfig = {
     apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
@@ -32,13 +32,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db: Firestore = initializeFirestore(app, { localCache: memoryLocalCache(), experimentalForceLongPolling: true });
 
-// Auto sign-in anonymously so Cloud Functions work
-const auth = getAuth(app);
-if (!auth.currentUser) {
-    signInAnonymously(auth).catch((err) => {
-        console.warn("[Firebase] Anonymous sign-in failed:", err.message);
-    });
-}
+
 
 /** Base URL for Firebase Cloud Functions — derived from projectId. */
 export const FIREBASE_FUNCTIONS_URL = `https://europe-west1-${firebaseConfig.projectId}.cloudfunctions.net`;

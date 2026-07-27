@@ -517,20 +517,16 @@ export default function FuturesTab({ priceDirections }: FuturesTabProps) {
 
     // Sincronizar al montar el componente
     useEffect(() => {
-        console.log("[FuturesTab] Mounting - starting sync...");
         const performSync = async () => {
             try {
                 setSyncing(true);
                 setSyncError(null);
-                console.log("[FuturesTab] Calling syncFutures...");
-                const result = await syncFutures();
-                console.log("[FuturesTab] Sync result:", result?.message);
+                await syncFutures();
             } catch (error: any) {
                 console.error("[FuturesTab] Sync FAILED:", error?.code, error?.message, error);
                 setSyncError(`Error: ${error?.message || "Error al sincronizar"}`);
             } finally {
                 setSyncing(false);
-                console.log("[FuturesTab] Sync finished");
             }
         };
 
@@ -565,11 +561,11 @@ export default function FuturesTab({ priceDirections }: FuturesTabProps) {
 
     // Manual sync button handler
     const handleManualSync = async () => {
+        if (syncing) return;
         try {
             setSyncing(true);
             setSyncError(null);
-            const result = await syncFutures();
-            console.log("[FuturesTab] Manual sync result:", result?.message);
+            await syncFutures();
         } catch (error: any) {
             console.error("[FuturesTab] Manual sync FAILED:", error?.code, error?.message, error);
             setSyncError(`Error: ${error?.message || "Error al sincronizar"}`);
@@ -592,7 +588,6 @@ export default function FuturesTab({ priceDirections }: FuturesTabProps) {
     // y línea 160 calcula ROE con los valores exactos de la exchange.
     // ──────────────────────────────────────────────────────────────────────────
     const livePositions = positions;
-    console.log("[FuturesTab] Render:", { positionsCount: livePositions.length, lastSync, syncing, syncError });
 
     const totalPnl = account.totalUnrealizedProfit;
     const marginRatio = account.marginRatio ?? (account as any).marginUsedPercent ?? 0;

@@ -88,17 +88,11 @@ const PriceTicker: React.FC<PriceTickerProps> = ({
         items.push(<VesItem key="ves-p2p" rate={yadioRate.p2pRate} />);
     }
 
-    // Crypto coins (after log for debugging)
-    console.log("DEBUG PriceTicker - selectedCoins:", selectedCoins);
-    console.log("DEBUG PriceTicker - prices:", prices);
+    // Crypto coins
     for (const coin of selectedCoins) {
         const price = prices[coin];
-        if (!price) {
-            console.log(`DEBUG PriceTicker - Skipping ${coin}: price=${price}`);
-            continue;
-        }
+        if (!price) continue;
         const direction = priceDirections[coin] || "neutral";
-        console.log(`DEBUG PriceTicker - Adding ${coin}: price=${price}, direction=${direction}`);
 
         if (items.length > 0) items.push(<Separator key={`sep-${coin}`} />);
         items.push(
