@@ -53,23 +53,32 @@ async function fetchBinanceLoanData(
 ): Promise<ExchangeSnapshot> {
   const [ongoing, loanable] = await Promise.all([
     binanceRequest("/sapi/v2/loan/flexible/ongoing/orders", "GET", {}, apiKey, apiSecret)
-      .catch(() => ({ rows: [] })),
+      .catch((e: any) => {
+        console.error("[loanSnapshot] Binance ongoing orders API error:", e.response?.data || e.message);
+        return { rows: [] };
+      }),
     binanceRequest("/sapi/v2/loan/flexible/loanable/data", "GET", {}, apiKey, apiSecret)
-      .catch(() => ({ rows: [] })),
+      .catch((e: any) => {
+        console.error("[loanSnapshot] Binance loanable data API error:", e.response?.data || e.message);
+        return { rows: [] };
+      }),
   ]);
 
   const ongoingRows = ongoing.rows || [];
   const loanableRows = loanable.rows || [];
 
+  console.log("[loanSnapshot] Binance ongoing rows:", JSON.stringify(ongoingRows.map((r: any) => ({ coin: r.loanCoin, debt: r.totalDebt, accrued: r.accruedInterest }))));
+
   // Agrupar deudas por loanCoin
-  const debtMap: Record<string, number> = {};
+  const debtMap: Record<string, { amount: number; accrued: number }> = {};
   const collateralMap: Record<string, number> = {};
 
   for (const row of ongoingRows) {
     const loanCoin = row.loanCoin;
     const amount = parseFloat(row.totalDebt) || 0;
+    const accrued = parseFloat(row.accruedInterest) || 0;
     if (amount > 0) {
-      debtMap[loanCoin] = (debtMap[loanCoin] || 0) + amount;
+      debtMap[loanCoin] = { amount: (debtMap[loanCoin]?.amount || 0) + amount, accrued: (debtMap[loanCoin]?.accrued || 0) + accrued };
     }
 
     const collCoin = row.collateralCoin;
@@ -79,7 +88,7 @@ async function fetchBinanceLoanData(
     }
   }
 
-  const debts: SnapshotDebt[] = Object.entries(debtMap).map(([coin, amount]) => {
+  const debts: SnapshotDebt[] = Object.entries(debtMap).map(([coin, { amount, accrued }]) => {
     const loanData = loanableRows.find((l: any) => l.loanCoin === coin);
     const yearlyRate = parseFloat(loanData?.flexibleYearlyInterestRate || "0") * 100;
     const dailyRate = parseFloat(loanData?.flexibleDailyInterestRate || "0");
@@ -89,7 +98,7 @@ async function fetchBinanceLoanData(
       amount,
       hourlyRate,
       rate: parseFloat(yearlyRate.toFixed(2)),
-      accruedInterest: 0,
+      accruedInterest: accrued,
       interestMTD: 0,
     };
   });
@@ -129,13 +138,22 @@ async function fetchBybitLoanData(
   prices: Record<string, number>
 ): Promise<ExchangeSnapshot> {
   const [position, flexibleLoans] = await Promise.all([
-    bybitRequest<any>("/v5/crypto-loan-common/position", {}, apiKey, apiSecret).catch(() => null),
-    bybitRequest<{ list: any[] }>("/v5/crypto-loan-flexible/ongoing-coin", {}, apiKey, apiSecret).catch(() => ({ list: [] })),
+    bybitRequest<any>("/v5/crypto-loan-common/position", {}, apiKey, apiSecret).catch((e: any) => {
+      console.error("[loanSnapshot] Bybit position API error:", e.response?.data || e.message);
+      return null;
+    }),
+    bybitRequest<{ list: any[] }>("/v5/crypto-loan-flexible/ongoing-coin", {}, apiKey, apiSecret).catch((e: any) => {
+      console.error("[loanSnapshot] Bybit flexible loans API error:", e.response?.data || e.message);
+      return { list: [] };
+    }),
   ]);
 
   if (!position) {
     return { debts: [], collateral: [], totalDebt: 0, totalCollateral: 0, ltvFromExchange: 0 };
   }
+
+  console.log("[loanSnapshot] Bybit position borrowList:", JSON.stringify(position.borrowList?.map((b: any) => ({ loan: b.loanCurrency, debt: b.flexibleTotalDebt, rate: b.flexibleHourlyInterestRate }))));
+  console.log("[loanSnapshot] Bybit flexible loans:", JSON.stringify(flexibleLoans?.list?.map((f: any) => ({ currency: f.loanCurrency, unpaidInterest: f.unpaidInterest }))));
 
   const debts: SnapshotDebt[] = (position.borrowList || []).map((item: any) => {
     const hourlyRate = parseFloat(item.flexibleHourlyInterestRate) || 0;
@@ -246,27 +264,34 @@ async function runDailyLoanSnapshot(): Promise<void> {
   let binanceData: ExchangeSnapshot = { debts: [], collateral: [], totalDebt: 0, totalCollateral: 0, ltvFromExchange: 0 };
 
   try {
-    if (bybitApiKey && bybitApiSecret) {
-      // Get collateral coins from Bybit position to know which prices to fetch
-      const position = await bybitRequest<any>("/v5/crypto-loan-common/position", {}, bybitApiKey, bybitApiSecret).catch(() => null);
-      const bybitCollateralCoins = position?.collateralList?.map((c: any) => c.currency) || [];
+    // Fetch position data from both exchanges in parallel to get collateral coins
+    const [bybitPosition, binanceOngoing] = await Promise.all([
+      bybitApiKey && bybitApiSecret
+        ? bybitRequest<any>("/v5/crypto-loan-common/position", {}, bybitApiKey, bybitApiSecret).catch(() => null)
+        : Promise.resolve(null),
+      binanceApiKey && binanceApiSecret
+        ? binanceRequest("/sapi/v2/loan/flexible/ongoing/orders", "GET", {}, binanceApiKey, binanceApiSecret).catch(() => ({ rows: [] }))
+        : Promise.resolve({ rows: [] }),
+    ]);
 
-      // Get Binance collateral coins
-      const binanceOngoing = binanceApiKey && binanceApiSecret
-        ? await binanceRequest("/sapi/v2/loan/flexible/ongoing/orders", "GET", {}, binanceApiKey, binanceApiSecret).catch(() => ({ rows: [] }))
-        : { rows: [] };
-      const binanceCollateralCoins = (binanceOngoing.rows || []).map((r: any) => r.collateralCoin);
+    const bybitCollateralCoins = bybitPosition?.collateralList?.map((c: any) => c.currency) || [];
+    const binanceCollateralCoins = (binanceOngoing.rows || []).map((r: any) => r.collateralCoin);
 
-      const allCoins = [...new Set([...bybitCollateralCoins, ...binanceCollateralCoins])];
-      const prices = await fetchPrices(allCoins);
+    const allCoins = [...new Set([...bybitCollateralCoins, ...binanceCollateralCoins])];
+    const prices = await fetchPrices(allCoins);
 
-      if (bybitApiKey && bybitApiSecret) {
-        bybitData = await fetchBybitLoanData(bybitApiKey, bybitApiSecret, prices);
-      }
-      if (binanceApiKey && binanceApiSecret) {
-        binanceData = await fetchBinanceLoanData(binanceApiKey, binanceApiSecret, prices);
-      }
-    }
+    // Fetch loan data from both exchanges in parallel
+    const [bybitResult, binanceResult] = await Promise.all([
+      bybitApiKey && bybitApiSecret
+        ? fetchBybitLoanData(bybitApiKey, bybitApiSecret, prices)
+        : Promise.resolve(bybitData),
+      binanceApiKey && binanceApiSecret
+        ? fetchBinanceLoanData(binanceApiKey, binanceApiSecret, prices)
+        : Promise.resolve(binanceData),
+    ]);
+
+    bybitData = bybitResult;
+    binanceData = binanceResult;
   } catch (e) {
     console.error("[loanSnapshot] Error fetching data:", e);
   }
@@ -302,8 +327,23 @@ async function runDailyLoanSnapshot(): Promise<void> {
     totalInterestMTD: { bybit: bybitMTD.total, binance: binanceMTD.total },
   };
 
-  await db().collection("loanSnapshots").doc(today).set(snapshot);
-  console.log(`[loanSnapshot] Guardado para ${today}`);
+  // Write with retry
+  const MAX_RETRIES = 3;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      await db().collection("loanSnapshots").doc(today).set(snapshot);
+      console.log(`[loanSnapshot] Guardado para ${today} (intento ${attempt})`);
+      return;
+    } catch (writeErr) {
+      console.error(`[loanSnapshot] Error writing snapshot (intento ${attempt}/${MAX_RETRIES}):`, writeErr);
+      if (attempt === MAX_RETRIES) {
+        console.error(`[loanSnapshot] FALLO PERMANENTE guardando snapshot para ${today}`);
+        throw writeErr;
+      }
+      // Wait 2s before retry
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+  }
 }
 
 // ─── Exported functions ───────────────────────────────────────────

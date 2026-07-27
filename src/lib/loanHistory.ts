@@ -53,9 +53,19 @@ export interface DaySnapshot {
 
 // ─── Calculation Functions ────────────────────────────────────────
 
+/** Calculate estimated daily interest from a snapshot's debts */
+function calcDailyInterest(debts: LoanSnapshotDebt[]): number {
+  return debts.reduce((sum, d) => {
+    if (!d.hourlyRate || !d.amount) return sum;
+    return sum + d.amount * d.hourlyRate * 24;
+  }, 0);
+}
+
 /**
  * Calculate real accumulated interest for an exchange over a month of snapshots.
- * Uses pre-calculated interestMTD from snapshots when available.
+ * Strategy:
+ * 1. Use totalInterestMTD from the latest snapshot if > 0 (most reliable)
+ * 2. Otherwise, sum daily interest from hourlyRate * amount * 24 for each day
  */
 export function calculateRealInterest(
   snapshots: LoanSnapshot[],
@@ -63,26 +73,25 @@ export function calculateRealInterest(
 ): number {
   if (snapshots.length === 0) return 0;
 
-  // Si el snapshot tiene totalInterestMTD guardado, usarlo directamente
+  // Try to use the latest totalInterestMTD if it's a real value
   const lastSnapshot = snapshots[snapshots.length - 1];
-  if (lastSnapshot.totalInterestMTD && lastSnapshot.totalInterestMTD[exchange] !== undefined) {
+  if (lastSnapshot.totalInterestMTD && lastSnapshot.totalInterestMTD[exchange] > 0) {
     return lastSnapshot.totalInterestMTD[exchange];
   }
 
-  // Fallback: calcular con diff de accruedInterest
-  if (snapshots.length < 2) {
-    return 0;
+  // Fallback: find the latest non-zero totalInterestMTD
+  for (let i = snapshots.length - 1; i >= 0; i--) {
+    const mtd = snapshots[i].totalInterestMTD?.[exchange];
+    if (mtd && mtd > 0) return mtd;
   }
 
-  const first = snapshots[0];
-  const firstInterest = first[exchange].debts.reduce((sum, d) => sum + d.accruedInterest, 0);
-  const lastInterest = lastSnapshot[exchange].debts.reduce((sum, d) => sum + d.accruedInterest, 0);
-
-  return lastInterest - firstInterest;
+  // Last fallback: sum estimated daily interest from hourlyRate * amount * 24
+  return snapshots.reduce((sum, snap) => sum + calcDailyInterest(snap[exchange].debts), 0);
 }
 
 /**
- * Estimate end-of-month interest using current hourly rates and remaining hours.
+ * Estimate end-of-month interest.
+ * Uses the average daily interest from recorded days, projected over remaining days.
  */
 export function estimateEndOfMonthInterest(
   snapshots: LoanSnapshot[],
@@ -98,14 +107,13 @@ export function estimateEndOfMonthInterest(
 
   if (hoursIntoMonth >= hoursInMonth) return 0;
 
-  const lastSnapshot = snapshots[snapshots.length - 1];
-  const remainingHours = hoursInMonth - hoursIntoMonth;
+  // Average daily interest from all recorded snapshots
+  const avgDaily = snapshots.reduce((sum, snap) => sum + calcDailyInterest(snap[exchange].debts), 0) / snapshots.length;
 
-  return lastSnapshot[exchange].debts.reduce((sum, debt) => {
-    if (!debt.hourlyRate) return sum;
-    const principal = debt.amount - debt.accruedInterest;
-    return sum + principal * (Math.pow(1 + debt.hourlyRate, remainingHours) - 1);
-  }, 0);
+  // Remaining days in month (fractional)
+  const remainingDays = (hoursInMonth - hoursIntoMonth) / 24;
+
+  return calculateRealInterest(snapshots, exchange) + avgDaily * remainingDays;
 }
 
 /**
@@ -127,33 +135,20 @@ export function calculateAvgDailyRate(
 
 /**
  * Convert snapshots to chart-ready day-by-day data.
- * Uses pre-calculated interestMTD from snapshots when available.
+ * Computes daily interest from hourlyRate * amount * 24 when totalInterestMTD is not available.
  */
 export function snapshotsToChartData(
   snapshots: LoanSnapshot[],
   exchange: 'bybit' | 'binance'
 ): DaySnapshot[] {
+  let accumulated = 0;
+
   return snapshots.map((snap, index) => {
     const data = snap[exchange];
 
-    // Usar interestMTD pre-calculado si está disponible
-    const hasMTD = snap.totalInterestMTD && snap.totalInterestMTD[exchange] !== undefined;
-    const currentMTD = hasMTD ? snap.totalInterestMTD![exchange] : 0;
-
-    // Para el acumulado: usar el valor guardado directamente
-    const interesesAcumulados = hasMTD
-      ? currentMTD
-      : data.debts.reduce((sum, d) => sum + d.accruedInterest, 0);
-
-    // Para el interés diario: diff entre interestMTD de hoy y ayer
-    const prevSnapshot = index > 0 ? snapshots[index - 1] : null;
-    let interesesDiarios = 0;
-
-    if (hasMTD && prevSnapshot) {
-      const prevHasMTD = prevSnapshot.totalInterestMTD && prevSnapshot.totalInterestMTD[exchange] !== undefined;
-      const prevMTD = prevHasMTD ? prevSnapshot.totalInterestMTD![exchange] : 0;
-      interesesDiarios = Math.max(0, currentMTD - prevMTD);
-    }
+    // Daily interest: use estimated from rates
+    const dailyInterest = calcDailyInterest(data.debts);
+    accumulated += dailyInterest;
 
     const date = new Date(snap.date + "T12:00:00");
     const dia = date.getDate();
@@ -164,8 +159,8 @@ export function snapshotsToChartData(
       deuda: data.totalDebt,
       colateral: data.totalCollateral,
       ltv: data.ltvFromExchange,
-      interesesDiarios,
-      interesesAcumulados,
+      interesesDiarios: dailyInterest,
+      interesesAcumulados: accumulated,
     };
   });
 }

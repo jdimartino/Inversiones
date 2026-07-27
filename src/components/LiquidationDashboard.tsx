@@ -233,15 +233,17 @@ export default function LiquidationDashboard() {
   const hoursInMonth = (endOfMonth.getTime() - startOfMonth.getTime()) / (1000 * 60 * 60);
 
   const interestMTD = currentData.debts.reduce((sum, item) => {
-    if (!item.hourlyRate) return sum;
+    const hourlyRate = item.hourlyRate || (item.rate ? item.rate / 100 / 365 / 24 : 0);
+    if (!hourlyRate) return sum;
     const principal = item.amount - (item.accruedInterest || 0);
-    return sum + principal * (Math.pow(1 + item.hourlyRate, hoursIntoMonth) - 1);
+    return sum + principal * (Math.pow(1 + hourlyRate, hoursIntoMonth) - 1);
   }, 0);
 
   const interestFullMonth = currentData.debts.reduce((sum, item) => {
-    if (!item.hourlyRate) return sum;
+    const hourlyRate = item.hourlyRate || (item.rate ? item.rate / 100 / 365 / 24 : 0);
+    if (!hourlyRate) return sum;
     const principal = item.amount - (item.accruedInterest || 0);
-    return sum + principal * (Math.pow(1 + item.hourlyRate, hoursInMonth) - 1);
+    return sum + principal * (Math.pow(1 + hourlyRate, hoursInMonth) - 1);
   }, 0);
 
   const liquidationThresholdValue = totalDebt / (currentData.liquidationLTV / 100);

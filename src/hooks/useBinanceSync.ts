@@ -8,6 +8,7 @@ interface BinanceOngoingRow {
   loanCoin: string;
   collateralCoin: string;
   totalDebt: string;
+  accruedInterest: string;
   collateralAmount: string;
   currentLTV: string;
 }
@@ -50,18 +51,20 @@ function mapBinanceToExchangeData(
   const loanableData = data.loanable || [];
 
   // ── Debts: agrupar por loanCoin (puede haber varios préstamos con misma moneda) ──
-  const debtMap: Record<string, { amount: number; loanCoin: string }> = {};
+  const debtMap: Record<string, { amount: number; accrued: number; loanCoin: string }> = {};
   const collateralMap: Record<string, { amount: number; valueUSD: number; collateralCoin: string }> = {};
 
   for (const row of ongoing) {
     const loanCoin = row.loanCoin;
     const amount = parseFloat(row.totalDebt) || 0;
+    const accrued = parseFloat(row.accruedInterest) || 0;
     if (amount <= 0) continue;
 
     if (!debtMap[loanCoin]) {
-      debtMap[loanCoin] = { amount: 0, loanCoin };
+      debtMap[loanCoin] = { amount: 0, accrued: 0, loanCoin };
     }
     debtMap[loanCoin].amount += amount;
+    debtMap[loanCoin].accrued += accrued;
 
     // Collateral por moneda
     const collCoin = row.collateralCoin;
@@ -95,7 +98,7 @@ function mapBinanceToExchangeData(
       hourlyRate,
       synced: true,
       lastSyncAt: now,
-      accruedInterest: 0,
+      accruedInterest: item.accrued,
     };
   });
 

@@ -9,7 +9,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { X, ChevronLeft, ChevronRight, TrendingDown, Clock, Percent } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, TrendingDown, Clock, Percent, AlertTriangle } from "lucide-react";
 import { useLoanHistory } from "../hooks/useLoanHistory";
 import {
   calculateRealInterest,
@@ -130,8 +130,16 @@ const InterestHistoryModal: React.FC<InterestHistoryModalProps> = ({
               Cargando historial...
             </div>
           ) : error ? (
-            <div className="text-center py-10 text-red-400 text-sm">
-              {error}
+            <div className="text-center py-10">
+              <AlertTriangle className="mx-auto text-red-400 mb-2" size={32} />
+              <p className="text-red-400 text-sm font-medium">Error al cargar historial</p>
+              <p className="text-red-400/60 text-xs mt-1">{error}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="mt-3 px-3 py-1.5 text-xs bg-red-900/30 border border-red-800/50 text-red-400 rounded-lg hover:bg-red-900/50 transition-colors"
+              >
+                Reintentar
+              </button>
             </div>
           ) : snapshots.length === 0 ? (
             <div className="text-center py-10">
@@ -181,13 +189,13 @@ const InterestHistoryModal: React.FC<InterestHistoryModalProps> = ({
               {chartData.length >= 2 && (
                 <div className="bg-[#181A20] p-4 rounded-xl border border-gray-800">
                   <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">
-                    Evolución Diaria
+                    Evolución de Intereses
                   </h3>
                   <div className="h-[140px] sm:h-[220px]">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height={220}>
                     <AreaChart data={chartData} margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
                       <defs>
-                        <linearGradient id="interestGradient" x1="0" y1="0" x2="0" y2="1">
+                        <linearGradient id="dailyGradient" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#4ade80" stopOpacity={0.3} />
                           <stop offset="95%" stopColor="#4ade80" stopOpacity={0.02} />
                         </linearGradient>
@@ -200,21 +208,35 @@ const InterestHistoryModal: React.FC<InterestHistoryModalProps> = ({
                         axisLine={false}
                       />
                       <YAxis
+                        yAxisId="left"
                         tick={{ fill: "#475569", fontSize: 9 }}
                         tickLine={false}
                         axisLine={false}
-                        tickFormatter={(v: any) => `$${(v / 1000).toFixed(0)}k`}
-                        width={38}
+                        tickFormatter={(v: any) => `$${v.toFixed(0)}`}
+                        width={45}
+                      />
+                      <YAxis
+                        yAxisId="right"
+                        orientation="right"
+                        tick={{ fill: "#475569", fontSize: 9 }}
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={(v: any) => `$${(v / 1000).toFixed(1)}k`}
+                        width={45}
                       />
                       <Tooltip
                         content={({ active, payload, label }: any) => {
                           if (!active || !payload?.length) return null;
-                          const intereses = payload[0]?.value;
+                          const diario = payload.find((p: any) => p.dataKey === "interesesDiarios");
+                          const acumulado = payload.find((p: any) => p.dataKey === "interesesAcumulados");
                           return (
                             <div className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs shadow-xl">
                               <p className="text-slate-400 font-bold mb-1">Día {label}</p>
-                              {intereses != null && (
-                                <p className="text-green-400">Interés: {fmtUSD(intereses)}</p>
+                              {diario && (
+                                <p className="text-green-400">Diario: {fmtUSD(diario.value)}</p>
+                              )}
+                              {acumulado && (
+                                <p className="text-orange-400">Acumulado: {fmtUSD(acumulado.value)}</p>
                               )}
                             </div>
                           );
@@ -222,12 +244,23 @@ const InterestHistoryModal: React.FC<InterestHistoryModalProps> = ({
                       />
                       <Legend wrapperStyle={{ fontSize: "10px", color: "#64748b" }} />
                       <Area
+                        yAxisId="left"
                         type="monotone"
                         dataKey="interesesDiarios"
                         name="Interés Diario"
                         stroke="#4ade80"
                         strokeWidth={2}
-                        fill="url(#interestGradient)"
+                        fill="url(#dailyGradient)"
+                      />
+                      <Area
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="interesesAcumulados"
+                        name="Acumulado"
+                        stroke="#fb923c"
+                        strokeWidth={2}
+                        strokeDasharray="5 3"
+                        fill="none"
                       />
                     </AreaChart>
                   </ResponsiveContainer>
