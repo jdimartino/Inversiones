@@ -163,7 +163,7 @@ interface MeasureStats {
 async function fetchKlines(coin: string, interval: Interval): Promise<Kline[]> {
     if (coin.endsWith('EUR')) {
         const intervalMap: Record<Interval, string> = { "15m": "15", "1h": "60", "4h": "240", "1d": "D", "1M": "M" };
-        const res = await fetch(`https://api.bybit.com/v5/market/kline?category=spot&symbol=${coin}&interval=${intervalMap[interval]}&limit=100`);
+        const res = await fetch(`https://api.bybit.com/v5/market/kline?category=spot&symbol=${coin}&interval=${intervalMap[interval]}&limit=500`);
         const data = await res.json();
         const raw = data.result?.list || [];
         return raw.reverse().map((k: any[]) => ({
@@ -179,7 +179,7 @@ async function fetchKlines(coin: string, interval: Interval): Promise<Kline[]> {
 
     const symbol = `${coin}USDT`;
     const res = await fetch(
-        `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=100`
+        `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=500`
     );
     const raw: any[][] = await res.json();
     return raw.map((k) => ({
@@ -246,8 +246,9 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
     // Series refs
     const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
     const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
-    const sma20Ref = useRef<ISeriesApi<"Line"> | null>(null);
+    const ema20Ref = useRef<ISeriesApi<"Line"> | null>(null);
     const sma50Ref = useRef<ISeriesApi<"Line"> | null>(null);
+    const sma200Ref = useRef<ISeriesApi<"Line"> | null>(null);
     const priceLinesRef = useRef<ReturnType<ISeriesApi<"Candlestick">["createPriceLine"]>[]>([]);
     const alertPriceLinesRef = useRef<ReturnType<ISeriesApi<"Candlestick">["createPriceLine"]>[]>([]);
     const rsiSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
@@ -361,13 +362,18 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
         });
         volumeSeries.priceScale().applyOptions({ scaleMargins: { top: 0.48, bottom: 0.42 } });
 
-        const sma20Series = (mainChart as any).addLineSeries({
+        const ema20Series = (mainChart as any).addLineSeries({
             color: "#38bdf8", lineWidth: 1,
             priceLineVisible: false, lastValueVisible: false,
             title: "", crosshairMarkerVisible: false,
         });
         const sma50Series = (mainChart as any).addLineSeries({
             color: "#fb923c", lineWidth: 1,
+            priceLineVisible: false, lastValueVisible: false,
+            title: "", crosshairMarkerVisible: false,
+        });
+        const sma200Series = (mainChart as any).addLineSeries({
+            color: "#eab308", lineWidth: 2,
             priceLineVisible: false, lastValueVisible: false,
             title: "", crosshairMarkerVisible: false,
         });
@@ -418,8 +424,9 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
         mainChartRef.current = mainChart;
         candleSeriesRef.current = candleSeries;
         volumeSeriesRef.current = volumeSeries;
-        sma20Ref.current = sma20Series;
+        ema20Ref.current = ema20Series;
         sma50Ref.current = sma50Series;
+        sma200Ref.current = sma200Series;
         rsiSeriesRef.current = rsiSeries;
         macdLineRef.current = macdLineSeries;
         macdSignalRef.current = macdSignalSeries;
@@ -492,16 +499,22 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
             }))
         );
 
-        // SMA20
-        const sma20 = computeSMA(closes, 20);
-        sma20Ref.current?.setData(
-            sma20.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []))
+        // EMA20
+        const ema20 = computeEMA(closes, 20);
+        ema20Ref.current?.setData(
+            ema20.map((value, i) => ({ time: times[i], value }))
         );
 
         // SMA50
         const sma50 = computeSMA(closes, 50);
         sma50Ref.current?.setData(
             sma50.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []))
+        );
+
+        // SMA200
+        const sma200 = computeSMA(closes, 200);
+        sma200Ref.current?.setData(
+            sma200.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []))
         );
 
         // Price lines: remove old, add new
@@ -1055,11 +1068,15 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
             <div className="flex items-center gap-3 text-[9px] text-slate-500 flex-wrap">
                 <span className="flex items-center gap-1">
                     <span className="w-5 h-px inline-block" style={{ background: "#38bdf8" }} />
-                    SMA20
+                    EMA20
                 </span>
                 <span className="flex items-center gap-1">
                     <span className="w-5 h-px inline-block" style={{ background: "#fb923c" }} />
                     SMA50
+                </span>
+                <span className="flex items-center gap-1">
+                    <span className="w-5 h-0.5 inline-block" style={{ background: "#eab308" }} />
+                    SMA200
                 </span>
                 <span className="flex items-center gap-1">
                     <span className="w-5 border-t border-dashed border-[#60a5fa] inline-block" />
