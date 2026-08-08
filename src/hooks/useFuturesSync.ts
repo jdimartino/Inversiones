@@ -19,7 +19,7 @@ export function useFuturesSync() {
         try {
             const [accountRes, positionRes] = await Promise.all([
                 fetchBinanceFutures("/fapi/v3/account", {}),
-                fetchBinanceFutures("/fapi/v2/positionRisk", {}),
+                fetchBinanceFutures("/fapi/v2/positionRisk", { current: "true" }),
             ]);
 
             const positionMap = new Map<string, any>();

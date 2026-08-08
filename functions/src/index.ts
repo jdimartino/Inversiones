@@ -1,6 +1,9 @@
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 import axios from "axios";
+import * as crypto from "crypto";
+import { defineSecret } from "firebase-functions/params";
+import { binanceRequest, bybitRequest } from "./apiClients";
 import { analyzeMarket } from "./analyzeMarket";
 import { signBinanceRequest } from "./signBinanceRequest";
 
@@ -284,9 +287,223 @@ export const dailyPnlSnapshot = functions
     });
 */
 
+// ─── Helper: CORS ──────────────────────────────────────────────────────────────
+function setCorsHeaders(res: functions.Response) {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+}
+
+// ─── Helper: Binance Signed Request ─────────────────────────────────────────────
+const BINANCE_SECRET = defineSecret("FUNCTIONS_CONFIG_EXPORT");
+
+async function binanceSignedRequest(
+    path: string,
+    params: Record<string, string> = {}
+): Promise<any> {
+    const bConfig = JSON.parse(BINANCE_SECRET.value() as string).binance;
+    if (!bConfig?.api_key || !bConfig?.api_secret) {
+        throw new Error("Binance API keys not configured");
+    }
+
+    const { api_key: apiKey, api_secret: apiSecret } = bConfig;
+    const timestamp = Date.now();
+    const baseParams = { ...params, timestamp: String(timestamp), recvWindow: "5000" };
+    const qs = new URLSearchParams(baseParams).toString();
+    const signature = crypto.createHmac("sha256", apiSecret).update(qs).digest("hex");
+
+    const isFapi = path.startsWith("/fapi");
+    const baseUrl = isFapi ? "https://fapi.binance.com" : "https://api.binance.com";
+    const url = `${baseUrl}${path}?${qs}&signature=${signature}`;
+
+    const { data } = await axios.get(url, {
+        headers: { "X-MBX-APIKEY": apiKey },
+        timeout: 10000,
+    });
+
+    return data;
+}
+
 // ─── HTTP Functions (Esenciales) ─────────────────────────────────────────────
 export { analyzeMarket };
 export { signBinanceRequest };
+
+// ─── HTTP: getBinanceWallet ────────────────────────────────────────────────────
+// Devuelve: { funding: { USDT: number, ... }, spot: { USDT: number, ... }, error?: string }
+
+export const getBinanceWallet = functions
+    .region("europe-west1")
+    .runWith({ secrets: ["FUNCTIONS_CONFIG_EXPORT"], memory: "128MB" })
+    .https.onRequest(async (req, res) => {
+        setCorsHeaders(res);
+
+        if (req.method === "OPTIONS") {
+            res.status(204).send("");
+            return;
+        }
+
+        try {
+            // Fetch Spot Wallet Balance
+            const spotData = await binanceSignedRequest("/api/v3/account", { omitZeroBalances: "true" });
+            const spot: Record<string, number> = {};
+            if (spotData?.balances && Array.isArray(spotData.balances)) {
+                for (const asset of spotData.balances) {
+                    const total = parseFloat(asset.free || "0") + parseFloat(asset.locked || "0");
+                    if (total > 0) spot[asset.asset] = total;
+                }
+            }
+
+            // Fetch Futures Balance
+            const futuresData = await binanceSignedRequest("/fapi/v2/balance");
+            const funding: Record<string, number> = {};
+            if (Array.isArray(futuresData)) {
+                for (const b of futuresData) {
+                    const bal = parseFloat(b.balance || "0");
+                    if (bal > 0) funding[b.asset] = bal;
+                }
+            }
+
+            res.status(200).json({ funding, spot });
+        } catch (error: any) {
+            console.error("[getBinanceWallet] Error:", error.message);
+            res.status(200).json({ funding: { USDT: 0 }, spot: { USDT: 0 }, error: error.message });
+        }
+    });
+
+export const corsTest = functions
+    .region("europe-west1")
+    .runWith({ memory: "128MB" })
+    .https.onRequest((req, res) => {
+        setCorsHeaders(res);
+
+        if (req.method === "OPTIONS") {
+            res.status(204).send("");
+            return;
+        }
+
+        res.status(200).json({ ok: true, message: "CORS configurado correctamente" });
+    });
+
+// ─── HTTP: syncBinanceLoans ────────────────────────────────────────────────────
+// Devuelve: { ongoing, collateral, loanable, error? }
+export const syncBinanceLoans = functions
+    .region("europe-west1")
+    .runWith({ secrets: ["FUNCTIONS_CONFIG_EXPORT"], memory: "128MB" })
+    .https.onRequest(async (req, res) => {
+        setCorsHeaders(res);
+        if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+
+        try {
+            const bConfig = JSON.parse(BINANCE_SECRET.value() as string).binance;
+            if (!bConfig?.api_key || !bConfig?.api_secret) {
+                res.status(200).json({ ongoing: [], collateral: [], loanable: [], error: "Binance API keys not configured" });
+                return;
+            }
+            const { api_key: apiKey, api_secret: apiSecret } = bConfig;
+
+            const [ongoingRes, collateralRes, loanableRes] = await Promise.all([
+                binanceRequest("/sapi/v2/loan/flexible/ongoing/orders", "GET", {}, apiKey, apiSecret),
+                binanceRequest("/sapi/v2/loan/flexible/collateral/data", "GET", {}, apiKey, apiSecret),
+                binanceRequest("/sapi/v2/loan/flexible/loanable/data", "GET", {}, apiKey, apiSecret),
+            ]);
+
+            const ongoing = ongoingRes?.rows || ongoingRes || [];
+            const collateral = collateralRes?.rows || collateralRes || [];
+            const loanable = loanableRes?.rows || loanableRes || [];
+
+            res.status(200).json({ ongoing, collateral, loanable });
+        } catch (error: any) {
+            console.error("[syncBinanceLoans] Error:", error.message);
+            res.status(200).json({ ongoing: [], collateral: [], loanable: [], error: error.message });
+        }
+    });
+
+// ─── HTTP: syncBybitLoans ─────────────────────────────────────────────────────
+// Devuelve: { position, flexibleLoans, collateralData, error? }
+// Endpoints Bybit V5 Crypto Loan (New):
+//   - /v5/crypto-loan-common/position        → borrowList, collateralList, ltv, totalCollateral, totalDebt
+//   - /v5/crypto-loan-flexible/ongoing-coin  → flexible loans con unpaidInterest
+export const syncBybitLoans = functions
+    .region("europe-west1")
+    .runWith({ secrets: ["FUNCTIONS_CONFIG_EXPORT"], memory: "128MB" })
+    .https.onRequest(async (req, res) => {
+        setCorsHeaders(res);
+        if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+
+        try {
+            const config = JSON.parse(BINANCE_SECRET.value() as string);
+            const bybitConfig = config.bybit;
+            if (!bybitConfig?.api_key || !bybitConfig?.api_secret) {
+                res.status(401).json({ position: null, flexibleLoans: [], collateralData: {}, error: "Bybit API keys not configured" });
+                return;
+            }
+            const { api_key: apiKey, api_secret: apiSecret } = bybitConfig;
+
+            const [positionRes, ongoingRes] = await Promise.all([
+                bybitRequest<any>("/v5/crypto-loan-common/position", {}, apiKey, apiSecret),
+                bybitRequest<any>("/v5/crypto-loan-flexible/ongoing-coin", {}, apiKey, apiSecret),
+            ]);
+
+            // bybitRequest already unwraps the Bybit response and returns result.
+            const posResult = positionRes || {};
+            const ongoingResult = ongoingRes || {};
+
+            // position.borrowList already has flexibleHourlyInterestRate, flexibleTotalDebt, loanCurrency
+            const borrowList = (posResult.borrowList || []).map((b: any) => ({
+                flexibleHourlyInterestRate: b.flexibleHourlyInterestRate || "0",
+                flexibleTotalDebt: b.flexibleTotalDebt || "0",
+                loanCurrency: b.loanCurrency || "",
+            }));
+
+            // position.collateralList has amount, amountUSD, currency
+            const collateralList = (posResult.collateralList || []).map((c: any) => ({
+                amount: c.amount || "0",
+                amountUSD: c.amountUSD || "0",
+                currency: c.currency || "",
+            }));
+
+            const totalDebt = parseFloat(posResult.totalDebt || "0");
+            const totalCollateral = parseFloat(posResult.totalCollateral || "0");
+            const ltv = posResult.ltv || "0";
+
+            const position = {
+                borrowList,
+                collateralList,
+                loans: posResult.borrowList || [],
+                ltv,
+                totalCollateral: String(totalCollateral),
+                totalDebt: String(totalDebt),
+            };
+
+            // Merge unpaidInterest from ongoing-coin into borrowList for flexibleLoans
+            const ongoingList = ongoingResult.list || [];
+            const flexibleLoans = borrowList.map((b: any) => {
+                const ongoing = ongoingList.find((o: any) => o.loanCurrency === b.loanCurrency);
+                return {
+                    hourlyInterestRate: b.flexibleHourlyInterestRate,
+                    loanCurrency: b.loanCurrency,
+                    totalDebt: b.flexibleTotalDebt,
+                    unpaidInterest: ongoing?.unpaidInterest || "0",
+                };
+            });
+
+            // Build collateralData with default LTV values per coin
+            const collateralData: Record<string, any[]> = {};
+            for (const c of collateralList) {
+                collateralData[c.currency] = [{
+                    currency: c.currency,
+                    initialLTV: "0.80",
+                    marginCallLTV: "0.87",
+                    liquidationLTV: "0.92",
+                }];
+            }
+
+            res.status(200).json({ position, flexibleLoans, collateralData });
+            } catch (error: any) {
+                console.error("[syncBybitLoans] Error:", error.message);
+                res.status(500).json({ position: null, flexibleLoans: [], collateralData: {}, error: error.message });
+            }
+    });
 
 export const debugAlerts = functions.region('europe-west1').runWith({ memory: "128MB" }).https.onRequest(async (req, res) => {
     const doc = await db.collection("config").doc("alerts").get();

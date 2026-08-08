@@ -44,11 +44,26 @@ const Dashboard: React.FC<DashboardProps> = ({
     onWatchlistChange,
 }) => {
     const loanStats = useMemo(() => {
-        const bybit = exchangeData.bybit;
-        const totalDebt = bybit.totalDebt ?? bybit.debts.reduce((s, d) => s + d.amount * d.price, 0);
-        const totalCollateral = bybit.totalCollateral ?? bybit.collateral.reduce((s, c) => s + c.amount * c.price, 0);
+        const calc = (data: typeof exchangeData.bybit) => ({
+            debt: data.totalDebt ?? data.debts.reduce((s, d) => s + d.amount * d.price, 0),
+            collateral: data.totalCollateral ?? data.collateral.reduce((s, c) => s + c.amount * c.price, 0),
+        });
+        const bybit = calc(exchangeData.bybit);
+        const binance = calc(exchangeData.binance);
+        const totalDebt = bybit.debt + binance.debt;
+        const totalCollateral = bybit.collateral + binance.collateral;
         const totalLtv = totalCollateral > 0 ? (totalDebt / totalCollateral) * 100 : 0;
-        return { totalDebt, totalCollateral, totalLtv };
+        return {
+            totalDebt,
+            totalCollateral,
+            totalLtv,
+            bybitDebt: bybit.debt,
+            bybitCollateral: bybit.collateral,
+            bybitLtv: bybit.collateral > 0 ? (bybit.debt / bybit.collateral) * 100 : 0,
+            binanceDebt: binance.debt,
+            binanceCollateral: binance.collateral,
+            binanceLtv: binance.collateral > 0 ? (binance.debt / binance.collateral) * 100 : 0,
+        };
     }, [exchangeData]);
 
     const futuresBalance = futuresData?.account?.totalWalletBalance ?? 0;
@@ -66,6 +81,12 @@ const Dashboard: React.FC<DashboardProps> = ({
                 totalDebt={loanStats.totalDebt}
                 totalCollateral={loanStats.totalCollateral}
                 totalLtv={loanStats.totalLtv}
+                bybitDebt={loanStats.bybitDebt}
+                bybitCollateral={loanStats.bybitCollateral}
+                bybitLtv={loanStats.bybitLtv}
+                binanceDebt={loanStats.binanceDebt}
+                binanceCollateral={loanStats.binanceCollateral}
+                binanceLtv={loanStats.binanceLtv}
                 futuresBalance={futuresBalance}
                 futuresPnl={futuresPnl}
                 futuresMarginBalance={futuresMarginBalance}

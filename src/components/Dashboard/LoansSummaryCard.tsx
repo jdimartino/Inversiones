@@ -25,23 +25,26 @@ const LoansSummaryCard: React.FC<LoansSummaryCardProps> = ({
     onNavigate,
 }) => {
     const stats = useMemo(() => {
-        let totalDebt = 0;
-        let totalCollateral = 0;
-        let totalLtv = 0;
-
-        for (const exchange of [exchangeData.bybit, exchangeData.binance]) {
-            const debt = exchange.debts.reduce((sum, d) => sum + d.amount * d.price, 0);
-            const collateral = exchange.collateral.reduce(
-                (sum, c) => sum + c.amount * c.price,
-                0
-            );
-            totalDebt += debt;
-            totalCollateral += collateral;
-        }
-
-        totalLtv = totalCollateral > 0 ? (totalDebt / totalCollateral) * 100 : 0;
-
-        return { totalDebt, totalCollateral, totalLtv };
+        const calcExchange = (data: typeof exchangeData.bybit) => ({
+            debt: data.debts.reduce((sum, d) => sum + d.amount * d.price, 0),
+            collateral: data.collateral.reduce((sum, c) => sum + c.amount * c.price, 0),
+        });
+        const bybit = calcExchange(exchangeData.bybit);
+        const binance = calcExchange(exchangeData.binance);
+        const totalDebt = bybit.debt + binance.debt;
+        const totalCollateral = bybit.collateral + binance.collateral;
+        const totalLtv = totalCollateral > 0 ? (totalDebt / totalCollateral) * 100 : 0;
+        return {
+            totalDebt,
+            totalCollateral,
+            totalLtv,
+            bybitDebt: bybit.debt,
+            bybitCollateral: bybit.collateral,
+            bybitLtv: bybit.collateral > 0 ? (bybit.debt / bybit.collateral) * 100 : 0,
+            binanceDebt: binance.debt,
+            binanceCollateral: binance.collateral,
+            binanceLtv: binance.collateral > 0 ? (binance.debt / binance.collateral) * 100 : 0,
+        };
     }, [exchangeData]);
 
     return (
@@ -71,6 +74,19 @@ const LoansSummaryCard: React.FC<LoansSummaryCardProps> = ({
                     <div className="text-white text-sm font-bold">
                         {fmtUSD(stats.totalCollateral)}
                     </div>
+                </div>
+            </div>
+
+            <div className="flex gap-3 text-[9px] mb-2">
+                <div className="flex items-center gap-1">
+                    <span className="text-yellow-400">Bybit</span>
+                    <span className="text-gray-500">{fmtUSD(stats.bybitDebt)}</span>
+                    <span className={getLtvColor(stats.bybitLtv)}>{stats.bybitLtv.toFixed(1)}%</span>
+                </div>
+                <div className="flex items-center gap-1">
+                    <span className="text-yellow-400">Binance</span>
+                    <span className="text-gray-500">{fmtUSD(stats.binanceDebt)}</span>
+                    <span className={getLtvColor(stats.binanceLtv)}>{stats.binanceLtv.toFixed(1)}%</span>
                 </div>
             </div>
 
