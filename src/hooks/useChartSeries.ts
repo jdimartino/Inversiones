@@ -74,6 +74,8 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
                 horzLine: { color: "#475569", labelBackgroundColor: "#334155" },
             },
             timeScale: { ...timeScaleOptions, visible: false },
+            // LW 4.2.3 can throw while its pressed-mouse handler scrolls a null price range.
+            handleScroll: { mouseWheel: true, pressedMouseMove: false, horzTouchDrag: true, vertTouchDrag: false },
             height: mainHeight,
         });
 
