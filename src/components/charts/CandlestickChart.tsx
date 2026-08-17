@@ -226,28 +226,28 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                         <span className="text-xs text-slate-400">Cargando...</span>
                     </div>
                 )}
-                <div ref={mainContainerRef} />
+                <div ref={mainContainerRef} style={{ height: `${expanded ? 760 : 560}px` }} />
 
                 {/* Separador RSI — línea horizontal entre precio/volumen y RSI */}
                 <div
                     className="absolute left-0 right-0 pointer-events-none z-10"
-                    style={{ top: `${0.60 * (expanded ? 760 : 560)}px`, borderTop: '1px solid #334155' }}
+                    style={{ top: `${0.62 * (expanded ? 760 : 560)}px`, borderTop: '1px solid #334155' }}
                 />
                 {/* Separador MACD — línea horizontal entre RSI y MACD */}
                 <div
                     className="absolute left-0 right-0 pointer-events-none z-10"
-                    style={{ top: `${0.80 * (expanded ? 760 : 560)}px`, borderTop: '1px solid #334155' }}
+                    style={{ top: `${0.84 * (expanded ? 760 : 560)}px`, borderTop: '1px solid #334155' }}
                 />
 
                 {/* Labels flotantes RSI y MACD */}
-                <div className="absolute left-2 pointer-events-none z-10 flex items-center gap-1.5" style={{ top: `${0.60 * (expanded ? 760 : 560) + 5}px` }}>
+                <div className="absolute left-2 pointer-events-none z-10 flex items-center gap-1.5" style={{ top: `${0.62 * (expanded ? 760 : 560) + 5}px` }}>
                     <span className="text-[9px] text-violet-400 font-mono font-bold uppercase tracking-widest">RSI(14)</span>
                     <span className="w-3 h-px inline-block" style={{ background: "#a78bfa" }} />
                     <span className="text-[9px] text-slate-600">30</span>
                     <span className="text-[9px] text-slate-700">–</span>
                     <span className="text-[9px] text-slate-600">70</span>
                 </div>
-                <div className="absolute left-2 pointer-events-none z-10 flex items-center gap-1.5" style={{ top: `${0.80 * (expanded ? 760 : 560) + 5}px` }}>
+                <div className="absolute left-2 pointer-events-none z-10 flex items-center gap-1.5" style={{ top: `${0.84 * (expanded ? 760 : 560) + 5}px` }}>
                     <span className="text-[9px] text-sky-400 font-mono font-bold uppercase tracking-widest">MACD(12,26,9)</span>
                     <span className="w-3 h-px inline-block" style={{ background: "#38bdf8" }} />
                     <span className="text-[9px] text-slate-600">línea</span>
