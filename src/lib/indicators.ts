@@ -158,25 +158,26 @@ export function computeMACDSeries(closes: number[]): {
   const ema12 = calcEMASeries(closes, 12);
   const ema26 = calcEMASeries(closes, 26);
 
-  // Align: ema12 starts at index 12, ema26 starts at index 26
-  // MACD line values exist from index 26 onward
-  const offset = 26 - 12; // = 14
+  // Align with calcMACD: ema12[k] <-> barra 11+k, ema26[k] <-> barra 25+k.
+  // MACD(i) = EMA12(i) - EMA26(i), valores válidos desde la barra 25.
   const macd: (number | null)[] = closes.map((_, i) => {
     if (i < 25) return null;
-    const ema12Val = ema12[i - offset];
-    const ema26Val = ema26[i - 26];
+    const ema12Val = ema12[i - 11];
+    const ema26Val = ema26[i - 25];
     if (ema12Val === undefined || ema26Val === undefined) return null;
     return ema12Val - ema26Val;
   });
 
   // Compute signal EMA only from valid MACD values
+  // signalEMA[j] <-> barra 33+j; signal(i) = signalEMA[i - 33] para i >= 33.
   const validMacd = macd.filter((v): v is number => v !== null);
   const signalEMA = calcEMASeries(validMacd, 9);
   const signal: (number | null)[] = new Array(closes.length).fill(null);
   let vi = 0;
   macd.forEach((v, i) => {
     if (v !== null) {
-      if (vi >= 8 && vi < signalEMA.length) signal[i] = signalEMA[vi];
+      const sigIdx = vi - 8;
+      if (sigIdx >= 0 && sigIdx < signalEMA.length) signal[i] = signalEMA[sigIdx];
       vi++;
     }
   });
