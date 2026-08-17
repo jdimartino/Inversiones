@@ -8,7 +8,6 @@ import {
     ISeriesApi,
 } from "lightweight-charts";
 import { AggregatedAsset, ProcessedInvestment, SaleRecord } from "../../lib/constants";
-import type { Kline, CoinSignal } from "../../lib/types/signals";
 import type { CandlestickChartProps, Interval, OhlcvLegend, MeasureAnchor, MeasureStats } from "../../lib/types/chart";
 import { INTERVAL_LABELS } from "../../lib/types/chart";
 import { FuturesPosition } from "../../lib/futures"; // Need to import FuturesPosition
@@ -18,7 +17,7 @@ import { fmtPrice, fmt, fmtUSD } from "../../lib/format";
 import { Maximize2, Minimize2, Bell, Ruler, Plus, X } from "lucide-react";
 import { useAlerts, WatchlistAlert } from "../../hooks/useAlerts";
 import { fmtVol, fmtMeasureTime, signalDotColor } from "./candlestick/chartUtils";
-import { fetchKlines } from "../../services/market/klineService";
+import { useChartKlines } from "../../hooks/useChartKlines";
 import { computeEMASeries, computeSMASeries, computeRSISeries, computeMACDSeries } from "../../lib/indicators";
 
 // ── Types (imported from lib/types/chart.ts) ────────────────────────
@@ -34,12 +33,19 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
     const extraCoins = Object.keys(klinesMap).filter(c => !coins.includes(c));
     const { config, saveConfig } = useAlerts();
 
-    const [selectedCoin, setSelectedCoin] = useState<string>(
-        initialCoin && coins.includes(initialCoin) ? initialCoin : coins[0] || ""
-    );
-    const [selectedInterval, setSelectedInterval] = useState<Interval>("4h");
-    const [extraKlines, setExtraKlines] = useState<Record<string, Partial<Record<Interval, Kline[]>>>>({});
-    const [loading, setLoading] = useState(false);
+    const {
+        selectedCoin, setSelectedCoin,
+        selectedInterval, setSelectedInterval,
+        currentKlines, loading,
+        getCurrentKlines,
+        handleSelectExplorerCoin,
+        showExplorer, setShowExplorer,
+        explorerInput, setExplorerInput,
+        explorerLoading, explorerError,
+        setExplorerError,
+        explorerRef,
+    } = useChartKlines({ coins, initialCoin, klinesMap });
+
     const [expanded, setExpanded] = useState(false);
     const [legend, setLegend] = useState<OhlcvLegend | null>(null);
     const [klinesRange, setKlinesRange] = useState<{ min: number; max: number } | null>(null);
@@ -51,13 +57,6 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
     const [measureEnd, setMeasureEnd] = useState<MeasureAnchor | null>(null);
     const [measureStats, setMeasureStats] = useState<MeasureStats | null>(null);
     const measureWasTouchRef = useRef(false);
-
-    // Explorer popover state
-    const [showExplorer, setShowExplorer] = useState(false);
-    const [explorerInput, setExplorerInput] = useState("");
-    const [explorerLoading, setExplorerLoading] = useState(false);
-    const [explorerError, setExplorerError] = useState("");
-    const explorerRef = useRef<HTMLDivElement>(null);
 
     // Alert form state
     const [showAlertForm, setShowAlertForm] = useState(false);
@@ -90,17 +89,8 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
     const measureOverlayRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (initialCoin && coins.includes(initialCoin)) setSelectedCoin(initialCoin);
-    }, [initialCoin, coins]);
-
-    useEffect(() => {
         onCoinChange?.(selectedCoin);
     }, [selectedCoin, onCoinChange]);
-
-    const getCurrentKlines = useCallback((): Kline[] => {
-        if (selectedInterval === "1h") return klinesMap[selectedCoin] || extraKlines[selectedCoin]?.["1h"] || [];
-        return extraKlines[selectedCoin]?.[selectedInterval] || [];
-    }, [selectedCoin, selectedInterval, klinesMap, extraKlines]);
 
     // Reset medición al cambiar moneda/intervalo
     useEffect(() => {
@@ -122,36 +112,6 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
         window.addEventListener("keydown", fn);
         return () => window.removeEventListener("keydown", fn);
     }, [measureMode]);
-
-    // Auto-fetch 1h klines when klinesMap doesn't have data for the selected coin
-    useEffect(() => {
-        if (!selectedCoin) return;
-        if (klinesMap[selectedCoin] || extraKlines[selectedCoin]?.["1h"]) return;
-        setLoading(true);
-        fetchKlines(selectedCoin, "1h")
-            .then((klines) => {
-                setExtraKlines((prev) => ({
-                    ...prev,
-                    [selectedCoin]: { ...prev[selectedCoin], "1h": klines },
-                }));
-            })
-            .finally(() => setLoading(false));
-    }, [selectedCoin, klinesMap, extraKlines]);
-
-    // Fetch non-1h klines on demand
-    useEffect(() => {
-        if (selectedInterval === "1h" || !selectedCoin) return;
-        if (extraKlines[selectedCoin]?.[selectedInterval]) return;
-        setLoading(true);
-        fetchKlines(selectedCoin, selectedInterval)
-            .then((klines) => {
-                setExtraKlines((prev) => ({
-                    ...prev,
-                    [selectedCoin]: { ...prev[selectedCoin], [selectedInterval]: klines },
-                }));
-            })
-            .finally(() => setLoading(false));
-    }, [selectedCoin, selectedInterval, extraKlines]);
 
     // Create chart once on mount
     useEffect(() => {
@@ -443,41 +403,12 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                 candleSeriesRef.current?.priceScale().applyOptions({ autoScale: false });
             });
         }
-    }, [selectedCoin, selectedInterval, extraKlines, klinesMap, aggregated, items, sales, getCurrentKlines]);
+    }, [selectedCoin, selectedInterval, aggregated, items, sales, getCurrentKlines]);
 
     const currentPrice = aggregated.find(a => a.coin === selectedCoin)?.currentPrice ?? 0;
     const coinItems = items.filter((inv) => inv.coin === selectedCoin);
     const coinSales = sales.filter((s) => s.coin === selectedCoin);
     const coinFutures = futuresPositions.filter((p) => p.symbol.replace("USDT", "") === selectedCoin);
-
-    const handleSelectExplorerCoin = useCallback(async (coin: string) => {
-        const upper = coin.toUpperCase().trim();
-        if (!upper) return;
-        setExplorerError("");
-
-        // Already have klines for this coin
-        if (klinesMap[upper] || extraKlines[upper]?.["1h"]) {
-            setSelectedCoin(upper);
-            setShowExplorer(false);
-            setExplorerInput("");
-            return;
-        }
-
-        // Fetch from Binance
-        setExplorerLoading(true);
-        try {
-            const klines = await fetchKlines(upper, "1h");
-            if (klines.length === 0) throw new Error("Sin datos");
-            setExtraKlines(prev => ({ ...prev, [upper]: { ...prev[upper], "1h": klines } }));
-            setSelectedCoin(upper);
-            setShowExplorer(false);
-            setExplorerInput("");
-        } catch {
-            setExplorerError(`"${upper}" no encontrada en Binance`);
-        } finally {
-            setExplorerLoading(false);
-        }
-    }, [klinesMap, extraKlines]);
 
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
@@ -808,7 +739,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
 
                 {/* Price display — center */}
                 {(() => {
-                    const klines = getCurrentKlines();
+                    const klines = currentKlines;
                     const last = klines[klines.length - 1];
                     const price = currentPrice || last?.close || 0;
                     const dir = priceDirections[selectedCoin];
