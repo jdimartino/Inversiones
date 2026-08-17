@@ -74,12 +74,12 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
                 horzLine: { color: "#475569", labelBackgroundColor: "#334155" },
             },
             timeScale: { ...timeScaleOptions, visible: false },
-            // Keep horizontal pane dragging, but prevent direct price-axis scaling.
+            // Keep horizontal pane dragging and direct price-axis scaling.
             handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
             handleScale: {
                 mouseWheel: true,
                 pinch: true,
-                axisPressedMouseMove: { time: true, price: false },
+                axisPressedMouseMove: { time: true, price: true },
                 axisDoubleClickReset: true,
             },
             height: mainHeight,
