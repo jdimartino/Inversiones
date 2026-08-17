@@ -222,6 +222,7 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
         mainChartRef.current?.applyOptions({ height: mainHeight });
         rsiChartRef.current?.applyOptions({ height: rsiHeight });
         macdChartRef.current?.applyOptions({ height: macdHeight });
+        mainChartRef.current?.priceScale("right").applyOptions({ autoScale: true });
     }, [expanded]);
 
     // Update series data when coin / interval / klines change
