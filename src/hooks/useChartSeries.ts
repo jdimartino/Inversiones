@@ -203,12 +203,12 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
 
         // ── Custom pan (bypasses LW 4.2.3 pressedMouseMove crash) ──
         // Horizontal: uses public setVisibleLogicalRange API.
-        // Vertical: uses internal PriceScale scroll API with autoScale disabled.
-        // Access the internal PriceScale object behind the public wrapper.
+        // Vertical: uses internal Model scroll methods with autoScale disabled.
         const psApi = (mainChart as any).priceScale("right");
-        const internalPriceScale =
-            psApi._private__chartWidget._internal_model()
-                ._internal_findPriceScale("right")._internal_priceScale;
+        const model = psApi._private__chartWidget._internal_model();
+        const paneInfo = model._internal_findPriceScale("right");
+        const internalPriceScale = paneInfo._internal_priceScale;
+        const internalPane = paneInfo._internal_pane;
 
         let panStartX = 0;
         let panStartY = 0;
@@ -241,10 +241,10 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
             if (isVerticalPan) {
                 if (!priceScrollStarted) {
                     internalPriceScale._internal_setMode({ _internal_autoScale: false });
-                    internalPriceScale._internal_startScroll(panStartY);
+                    model._internal_startScrollPrice(internalPane, internalPriceScale, panStartY);
                     priceScrollStarted = true;
                 }
-                internalPriceScale._internal_scrollTo(e.clientY);
+                model._internal_scrollPriceTo(internalPane, internalPriceScale, e.clientY);
             } else if (panStartLogical) {
                 const pixelDelta = e.clientX - panStartX;
                 const chartWidth = mainContainerRef.current?.clientWidth || 1;
@@ -258,7 +258,7 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
         };
         const onPanMouseUp = () => {
             if (priceScrollStarted) {
-                internalPriceScale._internal_endScroll();
+                model._internal_endScrollPrice(internalPane, internalPriceScale);
             }
             isPanning = false;
             isVerticalPan = false;
