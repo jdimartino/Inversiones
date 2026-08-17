@@ -3,7 +3,8 @@ import type { MouseEventParams } from "lightweight-charts";
 import type { CandlestickChartProps, OhlcvLegend } from "../../lib/types/chart";
 import ChartCard from "./ChartCard";
 import { fmtPrice } from "../../lib/format";
-import { useAlerts, WatchlistAlert } from "../../hooks/useAlerts";
+import { useAlerts } from "../../hooks/useAlerts";
+import { useChartAlerts } from "../../hooks/useChartAlerts";
 import { useChartKlines } from "../../hooks/useChartKlines";
 import { useChartSeries } from "../../hooks/useChartSeries";
 import { useChartPriceLines } from "../../hooks/useChartPriceLines";
@@ -43,14 +44,6 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
     const [expanded, setExpanded] = useState(false);
     const [legend, setLegend] = useState<OhlcvLegend | null>(null);
     const [klinesRange, setKlinesRange] = useState<{ min: number; max: number } | null>(null);
-
-    // Alert form state
-    const [showAlertForm, setShowAlertForm] = useState(false);
-    const [alertTarget, setAlertTarget] = useState(0);
-    const [alertDirection, setAlertDirection] = useState<'up' | 'down'>('up');
-    const [alertPersistent, setAlertPersistent] = useState(false);
-    const [alertNote, setAlertNote] = useState("");
-    const [alertSaved, setAlertSaved] = useState(false);
 
     // Chart containers
     const mainContainerRef = useRef<HTMLDivElement>(null);
@@ -138,6 +131,21 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
     const coinSales = sales.filter((s) => s.coin === selectedCoin);
     const coinFutures = futuresPositions.filter((p) => p.symbol.replace("USDT", "") === selectedCoin);
 
+    const {
+        showAlertForm,
+        setShowAlertForm,
+        alertTarget,
+        setAlertTarget,
+        alertDirection,
+        setAlertDirection,
+        alertPersistent,
+        setAlertPersistent,
+        alertNote,
+        setAlertNote,
+        alertSaved,
+        handleSaveChartAlert,
+    } = useChartAlerts({ config, saveConfig, selectedCoin, currentPrice });
+
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
             if (explorerRef.current && !explorerRef.current.contains(e.target as Node)) {
@@ -148,25 +156,6 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
         if (showExplorer) document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [showExplorer]);
-
-    const handleSaveChartAlert = async () => {
-        const existing = config.watchlistAlerts?.[selectedCoin] ?? [];
-        const newAlert: WatchlistAlert = {
-            targetValue: alertTarget,
-            direction: alertDirection,
-            isPersistent: alertPersistent,
-            ...(alertNote.trim() ? { note: alertNote.trim() } : {}),
-        };
-        await saveConfig({
-            ...config,
-            watchlistAlerts: {
-                ...(config.watchlistAlerts ?? {}),
-                [selectedCoin]: [...existing, newAlert],
-            },
-        });
-        setAlertSaved(true);
-        setTimeout(() => { setAlertSaved(false); setShowAlertForm(false); setAlertNote(""); }, 1500);
-    };
 
     if (coins.length === 0) return null;
 
