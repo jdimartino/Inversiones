@@ -203,7 +203,13 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
 
         // ── Custom pan (bypasses LW 4.2.3 pressedMouseMove crash) ──
         // Horizontal: uses public setVisibleLogicalRange API.
-        // Vertical: uses internal _internal_startScroll/_internal_scrollTo with autoScale=false.
+        // Vertical: uses internal PriceScale scroll API with autoScale disabled.
+        // Access the internal PriceScale object behind the public wrapper.
+        const psApi = (mainChart as any).priceScale("right");
+        const internalPriceScale =
+            psApi._private__chartWidget._internal_model()
+                ._internal_findPriceScale("right")._internal_priceScale;
+
         let panStartX = 0;
         let panStartY = 0;
         let panStartLogical: LogicalRange | null = null;
@@ -233,16 +239,13 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
             }
 
             if (isVerticalPan) {
-                // Vertical price-axis panning via internal API
-                const rightPS = (mainChart as any).priceScale("right");
                 if (!priceScrollStarted) {
-                    rightPS.applyOptions({ autoScale: false });
-                    rightPS._internal_startScroll(panStartY);
+                    internalPriceScale._internal_setMode({ _internal_autoScale: false });
+                    internalPriceScale._internal_startScroll(panStartY);
                     priceScrollStarted = true;
                 }
-                rightPS._internal_scrollTo(e.clientY);
+                internalPriceScale._internal_scrollTo(e.clientY);
             } else if (panStartLogical) {
-                // Horizontal time-axis panning via public API
                 const pixelDelta = e.clientX - panStartX;
                 const chartWidth = mainContainerRef.current?.clientWidth || 1;
                 const totalLogical = panStartLogical.to - panStartLogical.from;
@@ -255,8 +258,7 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
         };
         const onPanMouseUp = () => {
             if (priceScrollStarted) {
-                const rightPS = (mainChart as any).priceScale("right");
-                rightPS._internal_endScroll();
+                internalPriceScale._internal_endScroll();
             }
             isPanning = false;
             isVerticalPan = false;
