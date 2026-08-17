@@ -201,32 +201,68 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
         rsiChart.timeScale().subscribeVisibleLogicalRangeChange(onRsiRangeChange);
         macdChart.timeScale().subscribeVisibleLogicalRangeChange(onMacdRangeChange);
 
-        // ── Custom time-pan (bypasses LW 4.2.3 pressedMouseMove crash) ──
+        // ── Custom pan (bypasses LW 4.2.3 pressedMouseMove crash) ──
+        // Horizontal: uses public setVisibleLogicalRange API.
+        // Vertical: uses internal _internal_startScroll/_internal_scrollTo with autoScale=false.
         let panStartX = 0;
+        let panStartY = 0;
         let panStartLogical: LogicalRange | null = null;
         let isPanning = false;
+        let isVerticalPan = false;
+        let priceScrollStarted = false;
 
         const onPanMouseDown = (e: MouseEvent) => {
             if (e.button !== 0) return;
             const range = mainChart.timeScale().getVisibleLogicalRange();
-            if (!range) return;
             isPanning = true;
+            isVerticalPan = false;
+            priceScrollStarted = false;
             panStartX = e.clientX;
+            panStartY = e.clientY;
             panStartLogical = range;
         };
         const onPanMouseMove = (e: MouseEvent) => {
-            if (!isPanning || !panStartLogical) return;
+            if (!isPanning) return;
             e.preventDefault();
-            const pixelDelta = e.clientX - panStartX;
-            const chartWidth = mainContainerRef.current?.clientWidth || 1;
-            const totalLogical = panStartLogical.to - panStartLogical.from;
-            const logicalDelta = (pixelDelta / chartWidth) * totalLogical;
-            mainChart.timeScale().setVisibleLogicalRange({
-                from: panStartLogical.from - logicalDelta,
-                to: panStartLogical.to - logicalDelta,
-            });
+
+            const dx = Math.abs(e.clientX - panStartX);
+            const dy = Math.abs(e.clientY - panStartY);
+
+            if (!isVerticalPan && dy > dx && dy > 3) {
+                isVerticalPan = true;
+            }
+
+            if (isVerticalPan) {
+                // Vertical price-axis panning via internal API
+                const rightPS = (mainChart as any).priceScale("right");
+                if (!priceScrollStarted) {
+                    rightPS.applyOptions({ autoScale: false });
+                    rightPS._internal_startScroll(panStartY);
+                    priceScrollStarted = true;
+                }
+                rightPS._internal_scrollTo(e.clientY);
+            } else if (panStartLogical) {
+                // Horizontal time-axis panning via public API
+                const pixelDelta = e.clientX - panStartX;
+                const chartWidth = mainContainerRef.current?.clientWidth || 1;
+                const totalLogical = panStartLogical.to - panStartLogical.from;
+                const logicalDelta = (pixelDelta / chartWidth) * totalLogical;
+                mainChart.timeScale().setVisibleLogicalRange({
+                    from: panStartLogical.from - logicalDelta,
+                    to: panStartLogical.to - logicalDelta,
+                });
+            }
         };
-        const onPanMouseUp = () => { isPanning = false; panStartLogical = null; };
+        const onPanMouseUp = () => {
+            if (priceScrollStarted) {
+                const rightPS = (mainChart as any).priceScale("right");
+                rightPS._internal_endScroll();
+            }
+            isPanning = false;
+            isVerticalPan = false;
+            priceScrollStarted = false;
+            panStartLogical = null;
+        };
 
         mainContainerRef.current?.addEventListener("mousedown", onPanMouseDown);
         window.addEventListener("mousemove", onPanMouseMove);
