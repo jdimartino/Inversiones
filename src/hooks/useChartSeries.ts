@@ -41,6 +41,9 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
     const macdHistRef = useRef<ISeriesApi<"Histogram"> | null>(null);
     const prevCoinRef = useRef<string>("");
     const prevIntervalRef = useRef<Interval | "">("");
+    const mainHasDataRef = useRef(false);
+    const rsiHasDataRef = useRef(false);
+    const macdHasDataRef = useRef(false);
 
     // Create charts once on mount
     useEffect(() => {
@@ -78,6 +81,8 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
             ...baseChartOptions,
             crosshair: { mode: CrosshairMode.Normal, vertLine: { visible: false }, horzLine: { visible: false } },
             timeScale: { ...timeScaleOptions, visible: false },
+            handleScroll: false,
+            handleScale: false,
             height: rsiHeight,
         });
 
@@ -85,6 +90,8 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
             ...baseChartOptions,
             crosshair: { mode: CrosshairMode.Normal, vertLine: { visible: false }, horzLine: { visible: false } },
             timeScale: { ...timeScaleOptions, visible: true },
+            handleScroll: false,
+            handleScale: false,
             height: macdHeight,
         });
 
@@ -178,16 +185,16 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
 
         // Sync del rango visible de tiempo entre los 3 charts
         let syncing = false;
-        const syncTimeScale = (target1: IChartApi, target2: IChartApi) => (range: LogicalRange | null) => {
+        const syncTimeScale = (target1: IChartApi, target2: IChartApi, hasData1: () => boolean, hasData2: () => boolean) => (range: LogicalRange | null) => {
             if (syncing || range === null) return;
             syncing = true;
-            target1.timeScale().setVisibleLogicalRange(range);
-            target2.timeScale().setVisibleLogicalRange(range);
+            if (hasData1()) target1.timeScale().setVisibleLogicalRange(range);
+            if (hasData2()) target2.timeScale().setVisibleLogicalRange(range);
             syncing = false;
         };
-        const onMainRangeChange = syncTimeScale(rsiChart, macdChart);
-        const onRsiRangeChange = syncTimeScale(mainChart, macdChart);
-        const onMacdRangeChange = syncTimeScale(mainChart, rsiChart);
+        const onMainRangeChange = syncTimeScale(rsiChart, macdChart, () => rsiHasDataRef.current, () => macdHasDataRef.current);
+        const onRsiRangeChange = syncTimeScale(mainChart, macdChart, () => mainHasDataRef.current, () => macdHasDataRef.current);
+        const onMacdRangeChange = syncTimeScale(mainChart, rsiChart, () => mainHasDataRef.current, () => rsiHasDataRef.current);
         mainChart.timeScale().subscribeVisibleLogicalRangeChange(onMainRangeChange);
         rsiChart.timeScale().subscribeVisibleLogicalRangeChange(onRsiRangeChange);
         macdChart.timeScale().subscribeVisibleLogicalRangeChange(onMacdRangeChange);
@@ -218,6 +225,7 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
     // Update series data when coin / interval / klines change
     useEffect(() => {
         if (!candleSeriesRef.current || !volumeSeriesRef.current || klines.length === 0) return;
+        mainHasDataRef.current = true;
 
         const coinOrIntervalChanged =
             selectedCoin !== prevCoinRef.current ||
@@ -261,29 +269,27 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
 
         // RSI
         const rsi = computeRSISeries(closes);
-        rsiSeriesRef.current?.setData(
-            rsi.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []))
-        );
+        const rsiPoints = rsi.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []));
+        rsiSeriesRef.current?.setData(rsiPoints);
+        rsiHasDataRef.current = rsiPoints.length > 0;
 
         // MACD
         const { macd, signal, histogram } = computeMACDSeries(closes);
-        macdLineRef.current?.setData(
-            macd.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []))
+        const macdLinePoints = macd.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []));
+        const macdSignalPoints = signal.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []));
+        const macdHistPoints = histogram.flatMap((v, i) =>
+            v !== null ? [{ time: times[i], value: v, color: v >= 0 ? "#4ade8066" : "#f8717166" }] : []
         );
-        macdSignalRef.current?.setData(
-            signal.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []))
-        );
-        macdHistRef.current?.setData(
-            histogram.flatMap((v, i) =>
-                v !== null ? [{ time: times[i], value: v, color: v >= 0 ? "#4ade8066" : "#f8717166" }] : []
-            )
-        );
+        macdLineRef.current?.setData(macdLinePoints);
+        macdSignalRef.current?.setData(macdSignalPoints);
+        macdHistRef.current?.setData(macdHistPoints);
+        macdHasDataRef.current = macdLinePoints.length > 0;
 
         if (coinOrIntervalChanged) {
             candleSeriesRef.current?.priceScale().applyOptions({ autoScale: true });
             mainChartRef.current?.timeScale().fitContent();
-            rsiChartRef.current?.timeScale().fitContent();
-            macdChartRef.current?.timeScale().fitContent();
+            if (rsiHasDataRef.current) rsiChartRef.current?.timeScale().fitContent();
+            if (macdHasDataRef.current) macdChartRef.current?.timeScale().fitContent();
         }
     }, [klines, selectedCoin, selectedInterval]);
 
