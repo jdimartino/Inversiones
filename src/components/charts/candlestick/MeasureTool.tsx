@@ -12,6 +12,7 @@ interface MeasureToolProps {
     measureStats: MeasureStats | null;
     tooltipPos: { top: number; left: number } | null;
     selectedInterval: Interval;
+    height: number;
 }
 
 const MeasureTool: React.FC<MeasureToolProps> = ({
@@ -21,12 +22,13 @@ const MeasureTool: React.FC<MeasureToolProps> = ({
     measureStats,
     tooltipPos,
     selectedInterval,
+    height,
 }) => {
     return (
         <div
             ref={overlayRef}
-            className="absolute inset-0 z-20 select-none"
-            style={{ cursor: 'crosshair', touchAction: 'none' }}
+            className="absolute left-0 right-0 top-0 z-20 select-none"
+            style={{ cursor: 'crosshair', touchAction: 'none', height }}
             {...overlayHandlers}
         >
             {/* Rectangle */}

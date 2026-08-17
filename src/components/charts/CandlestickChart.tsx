@@ -42,6 +42,8 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
     } = useChartKlines({ coins, initialCoin, klinesMap });
 
     const [expanded, setExpanded] = useState(false);
+    // Altura del chart principal (62% del wrapper) — MeasureTool se limita a esta zona
+    const mainChartHeight = Math.round((expanded ? 760 : 560) * 0.62);
 
     // Chart containers
     const mainContainerRef = useRef<HTMLDivElement>(null);
@@ -273,6 +275,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                         measureStats={measureStats}
                         tooltipPos={tooltipPos}
                         selectedInterval={selectedInterval}
+                        height={mainChartHeight}
                     />
                 )}
             </div>
