@@ -52,7 +52,10 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
     useEffect(() => {
         if (!mainContainerRef.current || !rsiContainerRef.current || !macdContainerRef.current) return;
 
-        const priceScaleWidth = 70;
+        // Ancho común del price scale para los 3 charts apilados.
+        // Con el mismo minimumWidth los ejes de precio quedan alineados verticalmente
+        // (LW calcula width = max(ancho mayor label, minimumWidth)).
+        const priceScaleWidth = 78;
         const mainHeight = Math.round(560 * 0.62);
         const rsiHeight = Math.round(560 * 0.22);
         const macdHeight = 560 - mainHeight - rsiHeight;
