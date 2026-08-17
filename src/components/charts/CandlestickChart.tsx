@@ -42,7 +42,6 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
     } = useChartKlines({ coins, initialCoin, klinesMap });
 
     const [expanded, setExpanded] = useState(false);
-    const [klinesRange, setKlinesRange] = useState<{ min: number; max: number } | null>(null);
 
     // Chart containers
     const mainContainerRef = useRef<HTMLDivElement>(null);
@@ -97,14 +96,6 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
     useEffect(() => {
         onCoinChange?.(selectedCoin);
     }, [selectedCoin, onCoinChange]);
-
-    // Track klines range
-    useEffect(() => {
-        const closes = currentKlines.map((k) => k.close);
-        if (closes.length > 0) {
-            setKlinesRange({ min: Math.min(...closes), max: Math.max(...closes) });
-        }
-    }, [currentKlines]);
 
     const currentPrice = aggregated.find(a => a.coin === selectedCoin)?.currentPrice ?? 0;
     const coinItems = items.filter((inv) => inv.coin === selectedCoin);
