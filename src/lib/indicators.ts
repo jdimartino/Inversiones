@@ -108,6 +108,84 @@ export function calcVolumeRatio(klines: Kline[], period: number = 20): number {
   return volumes[volumes.length - 1] / avgVol;
 }
 
+// ── Full-series indicators (for chart rendering) ───────────────
+// These return (number | null)[] arrays aligned to the input closes length.
+// null = not enough data yet (warmup period).
+
+export function computeSMASeries(closes: number[], period: number): (number | null)[] {
+  return closes.map((_, i) => {
+    if (i < period - 1) return null;
+    return closes.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0) / period;
+  });
+}
+
+export function computeEMASeries(closes: number[], period: number): (number | null)[] {
+  const result: (number | null)[] = new Array(closes.length).fill(null);
+  const emas = calcEMASeries(closes, period);
+  // calcEMASeries returns values from index period onward, seed = SMA
+  for (let i = 0; i < emas.length; i++) {
+    result[period + i] = emas[i];
+  }
+  return result;
+}
+
+export function computeRSISeries(closes: number[], period: number = 14): (number | null)[] {
+  const result: (number | null)[] = new Array(closes.length).fill(null);
+  if (closes.length < period + 1) return result;
+  let gains = 0, losses = 0;
+  for (let i = 1; i <= period; i++) {
+    const d = closes[i] - closes[i - 1];
+    if (d > 0) gains += d; else losses -= d;
+  }
+  let ag = gains / period, al = losses / period;
+  result[period] = al === 0 ? 100 : 100 - 100 / (1 + ag / al);
+  for (let i = period + 1; i < closes.length; i++) {
+    const d = closes[i] - closes[i - 1];
+    ag = (ag * (period - 1) + Math.max(d, 0)) / period;
+    al = (al * (period - 1) + Math.max(-d, 0)) / period;
+    result[i] = al === 0 ? 100 : 100 - 100 / (1 + ag / al);
+  }
+  return result;
+}
+
+export function computeMACDSeries(closes: number[]): {
+  macd: (number | null)[];
+  signal: (number | null)[];
+  histogram: (number | null)[];
+} {
+  if (closes.length < 26) return { macd: [], signal: [], histogram: [] };
+  const ema12 = calcEMASeries(closes, 12);
+  const ema26 = calcEMASeries(closes, 26);
+
+  // Align: ema12 starts at index 12, ema26 starts at index 26
+  // MACD line values exist from index 26 onward
+  const offset = 26 - 12; // = 14
+  const macd: (number | null)[] = closes.map((_, i) => {
+    if (i < 25) return null;
+    const ema12Val = ema12[i - offset];
+    const ema26Val = ema26[i - 26];
+    if (ema12Val === undefined || ema26Val === undefined) return null;
+    return ema12Val - ema26Val;
+  });
+
+  // Compute signal EMA only from valid MACD values
+  const validMacd = macd.filter((v): v is number => v !== null);
+  const signalEMA = calcEMASeries(validMacd, 9);
+  const signal: (number | null)[] = new Array(closes.length).fill(null);
+  let vi = 0;
+  macd.forEach((v, i) => {
+    if (v !== null) {
+      if (vi >= 8) signal[i] = signalEMA[vi];
+      vi++;
+    }
+  });
+
+  const histogram: (number | null)[] = macd.map((v, i) =>
+    v !== null && signal[i] !== null ? v - (signal[i] as number) : null
+  );
+  return { macd, signal, histogram };
+}
+
 // ── Parse Binance kline response ────────────────────────────────
 export function parseKlines(raw: any[]): Kline[] {
   return raw.map((k) => ({

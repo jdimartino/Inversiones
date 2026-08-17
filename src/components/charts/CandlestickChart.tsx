@@ -19,72 +19,7 @@ import { Maximize2, Minimize2, Bell, Ruler, Plus, X } from "lucide-react";
 import { useAlerts, WatchlistAlert } from "../../hooks/useAlerts";
 import { fmtVol, fmtMeasureTime, signalDotColor } from "./candlestick/chartUtils";
 import { fetchKlines } from "../../services/market/klineService";
-
-// ── Indicator utilities ─────────────────────────────────────────────
-
-function computeEMA(data: number[], period: number): number[] {
-    if (data.length === 0) return [];
-    const k = 2 / (period + 1);
-    const result: number[] = [data[0]];
-    for (let i = 1; i < data.length; i++) {
-        result.push(data[i] * k + result[i - 1] * (1 - k));
-    }
-    return result;
-}
-
-function computeSMA(data: number[], period: number): (number | null)[] {
-    return data.map((_, i) => {
-        if (i < period - 1) return null;
-        return data.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0) / period;
-    });
-}
-
-function computeRSI(closes: number[], period = 14): (number | null)[] {
-    const result: (number | null)[] = new Array(closes.length).fill(null);
-    if (closes.length < period + 1) return result;
-    let gains = 0, losses = 0;
-    for (let i = 1; i <= period; i++) {
-        const d = closes[i] - closes[i - 1];
-        if (d > 0) gains += d; else losses -= d;
-    }
-    let ag = gains / period, al = losses / period;
-    result[period] = al === 0 ? 100 : 100 - 100 / (1 + ag / al);
-    for (let i = period + 1; i < closes.length; i++) {
-        const d = closes[i] - closes[i - 1];
-        ag = (ag * (period - 1) + Math.max(d, 0)) / period;
-        al = (al * (period - 1) + Math.max(-d, 0)) / period;
-        result[i] = al === 0 ? 100 : 100 - 100 / (1 + ag / al);
-    }
-    return result;
-}
-
-function computeMACD(closes: number[]): {
-    macd: (number | null)[];
-    signal: (number | null)[];
-    histogram: (number | null)[];
-} {
-    if (closes.length < 35) return { macd: [], signal: [], histogram: [] };
-    const ema12 = computeEMA(closes, 12);
-    const ema26 = computeEMA(closes, 26);
-    const macd: (number | null)[] = ema12.map((v, i) => (i >= 25 ? v - ema26[i] : null));
-
-    // Compute signal EMA only from valid MACD values
-    const validMacd = macd.filter((v): v is number => v !== null);
-    const signalEMA = computeEMA(validMacd, 9);
-    const signal: (number | null)[] = new Array(closes.length).fill(null);
-    let vi = 0;
-    macd.forEach((v, i) => {
-        if (v !== null) {
-            if (vi >= 8) signal[i] = signalEMA[vi];
-            vi++;
-        }
-    });
-
-    const histogram: (number | null)[] = macd.map((v, i) =>
-        v !== null && signal[i] !== null ? v - (signal[i] as number) : null
-    );
-    return { macd, signal, histogram };
-}
+import { computeEMASeries, computeSMASeries, computeRSISeries, computeMACDSeries } from "../../lib/indicators";
 
 // ── Types (imported from lib/types/chart.ts) ────────────────────────
 
@@ -394,20 +329,20 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
             }))
         );
 
-        // EMA20
-        const ema20 = computeEMA(closes, 20);
+        // EMA20 (seed = SMA, more accurate than old seed = data[0])
+        const ema20 = computeEMASeries(closes, 20);
         ema20Ref.current?.setData(
-            ema20.map((value, i) => ({ time: times[i], value }))
+            ema20.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []))
         );
 
         // SMA50
-        const sma50 = computeSMA(closes, 50);
+        const sma50 = computeSMASeries(closes, 50);
         sma50Ref.current?.setData(
             sma50.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []))
         );
 
         // SMA200
-        const sma200 = computeSMA(closes, 200);
+        const sma200 = computeSMASeries(closes, 200);
         sma200Ref.current?.setData(
             sma200.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []))
         );
@@ -481,13 +416,13 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
         }
 
         // RSI
-        const rsi = computeRSI(closes);
+        const rsi = computeRSISeries(closes);
         rsiSeriesRef.current?.setData(
             rsi.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []))
         );
 
         // MACD
-        const { macd, signal, histogram } = computeMACD(closes);
+        const { macd, signal, histogram } = computeMACDSeries(closes);
         macdLineRef.current?.setData(
             macd.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []))
         );
