@@ -1,8 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { MouseEventParams } from "lightweight-charts";
-import { AggregatedAsset, ProcessedInvestment, SaleRecord } from "../../lib/constants";
 import type { CandlestickChartProps, OhlcvLegend } from "../../lib/types/chart";
-import { FuturesPosition } from "../../lib/futures"; // Need to import FuturesPosition
 import ChartCard from "./ChartCard";
 import { fmtPrice } from "../../lib/format";
 import { useAlerts, WatchlistAlert } from "../../hooks/useAlerts";
