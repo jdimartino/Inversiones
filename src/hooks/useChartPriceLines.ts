@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { RefObject } from "react";
-import { LineStyle, ISeriesApi } from "lightweight-charts";
+import { LineStyle, LineWidth, ISeriesApi } from "lightweight-charts";
 import type { Kline } from "../lib/types/signals";
 import type { Interval } from "../lib/types/chart";
 import type { AggregatedAsset, ProcessedInvestment, SaleRecord } from "../lib/constants";
@@ -33,6 +33,7 @@ export function useChartPriceLines({
     // Price line refs
     const priceLinesRef = useRef<ReturnType<ISeriesApi<"Candlestick">["createPriceLine"]>[]>([]);
     const alertPriceLinesRef = useRef<ReturnType<ISeriesApi<"Candlestick">["createPriceLine"]>[]>([]);
+    const lastLinesSigRef = useRef<string>("");
 
     // Draw alert price lines on chart when alerts or selected coin changes
     useEffect(() => {
@@ -59,9 +60,6 @@ export function useChartPriceLines({
     useEffect(() => {
         if (!candleSeriesRef.current || currentKlines.length === 0) return;
 
-        priceLinesRef.current.forEach((pl) => candleSeriesRef.current!.removePriceLine(pl));
-        priceLinesRef.current = [];
-
         const asset = aggregated.find((a) => a.coin === selectedCoin);
         const isSubDollar = (asset?.currentPrice ?? 1) < 1;
         candleSeriesRef.current.applyOptions({
@@ -69,61 +67,41 @@ export function useChartPriceLines({
             priceLineVisible: false,
         });
 
+        // Build line definitions and skip re-creation when nothing changed.
+        const defs: { price: number; color: string; lineWidth: LineWidth; lineStyle: LineStyle; axisLabelVisible: boolean; title: string }[] = [];
+
         const coinItems = items.filter((inv) => inv.coin === selectedCoin);
         coinItems.forEach((inv) => {
-            priceLinesRef.current.push(
-                candleSeriesRef.current!.createPriceLine({
-                    price: inv.buyPrice, color: "#60a5fa", lineWidth: 1,
-                    lineStyle: LineStyle.Dotted, axisLabelVisible: true, title: "Compra",
-                })
-            );
+            defs.push({ price: inv.buyPrice, color: "#60a5fa", lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: true, title: "Compra" });
         });
         const allSellPrices = [
             ...sales.filter((s) => s.coin === selectedCoin).map((s) => s.sellPrice),
         ];
         allSellPrices.forEach((price) => {
-            priceLinesRef.current.push(
-                candleSeriesRef.current!.createPriceLine({
-                    price,
-                    color: "#ef4444",
-                    lineWidth: 2,
-                    lineStyle: LineStyle.Dashed,
-                    axisLabelVisible: true,
-                    title: "Venta",
-                })
-            );
+            defs.push({ price, color: "#ef4444", lineWidth: 2, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "Venta" });
         });
 
         // Futures entries
         const coinFutures = futuresPositions.filter((p) => p.symbol.replace("USDT", "") === selectedCoin);
         coinFutures.forEach((p) => {
-            priceLinesRef.current.push(
-                candleSeriesRef.current!.createPriceLine({
-                    price: p.entryPrice,
-                    color: "#a855f7",
-                    lineWidth: 1,
-                    lineStyle: LineStyle.Dashed,
-                    axisLabelVisible: true,
-                    title: `Fut: ${p.side}`,
-                })
-            );
+            defs.push({ price: p.entryPrice, color: "#a855f7", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: `Fut: ${p.side}` });
         });
 
         if (asset?.avgBuyPrice && coinItems.length > 1) {
-            priceLinesRef.current.push(
-                candleSeriesRef.current!.createPriceLine({
-                    price: asset.avgBuyPrice, color: "#f59e0b", lineWidth: 2,
-                    lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "Promedio",
-                })
-            );
+            defs.push({ price: asset.avgBuyPrice, color: "#f59e0b", lineWidth: 2, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "Promedio" });
         }
         if (asset?.currentPrice) {
-            priceLinesRef.current.push(
-                candleSeriesRef.current!.createPriceLine({
-                    price: asset.currentPrice, color: "#22d3ee", lineWidth: 1,
-                    lineStyle: LineStyle.Solid, axisLabelVisible: false, title: "Actual",
-                })
-            );
+            defs.push({ price: asset.currentPrice, color: "#22d3ee", lineWidth: 1, lineStyle: LineStyle.Solid, axisLabelVisible: false, title: "Actual" });
         }
+
+        const sig = JSON.stringify(defs);
+        if (sig === lastLinesSigRef.current) return;
+        lastLinesSigRef.current = sig;
+
+        priceLinesRef.current.forEach((pl) => candleSeriesRef.current!.removePriceLine(pl));
+        priceLinesRef.current = [];
+        defs.forEach((d) => {
+            priceLinesRef.current.push(candleSeriesRef.current!.createPriceLine(d));
+        });
     }, [selectedCoin, selectedInterval, aggregated, items, sales, currentKlines, futuresPositions]);
 }
