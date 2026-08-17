@@ -74,8 +74,9 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
                 horzLine: { color: "#475569", labelBackgroundColor: "#334155" },
             },
             timeScale: { ...timeScaleOptions, visible: false },
-            // Keep horizontal pane dragging and direct price-axis scaling.
-            handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+            // LW 4.2.3 PaneWidget._private__pressedMouseTouchMoveEvent crashes on null priceRange.
+            // Disable built-in pressedMouseMove; custom time-pan is implemented below.
+            handleScroll: { mouseWheel: true, pressedMouseMove: false, horzTouchDrag: true, vertTouchDrag: false },
             handleScale: {
                 mouseWheel: true,
                 pinch: true,
@@ -207,7 +208,41 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
         rsiChart.timeScale().subscribeVisibleLogicalRangeChange(onRsiRangeChange);
         macdChart.timeScale().subscribeVisibleLogicalRangeChange(onMacdRangeChange);
 
+        // ── Custom time-pan (bypasses LW 4.2.3 pressedMouseMove crash) ──
+        let panStartX = 0;
+        let panStartLogical: LogicalRange | null = null;
+        let isPanning = false;
+
+        const onPanMouseDown = (e: MouseEvent) => {
+            if (e.button !== 0) return;
+            const range = mainChart.timeScale().getVisibleLogicalRange();
+            if (!range) return;
+            isPanning = true;
+            panStartX = e.clientX;
+            panStartLogical = range;
+        };
+        const onPanMouseMove = (e: MouseEvent) => {
+            if (!isPanning || !panStartLogical) return;
+            e.preventDefault();
+            const pixelDelta = e.clientX - panStartX;
+            const chartWidth = mainContainerRef.current?.clientWidth || 1;
+            const totalLogical = panStartLogical.to - panStartLogical.from;
+            const logicalDelta = (pixelDelta / chartWidth) * totalLogical;
+            mainChart.timeScale().setVisibleLogicalRange({
+                from: panStartLogical.from - logicalDelta,
+                to: panStartLogical.to - logicalDelta,
+            });
+        };
+        const onPanMouseUp = () => { isPanning = false; panStartLogical = null; };
+
+        mainContainerRef.current?.addEventListener("mousedown", onPanMouseDown);
+        window.addEventListener("mousemove", onPanMouseMove);
+        window.addEventListener("mouseup", onPanMouseUp);
+
         return () => {
+            mainContainerRef.current?.removeEventListener("mousedown", onPanMouseDown);
+            window.removeEventListener("mousemove", onPanMouseMove);
+            window.removeEventListener("mouseup", onPanMouseUp);
             ro.disconnect();
             mainChart.timeScale().unsubscribeVisibleLogicalRangeChange(onMainRangeChange);
             rsiChart.timeScale().unsubscribeVisibleLogicalRangeChange(onRsiRangeChange);
