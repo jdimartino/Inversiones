@@ -9,6 +9,8 @@ import {
 } from "lightweight-charts";
 import { AggregatedAsset, ProcessedInvestment, SaleRecord } from "../../lib/constants";
 import type { Kline, CoinSignal } from "../../lib/types/signals";
+import type { CandlestickChartProps, Interval, OhlcvLegend, MeasureAnchor, MeasureStats } from "../../lib/types/chart";
+import { INTERVAL_LABELS } from "../../lib/types/chart";
 import { FuturesPosition } from "../../lib/futures"; // Need to import FuturesPosition
 import ChartCard from "./ChartCard";
 import { coinColor } from "./chartColors";
@@ -111,52 +113,7 @@ function signalDotColor(sig?: string): string | null {
     return null;
 }
 
-// ── Types ───────────────────────────────────────────────────────────
-
-interface CandlestickChartProps {
-    aggregated: AggregatedAsset[];
-    klinesMap?: Record<string, Kline[]>;
-    items: ProcessedInvestment[];
-    initialCoin?: string;
-    signals?: CoinSignal[];
-    onCoinChange?: (coin: string) => void;
-    priceDirections?: Record<string, "up" | "down" | "neutral">;
-    sales?: SaleRecord[];
-    futuresPositions?: FuturesPosition[];
-}
-
-type Interval = "15m" | "1h" | "4h" | "1d" | "1M";
-
-const INTERVAL_LABELS: Record<Interval, string> = {
-    "15m": "15M",
-    "1h": "1H",
-    "4h": "4H",
-    "1d": "1D",
-    "1M": "MES",
-};
-
-interface OhlcvLegend {
-    time: string;
-    open: number;
-    high: number;
-    low: number;
-    close: number;
-    volume: number;
-    isUp: boolean;
-}
-
-interface MeasureAnchor { x: number; y: number; }
-
-interface MeasureStats {
-    priceChange: number;
-    pctChange: number;
-    barCount: number;
-    totalVolume: number;
-    startPrice: number;
-    endPrice: number;
-    startTimeSec: number | null;
-    endTimeSec: number | null;
-}
+// ── Types (imported from lib/types/chart.ts) ────────────────────────
 
 // ── Fetch helper ────────────────────────────────────────────────────
 
