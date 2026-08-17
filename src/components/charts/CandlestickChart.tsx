@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
-import type { MouseEventParams } from "lightweight-charts";
-import type { CandlestickChartProps, OhlcvLegend } from "../../lib/types/chart";
+import type { CandlestickChartProps } from "../../lib/types/chart";
 import ChartCard from "./ChartCard";
 import { fmtPrice } from "../../lib/format";
 import { useAlerts } from "../../hooks/useAlerts";
 import { useChartAlerts } from "../../hooks/useChartAlerts";
+import { useChartLegend } from "../../hooks/useChartLegend";
 import { useChartKlines } from "../../hooks/useChartKlines";
 import { useChartSeries } from "../../hooks/useChartSeries";
 import { useChartPriceLines } from "../../hooks/useChartPriceLines";
@@ -42,7 +42,6 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
     } = useChartKlines({ coins, initialCoin, klinesMap });
 
     const [expanded, setExpanded] = useState(false);
-    const [legend, setLegend] = useState<OhlcvLegend | null>(null);
     const [klinesRange, setKlinesRange] = useState<{ min: number; max: number } | null>(null);
 
     // Chart containers
@@ -60,6 +59,9 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
         selectedInterval,
         expanded,
     });
+
+    // OHLCV legend on crosshair (managed by useChartLegend)
+    const { legend } = useChartLegend({ mainChartRef, candleSeriesRef, volumeSeriesRef });
 
     // Price lines (managed by useChartPriceLines)
     useChartPriceLines({
@@ -95,28 +97,6 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
     useEffect(() => {
         onCoinChange?.(selectedCoin);
     }, [selectedCoin, onCoinChange]);
-
-    // OHLCV legend on crosshair
-    useEffect(() => {
-        const chart = mainChartRef.current;
-        if (!chart) return;
-        const handler = (param: MouseEventParams) => {
-            if (!param.time || !(param.seriesData?.size)) return;
-            const c = param.seriesData.get(candleSeriesRef.current as any) as any;
-            const v = param.seriesData.get(volumeSeriesRef.current as any) as any;
-            if (c) {
-                const d = new Date((param.time as number) * 1000);
-                setLegend({
-                    time: d.toLocaleString("es", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }),
-                    open: c.open, high: c.high, low: c.low, close: c.close,
-                    volume: v?.value ?? 0,
-                    isUp: c.close >= c.open,
-                });
-            }
-        };
-        chart.subscribeCrosshairMove(handler);
-        return () => { chart.unsubscribeCrosshairMove(handler); };
-    }, []);
 
     // Track klines range
     useEffect(() => {
