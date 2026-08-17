@@ -123,8 +123,9 @@ export function computeEMASeries(closes: number[], period: number): (number | nu
   const result: (number | null)[] = new Array(closes.length).fill(null);
   const emas = calcEMASeries(closes, period);
   // calcEMASeries returns values from index period onward, seed = SMA
+  // Place emas[0] (SMA) at result[period - 1] so the array stays exactly closes.length long
   for (let i = 0; i < emas.length; i++) {
-    result[period + i] = emas[i];
+    result[period - 1 + i] = emas[i];
   }
   return result;
 }
@@ -175,7 +176,7 @@ export function computeMACDSeries(closes: number[]): {
   let vi = 0;
   macd.forEach((v, i) => {
     if (v !== null) {
-      if (vi >= 8) signal[i] = signalEMA[vi];
+      if (vi >= 8 && vi < signalEMA.length) signal[i] = signalEMA[vi];
       vi++;
     }
   });
