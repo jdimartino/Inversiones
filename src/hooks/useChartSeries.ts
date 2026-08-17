@@ -7,22 +7,27 @@ import {
     LineStyle,
     IChartApi,
     ISeriesApi,
+    LogicalRange,
 } from "lightweight-charts";
 import type { Kline } from "../lib/types/signals";
 import type { Interval } from "../lib/types/chart";
 import { computeEMASeries, computeSMASeries, computeRSISeries, computeMACDSeries } from "../lib/indicators";
 
 interface UseChartSeriesParams {
-    containerRef: RefObject<HTMLDivElement>;
+    mainContainerRef: RefObject<HTMLDivElement>;
+    rsiContainerRef: RefObject<HTMLDivElement>;
+    macdContainerRef: RefObject<HTMLDivElement>;
     klines: Kline[];
     selectedCoin: string;
     selectedInterval: Interval;
     expanded: boolean;
 }
 
-export function useChartSeries({ containerRef, klines, selectedCoin, selectedInterval, expanded }: UseChartSeriesParams) {
+export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContainerRef, klines, selectedCoin, selectedInterval, expanded }: UseChartSeriesParams) {
     // Chart instances
     const mainChartRef = useRef<IChartApi | null>(null);
+    const rsiChartRef = useRef<IChartApi | null>(null);
+    const macdChartRef = useRef<IChartApi | null>(null);
 
     // Series refs
     const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -37,28 +42,50 @@ export function useChartSeries({ containerRef, klines, selectedCoin, selectedInt
     const prevCoinRef = useRef<string>("");
     const prevIntervalRef = useRef<Interval | "">("");
 
-    // Create chart once on mount
+    // Create charts once on mount
     useEffect(() => {
-        if (!containerRef.current) return;
+        if (!mainContainerRef.current || !rsiContainerRef.current || !macdContainerRef.current) return;
 
         const priceScaleWidth = 70;
+        const mainHeight = Math.round(560 * 0.62);
+        const rsiHeight = Math.round(560 * 0.22);
+        const macdHeight = 560 - mainHeight - rsiHeight;
 
-        const mainChart = createChart(containerRef.current, {
+        const baseChartOptions = {
             layout: {
                 background: { type: ColorType.Solid, color: "#0f172a" },
                 textColor: "#94a3b8",
             },
             grid: { vertLines: { color: "#1e293b" }, horzLines: { color: "#1e293b" } },
+            rightPriceScale: { visible: true, autoScale: true, borderColor: "#1e293b", textColor: "#94a3b8", minimumWidth: priceScaleWidth },
+            leftPriceScale: { visible: false },
+            width: mainContainerRef.current.clientWidth,
+        };
+        const timeScaleOptions = { borderColor: "#1e293b", timeVisible: true, secondsVisible: false, minBarSpacing: 4 };
+
+        const mainChart = createChart(mainContainerRef.current, {
+            ...baseChartOptions,
             crosshair: {
                 mode: CrosshairMode.Normal,
                 vertLine: { color: "#475569", labelBackgroundColor: "#334155" },
                 horzLine: { color: "#475569", labelBackgroundColor: "#334155" },
             },
-            rightPriceScale: { visible: true, autoScale: true, borderColor: "#1e293b", textColor: "#94a3b8", minimumWidth: priceScaleWidth },
-            leftPriceScale: { visible: false },
-            timeScale: { visible: true, borderColor: "#1e293b", timeVisible: true, secondsVisible: false, minBarSpacing: 4 },
-            width: containerRef.current.clientWidth,
-            height: 560,
+            timeScale: { ...timeScaleOptions, visible: false },
+            height: mainHeight,
+        });
+
+        const rsiChart = createChart(rsiContainerRef.current, {
+            ...baseChartOptions,
+            crosshair: { mode: CrosshairMode.Normal, vertLine: { visible: false }, horzLine: { visible: false } },
+            timeScale: { ...timeScaleOptions, visible: false },
+            height: rsiHeight,
+        });
+
+        const macdChart = createChart(macdContainerRef.current, {
+            ...baseChartOptions,
+            crosshair: { mode: CrosshairMode.Normal, vertLine: { visible: false }, horzLine: { visible: false } },
+            timeScale: { ...timeScaleOptions, visible: true },
+            height: macdHeight,
         });
 
         // Candle price scale ocupa el 58% superior
@@ -95,34 +122,33 @@ export function useChartSeries({ containerRef, klines, selectedCoin, selectedInt
             title: "", crosshairMarkerVisible: false,
         });
 
-        // ── RSI series + reference lines (panel 60-78%) ─────────────
-        const rsiSeries = (mainChart as any).addLineSeries({
+        // ── RSI series + reference lines (chart propio) ──────────────
+        const rsiSeries = (rsiChart as any).addLineSeries({
             color: "#a78bfa", lineWidth: 1,
-            priceScaleId: "rsi",
             priceLineVisible: true, lastValueVisible: true,
         });
-        mainChart.priceScale("rsi").applyOptions({ scaleMargins: { top: 0.62, bottom: 0.20 } });
         rsiSeries.createPriceLine({ price: 70, color: "#f87171", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "" });
         rsiSeries.createPriceLine({ price: 50, color: "#475569", lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: false, title: "" });
         rsiSeries.createPriceLine({ price: 30, color: "#4ade80", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "" });
 
-        // ── MACD series + zero line (panel 80-100%) ──────────────────
-        const macdLineSeries = (mainChart as any).addLineSeries({
-            color: "#38bdf8", lineWidth: 1, priceScaleId: "macd",
+        // ── MACD series + zero line (chart propio) ───────────────────
+        const macdLineSeries = (macdChart as any).addLineSeries({
+            color: "#38bdf8", lineWidth: 1,
             priceLineVisible: false, lastValueVisible: true,
         });
-        const macdSignalSeries = (mainChart as any).addLineSeries({
-            color: "#f97316", lineWidth: 1, priceScaleId: "macd",
+        const macdSignalSeries = (macdChart as any).addLineSeries({
+            color: "#f97316", lineWidth: 1,
             priceLineVisible: false, lastValueVisible: true,
         });
-        const macdHistSeries = (mainChart as any).addHistogramSeries({
-            priceFormat: { type: "price" }, priceScaleId: "macd", priceLineVisible: false,
+        const macdHistSeries = (macdChart as any).addHistogramSeries({
+            priceFormat: { type: "price" }, priceLineVisible: false,
         });
-        mainChart.priceScale("macd").applyOptions({ scaleMargins: { top: 0.84, bottom: 0 } });
         macdLineSeries.createPriceLine({ price: 0, color: "#334155", lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: false, title: "" });
 
         // Store refs
         mainChartRef.current = mainChart;
+        rsiChartRef.current = rsiChart;
+        macdChartRef.current = macdChart;
         candleSeriesRef.current = candleSeries;
         volumeSeriesRef.current = volumeSeries;
         ema20Ref.current = ema20Series;
@@ -135,11 +161,13 @@ export function useChartSeries({ containerRef, klines, selectedCoin, selectedInt
 
         // ResizeObserver
         const ro = new ResizeObserver(() => {
-            const w = containerRef.current?.clientWidth;
+            const w = mainContainerRef.current?.clientWidth;
             if (!w) return;
             mainChart.applyOptions({ width: w });
+            rsiChart.applyOptions({ width: w });
+            macdChart.applyOptions({ width: w });
         });
-        ro.observe(containerRef.current);
+        ro.observe(mainContainerRef.current);
 
         // Mitigación: LW 4.x no recorta por escala de precio; el arrastre del eje de precio
         // desactiva el autoScale de la escala "right". Reafirmarlo ante cambios de rango
@@ -148,16 +176,43 @@ export function useChartSeries({ containerRef, klines, selectedCoin, selectedInt
         const onVisibleRangeChange = () => rightPriceScale.applyOptions({ autoScale: true });
         mainChart.timeScale().subscribeVisibleLogicalRangeChange(onVisibleRangeChange);
 
+        // Sync del rango visible de tiempo entre los 3 charts
+        let syncing = false;
+        const syncTimeScale = (target1: IChartApi, target2: IChartApi) => (range: LogicalRange | null) => {
+            if (syncing || range === null) return;
+            syncing = true;
+            target1.timeScale().setVisibleLogicalRange(range);
+            target2.timeScale().setVisibleLogicalRange(range);
+            syncing = false;
+        };
+        const onMainRangeChange = syncTimeScale(rsiChart, macdChart);
+        const onRsiRangeChange = syncTimeScale(mainChart, macdChart);
+        const onMacdRangeChange = syncTimeScale(mainChart, rsiChart);
+        mainChart.timeScale().subscribeVisibleLogicalRangeChange(onMainRangeChange);
+        rsiChart.timeScale().subscribeVisibleLogicalRangeChange(onRsiRangeChange);
+        macdChart.timeScale().subscribeVisibleLogicalRangeChange(onMacdRangeChange);
+
         return () => {
             ro.disconnect();
+            mainChart.timeScale().unsubscribeVisibleLogicalRangeChange(onMainRangeChange);
+            rsiChart.timeScale().unsubscribeVisibleLogicalRangeChange(onRsiRangeChange);
+            macdChart.timeScale().unsubscribeVisibleLogicalRangeChange(onMacdRangeChange);
             mainChart.timeScale().unsubscribeVisibleLogicalRangeChange(onVisibleRangeChange);
             mainChart.remove();
+            rsiChart.remove();
+            macdChart.remove();
         };
     }, []);
 
     // Handle expand toggle
     useEffect(() => {
-        mainChartRef.current?.applyOptions({ height: expanded ? 760 : 560 });
+        const totalHeight = expanded ? 760 : 560;
+        const mainHeight = Math.round(totalHeight * 0.62);
+        const rsiHeight = Math.round(totalHeight * 0.22);
+        const macdHeight = totalHeight - mainHeight - rsiHeight;
+        mainChartRef.current?.applyOptions({ height: mainHeight });
+        rsiChartRef.current?.applyOptions({ height: rsiHeight });
+        macdChartRef.current?.applyOptions({ height: macdHeight });
     }, [expanded]);
 
     // Update series data when coin / interval / klines change
@@ -225,9 +280,10 @@ export function useChartSeries({ containerRef, klines, selectedCoin, selectedInt
         );
 
         if (coinOrIntervalChanged) {
-            // Solo fitContent en el chart principal — el sync de tiempo propaga el rango a RSI y MACD
             candleSeriesRef.current?.priceScale().applyOptions({ autoScale: true });
             mainChartRef.current?.timeScale().fitContent();
+            rsiChartRef.current?.timeScale().fitContent();
+            macdChartRef.current?.timeScale().fitContent();
         }
     }, [klines, selectedCoin, selectedInterval]);
 

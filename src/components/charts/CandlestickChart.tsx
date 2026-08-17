@@ -45,6 +45,9 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
 
     // Chart containers
     const mainContainerRef = useRef<HTMLDivElement>(null);
+    const mainChartContainerRef = useRef<HTMLDivElement>(null);
+    const rsiContainerRef = useRef<HTMLDivElement>(null);
+    const macdContainerRef = useRef<HTMLDivElement>(null);
 
     // Chart + series (managed by useChartSeries)
     const {
@@ -52,7 +55,9 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
         candleSeriesRef,
         volumeSeriesRef,
     } = useChartSeries({
-        containerRef: mainContainerRef,
+        mainContainerRef: mainChartContainerRef,
+        rsiContainerRef,
+        macdContainerRef,
         klines: currentKlines,
         selectedCoin,
         selectedInterval,
@@ -226,7 +231,11 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                         <span className="text-xs text-slate-400">Cargando...</span>
                     </div>
                 )}
-                <div ref={mainContainerRef} style={{ height: `${expanded ? 760 : 560}px` }} />
+                <div ref={mainContainerRef} style={{ height: `${expanded ? 760 : 560}px` }}>
+                    <div ref={mainChartContainerRef} />
+                    <div ref={rsiContainerRef} />
+                    <div ref={macdContainerRef} />
+                </div>
 
                 {/* Separador RSI — línea horizontal entre precio/volumen y RSI */}
                 <div
