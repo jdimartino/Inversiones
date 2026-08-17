@@ -185,13 +185,6 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
         });
         ro.observe(mainContainerRef.current);
 
-        // Mitigación: LW 4.x no recorta por escala de precio; el arrastre del eje de precio
-        // desactiva el autoScale de la escala "right". Reafirmarlo ante cambios de rango
-        // visible de tiempo evita que velas/EMA/SMA se dibujen fuera de su banda sobre RSI/MACD.
-        const rightPriceScale = mainChart.priceScale("right");
-        const onVisibleRangeChange = () => rightPriceScale.applyOptions({ autoScale: true });
-        mainChart.timeScale().subscribeVisibleLogicalRangeChange(onVisibleRangeChange);
-
         // Sync del rango visible de tiempo entre los 3 charts
         let syncing = false;
         const syncTimeScale = (target1: IChartApi, target2: IChartApi, hasData1: () => boolean, hasData2: () => boolean) => (range: LogicalRange | null) => {
@@ -247,7 +240,6 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
             mainChart.timeScale().unsubscribeVisibleLogicalRangeChange(onMainRangeChange);
             rsiChart.timeScale().unsubscribeVisibleLogicalRangeChange(onRsiRangeChange);
             macdChart.timeScale().unsubscribeVisibleLogicalRangeChange(onMacdRangeChange);
-            mainChart.timeScale().unsubscribeVisibleLogicalRangeChange(onVisibleRangeChange);
             mainChart.remove();
             rsiChart.remove();
             macdChart.remove();
