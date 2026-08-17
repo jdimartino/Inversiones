@@ -31,7 +31,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
     const {
         selectedCoin, setSelectedCoin,
         selectedInterval, setSelectedInterval,
-        currentKlines, loading,
+        currentKlines, loading, fetchError,
         getCurrentKlines,
         handleSelectExplorerCoin,
         showExplorer, setShowExplorer,
@@ -231,6 +231,13 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                 {loading && (
                     <div className="absolute inset-0 flex items-center justify-center bg-slate-900/70 rounded z-10">
                         <span className="text-xs text-slate-400">Cargando...</span>
+                    </div>
+                )}
+                {fetchError && !loading && (
+                    <div className="absolute inset-x-0 top-0 flex justify-center z-10 pointer-events-none">
+                        <span className="mt-1.5 text-[10px] font-bold text-red-400 bg-slate-900/85 border border-red-500/40 px-3 py-1 rounded">
+                            {fetchError}
+                        </span>
                     </div>
                 )}
                 <div ref={mainContainerRef} style={{ height: `${expanded ? 760 : 560}px` }}>

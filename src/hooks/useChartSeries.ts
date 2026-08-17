@@ -342,7 +342,27 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
 
     // Update series data when coin / interval / klines change
     useEffect(() => {
-        if (!candleSeriesRef.current || !volumeSeriesRef.current || klines.length === 0) return;
+        if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
+
+        // Sin datos (moneda/timeframe sin cache): limpiar series para no mostrar
+        // velas de la moneda anterior bajo el nuevo selector.
+        if (klines.length === 0) {
+            candleSeriesRef.current.setData([]);
+            volumeSeriesRef.current.setData([]);
+            ema20Ref.current?.setData([]);
+            sma50Ref.current?.setData([]);
+            sma200Ref.current?.setData([]);
+            rsiSeriesRef.current?.setData([]);
+            macdLineRef.current?.setData([]);
+            macdSignalRef.current?.setData([]);
+            macdHistRef.current?.setData([]);
+            mainHasDataRef.current = false;
+            rsiHasDataRef.current = false;
+            macdHasDataRef.current = false;
+            rsiPointsRef.current = [];
+            macdLinePointsRef.current = [];
+            return;
+        }
         mainHasDataRef.current = true;
 
         const coinOrIntervalChanged =

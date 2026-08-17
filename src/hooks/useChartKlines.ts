@@ -16,6 +16,7 @@ export function useChartKlines({ coins, initialCoin, klinesMap = {} }: UseChartK
     const [selectedInterval, setSelectedInterval] = useState<Interval>("4h");
     const [extraKlines, setExtraKlines] = useState<Record<string, Partial<Record<Interval, Kline[]>>>>({});
     const [loading, setLoading] = useState(false);
+    const [fetchError, setFetchError] = useState<string>("");
 
     // Explorer popover state (Coin Explorer selection)
     const [showExplorer, setShowExplorer] = useState(false);
@@ -39,7 +40,11 @@ export function useChartKlines({ coins, initialCoin, klinesMap = {} }: UseChartK
     // Auto-fetch 1h klines when klinesMap doesn't have data for the selected coin
     useEffect(() => {
         if (!selectedCoin) return;
-        if (klinesMap[selectedCoin] || extraKlines[selectedCoin]?.["1h"]) return;
+        if (klinesMap[selectedCoin] || extraKlines[selectedCoin]?.["1h"]) {
+            setFetchError("");
+            return;
+        }
+        setFetchError("");
         setLoading(true);
         fetchKlines(selectedCoin, "1h")
             .then((klines) => {
@@ -47,14 +52,20 @@ export function useChartKlines({ coins, initialCoin, klinesMap = {} }: UseChartK
                     ...prev,
                     [selectedCoin]: { ...prev[selectedCoin], "1h": klines },
                 }));
+                setFetchError("");
             })
+            .catch((e) => setFetchError(e?.message || `No se pudo cargar ${selectedCoin} 1H`))
             .finally(() => setLoading(false));
     }, [selectedCoin, klinesMap, extraKlines]);
 
     // Fetch non-1h klines on demand
     useEffect(() => {
         if (selectedInterval === "1h" || !selectedCoin) return;
-        if (extraKlines[selectedCoin]?.[selectedInterval]) return;
+        if (extraKlines[selectedCoin]?.[selectedInterval]) {
+            setFetchError("");
+            return;
+        }
+        setFetchError("");
         setLoading(true);
         fetchKlines(selectedCoin, selectedInterval)
             .then((klines) => {
@@ -62,7 +73,9 @@ export function useChartKlines({ coins, initialCoin, klinesMap = {} }: UseChartK
                     ...prev,
                     [selectedCoin]: { ...prev[selectedCoin], [selectedInterval]: klines },
                 }));
+                setFetchError("");
             })
+            .catch((e) => setFetchError(e?.message || `No se pudo cargar ${selectedCoin} ${selectedInterval}`))
             .finally(() => setLoading(false));
     }, [selectedCoin, selectedInterval, extraKlines]);
 
@@ -102,6 +115,7 @@ export function useChartKlines({ coins, initialCoin, klinesMap = {} }: UseChartK
         setSelectedInterval,
         currentKlines,
         loading,
+        fetchError,
         getCurrentKlines,
         handleSelectExplorerCoin,
         showExplorer,
