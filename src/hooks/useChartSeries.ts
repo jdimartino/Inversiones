@@ -8,6 +8,7 @@ import {
     IChartApi,
     ISeriesApi,
     LogicalRange,
+    MouseEventParams,
 } from "lightweight-charts";
 import type { Kline } from "../lib/types/signals";
 import type { Interval } from "../lib/types/chart";
@@ -44,6 +45,8 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
     const mainHasDataRef = useRef(false);
     const rsiHasDataRef = useRef(false);
     const macdHasDataRef = useRef(false);
+    const rsiPointsRef = useRef<{ time: number; value: number }[]>([]);
+    const macdLinePointsRef = useRef<{ time: number; value: number }[]>([]);
 
     // Create charts once on mount
     useEffect(() => {
@@ -88,7 +91,8 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
 
         const rsiChart = createChart(rsiContainerRef.current, {
             ...baseChartOptions,
-            crosshair: { mode: CrosshairMode.Normal, vertLine: { visible: false }, horzLine: { visible: false } },
+            // Línea vertical activa para el crosshair sync (sin labels extra).
+            crosshair: { mode: CrosshairMode.Normal, vertLine: { visible: true, labelVisible: false }, horzLine: { visible: false } },
             timeScale: { ...timeScaleOptions, visible: false },
             handleScroll: false,
             handleScale: false,
@@ -97,7 +101,8 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
 
         const macdChart = createChart(macdContainerRef.current, {
             ...baseChartOptions,
-            crosshair: { mode: CrosshairMode.Normal, vertLine: { visible: false }, horzLine: { visible: false } },
+            // Línea vertical activa para el crosshair sync (sin labels extra).
+            crosshair: { mode: CrosshairMode.Normal, vertLine: { visible: true, labelVisible: false }, horzLine: { visible: false } },
             timeScale: { ...timeScaleOptions, visible: true },
             handleScroll: false,
             handleScale: false,
@@ -201,6 +206,41 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
         rsiChart.timeScale().subscribeVisibleLogicalRangeChange(onRsiRangeChange);
         macdChart.timeScale().subscribeVisibleLogicalRangeChange(onMacdRangeChange);
 
+        // ── Crosshair sync: RSI/MACD siguen el crosshair del main chart ──
+        const findValueAtTime = (points: { time: number; value: number }[], time: number) => {
+            let lo = 0;
+            let hi = points.length - 1;
+            while (lo <= hi) {
+                const mid = (lo + hi) >> 1;
+                const t = points[mid].time;
+                if (t === time) return points[mid].value;
+                if (t < time) lo = mid + 1;
+                else hi = mid - 1;
+            }
+            return undefined;
+        };
+        const onMainCrosshairMove = (param: MouseEventParams) => {
+            const time = param.time;
+            if (time === undefined) {
+                rsiChart.clearCrosshairPosition();
+                macdChart.clearCrosshairPosition();
+                return;
+            }
+            const rsiPoints = rsiPointsRef.current;
+            if (rsiPoints.length > 0) {
+                const rsiValue = findValueAtTime(rsiPoints, time as any);
+                if (rsiValue !== undefined) rsiChart.setCrosshairPosition(rsiValue, time, rsiSeries);
+                else rsiChart.clearCrosshairPosition();
+            }
+            const macdPoints = macdLinePointsRef.current;
+            if (macdPoints.length > 0) {
+                const macdValue = findValueAtTime(macdPoints, time as any);
+                if (macdValue !== undefined) macdChart.setCrosshairPosition(macdValue, time, macdLineSeries);
+                else macdChart.clearCrosshairPosition();
+            }
+        };
+        mainChart.subscribeCrosshairMove(onMainCrosshairMove);
+
         // ── Custom pan (bypasses LW 4.2.3 pressedMouseMove crash) ──
         // Horizontal: uses public setVisibleLogicalRange API.
         // Vertical: uses internal Model scroll methods with autoScale disabled.
@@ -275,6 +315,7 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
             window.removeEventListener("mousemove", onPanMouseMove);
             window.removeEventListener("mouseup", onPanMouseUp);
             ro.disconnect();
+            mainChart.unsubscribeCrosshairMove(onMainCrosshairMove);
             mainChart.timeScale().unsubscribeVisibleLogicalRangeChange(onMainRangeChange);
             rsiChart.timeScale().unsubscribeVisibleLogicalRangeChange(onRsiRangeChange);
             macdChart.timeScale().unsubscribeVisibleLogicalRangeChange(onMacdRangeChange);
@@ -346,6 +387,7 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
         const rsiPoints = rsi.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []));
         rsiSeriesRef.current?.setData(rsiPoints);
         rsiHasDataRef.current = rsiPoints.length > 0;
+        rsiPointsRef.current = rsiPoints;
 
         // MACD
         const { macd, signal, histogram } = computeMACDSeries(closes);
@@ -358,6 +400,7 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
         macdSignalRef.current?.setData(macdSignalPoints);
         macdHistRef.current?.setData(macdHistPoints);
         macdHasDataRef.current = macdLinePoints.length > 0;
+        macdLinePointsRef.current = macdLinePoints;
 
         if (coinOrIntervalChanged) {
             candleSeriesRef.current?.priceScale().applyOptions({ autoScale: true });
