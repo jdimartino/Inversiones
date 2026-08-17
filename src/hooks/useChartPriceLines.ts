@@ -125,5 +125,5 @@ export function useChartPriceLines({
                 })
             );
         }
-    }, [selectedCoin, selectedInterval, aggregated, items, sales, currentKlines]);
+    }, [selectedCoin, selectedInterval, aggregated, items, sales, currentKlines, futuresPositions]);
 }

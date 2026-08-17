@@ -224,12 +224,5 @@ export function useChartSeries({ containerRef, klines, selectedCoin, selectedInt
         mainChartRef,
         candleSeriesRef,
         volumeSeriesRef,
-        ema20Ref,
-        sma50Ref,
-        sma200Ref,
-        rsiSeriesRef,
-        macdLineRef,
-        macdSignalRef,
-        macdHistRef,
     };
 }
