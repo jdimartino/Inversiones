@@ -224,22 +224,24 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
             </div>
 
             {/* ── Row 2: Info bar (OHLCV + indicators + positions) ── */}
-            <div className="flex items-center gap-3 text-[10px] font-mono leading-none flex-wrap">
+            <div className="flex items-center gap-2 text-[10px] font-mono leading-none overflow-x-auto scrollbar-thin">
                 {/* OHLCV */}
                 {legend && (
                     <>
-                        <span className="text-slate-500">{legend.time}</span>
-                        <span>O <span className={legend.isUp ? "text-green-400" : "text-red-400"}>{fmtPrice(legend.open)}</span></span>
-                        <span>H <span className={legend.isUp ? "text-green-400" : "text-red-400"}>{fmtPrice(legend.high)}</span></span>
-                        <span>L <span className={legend.isUp ? "text-green-400" : "text-red-400"}>{fmtPrice(legend.low)}</span></span>
-                        <span>C <span className={legend.isUp ? "text-green-400" : "text-red-400"}>{fmtPrice(legend.close)}</span></span>
-                        <span className="text-slate-500">V <span className="text-slate-400">{fmtVol(legend.volume)}</span></span>
-                        <span className="text-slate-600">|</span>
+                        <span className="text-slate-500 whitespace-nowrap">{legend.time}</span>
+                        <span className="whitespace-nowrap">O <span className={legend.isUp ? "text-green-400" : "text-red-400"}>{fmtPrice(legend.open)}</span></span>
+                        <span className="whitespace-nowrap">H <span className={legend.isUp ? "text-green-400" : "text-red-400"}>{fmtPrice(legend.high)}</span></span>
+                        <span className="whitespace-nowrap">L <span className={legend.isUp ? "text-green-400" : "text-red-400"}>{fmtPrice(legend.low)}</span></span>
+                        <span className="whitespace-nowrap">C <span className={legend.isUp ? "text-green-400" : "text-red-400"}>{fmtPrice(legend.close)}</span></span>
+                        <span className="text-slate-500 whitespace-nowrap">V <span className="text-slate-400">{fmtVol(legend.volume)}</span></span>
+                        <span className="text-slate-600">·</span>
                     </>
                 )}
 
                 {/* Indicator values */}
-                <IndicatorHud values={indicatorValues} volumeRatio={volumeRatio} />
+                <div className="whitespace-nowrap">
+                    <IndicatorHud values={indicatorValues} volumeRatio={volumeRatio} />
+                </div>
 
                 {/* Spot/Futures compact */}
                 {(() => {
@@ -250,14 +252,14 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                     if (!hasSpot && !hasFutures) return null;
                     return (
                         <>
-                            <span className="text-slate-600">|</span>
+                            <span className="text-slate-600">·</span>
                             {hasSpot && (
-                                <span className="text-sky-400">
+                                <span className="text-sky-400 whitespace-nowrap">
                                     Spot <span className={pnl >= 0 ? "text-green-400" : "text-red-400"}>{pnl >= 0 ? "+" : ""}{fmtUSD(pnl)}</span>
                                 </span>
                             )}
                             {hasFutures && (
-                                <span className="text-purple-400">
+                                <span className="text-purple-400 whitespace-nowrap">
                                     Fut <span className={fPnl >= 0 ? "text-green-400" : "text-red-400"}>{fPnl >= 0 ? "+" : ""}{fmtUSD(fPnl)}</span>
                                 </span>
                             )}

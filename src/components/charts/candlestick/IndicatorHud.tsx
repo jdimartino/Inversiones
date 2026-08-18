@@ -13,7 +13,7 @@ const IndicatorHud: React.FC<IndicatorHudProps> = ({ values, volumeRatio }) => {
     const { ema20, sma50, sma200, rsi, macdLine, macdSignal, macdHistogram } = values;
 
     return (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-mono leading-none select-none">
+        <div className="flex items-center gap-2 text-[10px] font-mono leading-none select-none">
             {/* RSI */}
             <span className="flex items-center gap-1">
                 <span className="text-violet-400 font-bold">RSI</span>
