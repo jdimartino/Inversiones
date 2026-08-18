@@ -232,7 +232,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
             />
 
             {/* Indicator values HUD */}
-            <IndicatorHud values={indicatorValues} />
+            <IndicatorHud values={indicatorValues} volumeRatio={volumeRatio} />
 
             {/* Inline alert form */}
             {showAlertForm && (

@@ -3,16 +3,13 @@ import type { IndicatorValues } from "../../../hooks/useChartIndicatorValues";
 
 interface IndicatorHudProps {
     values: IndicatorValues;
-    isUp?: boolean;
+    volumeRatio?: number | null;
 }
 
 const fmt = (v: number | null, decimals = 2): string =>
     v != null ? v.toFixed(decimals) : "—";
 
-const fmtPct = (v: number | null): string =>
-    v != null ? `${v >= 0 ? "+" : ""}${(v * 100).toFixed(1)}%` : "—";
-
-const IndicatorHud: React.FC<IndicatorHudProps> = ({ values, isUp }) => {
+const IndicatorHud: React.FC<IndicatorHudProps> = ({ values, volumeRatio }) => {
     const { ema20, sma50, sma200, rsi, macdLine, macdSignal, macdHistogram } = values;
 
     return (
@@ -58,6 +55,20 @@ const IndicatorHud: React.FC<IndicatorHudProps> = ({ values, isUp }) => {
                 <span className="text-yellow-300 font-bold">SMA200</span>
                 <span className="text-slate-300">{fmt(sma200)}</span>
             </span>
+
+            {/* Volume ratio */}
+            {volumeRatio != null && volumeRatio > 0 && (
+                <span className="flex items-center gap-1">
+                    <span className="text-cyan-400 font-bold">Vol</span>
+                    <span className={
+                        volumeRatio >= 2 ? "text-cyan-300 font-bold"
+                        : volumeRatio >= 1.5 ? "text-cyan-400"
+                        : "text-slate-400"
+                    }>
+                        {volumeRatio.toFixed(1)}x
+                    </span>
+                </span>
+            )}
         </div>
     );
 };
