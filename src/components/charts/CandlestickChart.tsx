@@ -168,7 +168,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
             hideTitleOnMobile
         >
             {/* ── Row 1: Header (activos + precio + toolbar) ───────── */}
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
                 <CoinExplorer
                     coins={coins}
                     portfolioCoins={portfolioCoins}
@@ -187,6 +187,8 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                     explorerRef={explorerRef}
                 />
 
+                <span className="text-slate-600">|</span>
+
                 {/* Price display */}
                 {(() => {
                     const klines = currentKlines;
@@ -196,13 +198,13 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                     const priceColor = dir === "up" ? "text-green-400" : dir === "down" ? "text-red-400" : "text-yellow-300";
                     if (!price) return null;
                     return (
-                        <span className={`font-mono font-bold text-lg leading-none tracking-tight ${priceColor}`}>
+                        <span className={`font-mono font-bold text-base leading-none tracking-tight ${priceColor}`}>
                             {fmtPrice(price)}
                         </span>
                     );
                 })()}
 
-                <div className="flex-1" />
+                <span className="text-slate-600">|</span>
 
                 <ChartToolbar
                     selectedInterval={selectedInterval}

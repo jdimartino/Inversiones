@@ -50,7 +50,7 @@ const CoinExplorer: React.FC<CoinExplorerProps> = ({
                     <button
                         key={coin}
                         onClick={() => setSelectedCoin(coin)}
-                        className={`relative px-2 py-0.5 rounded text-[10px] font-bold transition-colors ${
+                        className={`relative px-1.5 py-0.5 rounded text-[10px] font-bold transition-colors ${
                             selectedCoin === coin
                                 ? "text-white"
                                 : "bg-slate-700 text-slate-400 hover:bg-slate-600"
@@ -92,7 +92,7 @@ const CoinExplorer: React.FC<CoinExplorerProps> = ({
             <div className="relative" ref={explorerRef}>
                 <button
                     onClick={() => { setShowExplorer(v => !v); setExplorerError(""); }}
-                    className={`flex items-center gap-0.5 px-2 py-0.5 rounded text-[10px] font-bold transition-colors ${
+                    className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold transition-colors ${
                         showExplorer
                             ? "bg-violet-600 text-white"
                             : "bg-slate-700 text-slate-400 hover:bg-slate-600"
