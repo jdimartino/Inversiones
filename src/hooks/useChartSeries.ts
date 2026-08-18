@@ -468,11 +468,22 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
         };
     }, []);
 
+    // Stable getter: raw indicator points arrays (for signal computation)
+    const getIndicatorPoints = useCallback(() => ({
+        ema20: ema20PointsRef.current,
+        sma50: sma50PointsRef.current,
+        sma200: sma200PointsRef.current,
+        rsi: rsiPointsRef.current,
+        macdLine: macdLinePointsRef.current,
+        macdSignal: macdSignalPointsRef.current,
+    }), []);
+
     return {
         mainChartRef,
         candleSeriesRef,
         volumeSeriesRef,
         getIndicatorValuesAtTime,
         getLatestIndicatorValues,
+        getIndicatorPoints,
     };
 }

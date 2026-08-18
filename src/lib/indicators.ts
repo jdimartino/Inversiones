@@ -202,6 +202,98 @@ export function findValueAtTime(points: { time: number; value: number }[], time:
   return undefined;
 }
 
+// ── Signal types (neutral, LW-independent) ──────────────────────
+export type SignalType = "ema_cross" | "macd_cross" | "rsi_overbought" | "rsi_oversold" | "volume_spike";
+export type SignalDir = "bullish" | "bearish";
+
+export interface DetectedSignal {
+  time: number;
+  type: SignalType;
+  dir: SignalDir;
+}
+
+// ── Detect technical signals from existing indicator points ─────
+// Pure function: no side effects, no LW dependency.
+export function computeSignals(params: {
+  ema20: { time: number; value: number }[];
+  sma50: { time: number; value: number }[];
+  rsi: { time: number; value: number }[];
+  macdLine: { time: number; value: number }[];
+  macdSignal: { time: number; value: number }[];
+  volumeRatio?: number;
+}): DetectedSignal[] {
+  const { ema20, sma50, rsi, macdLine, macdSignal, volumeRatio } = params;
+  const signals: DetectedSignal[] = [];
+
+  // Build time-indexed maps for cross detection
+  const emaMap = new Map(ema20.map(p => [p.time, p.value]));
+  const smaMap = new Map(sma50.map(p => [p.time, p.value]));
+  const rsiMap = new Map(rsi.map(p => [p.time, p.value]));
+  const macdLineMap = new Map(macdLine.map(p => [p.time, p.value]));
+  const macdSignalMap = new Map(macdSignal.map(p => [p.time, p.value]));
+
+  // Collect all unique times from EMA/SMA (they share the main chart times)
+  const allTimes = new Set<number>();
+  for (const p of ema20) allTimes.add(p.time);
+  for (const p of sma50) allTimes.add(p.time);
+
+  const sortedTimes = Array.from(allTimes).sort((a, b) => a - b);
+
+  let prevEma: number | undefined;
+  let prevSma: number | undefined;
+  let prevRsi: number | undefined;
+  let prevMacdLine: number | undefined;
+  let prevMacdSignal: number | undefined;
+
+  for (const time of sortedTimes) {
+    const ema = emaMap.get(time);
+    const sma = smaMap.get(time);
+    const rsiVal = rsiMap.get(time);
+    const macdL = macdLineMap.get(time);
+    const macdS = macdSignalMap.get(time);
+
+    // EMA20 × SMA50 cross
+    if (prevEma !== undefined && prevSma !== undefined && ema !== undefined && sma !== undefined) {
+      if (prevEma <= prevSma && ema > sma) {
+        signals.push({ time, type: "ema_cross", dir: "bullish" }); // golden
+      } else if (prevEma >= prevSma && ema < sma) {
+        signals.push({ time, type: "ema_cross", dir: "bearish" }); // death
+      }
+    }
+
+    // MACD line × signal cross
+    if (prevMacdLine !== undefined && prevMacdSignal !== undefined && macdL !== undefined && macdS !== undefined) {
+      if (prevMacdLine <= prevMacdSignal && macdL > macdS) {
+        signals.push({ time, type: "macd_cross", dir: "bullish" });
+      } else if (prevMacdLine >= prevMacdSignal && macdL < macdS) {
+        signals.push({ time, type: "macd_cross", dir: "bearish" });
+      }
+    }
+
+    // RSI crosses
+    if (prevRsi !== undefined && rsiVal !== undefined) {
+      if (prevRsi <= 70 && rsiVal > 70) {
+        signals.push({ time, type: "rsi_overbought", dir: "bearish" });
+      } else if (prevRsi >= 30 && rsiVal < 30) {
+        signals.push({ time, type: "rsi_oversold", dir: "bullish" });
+      }
+    }
+
+    if (ema !== undefined) prevEma = ema;
+    if (sma !== undefined) prevSma = sma;
+    if (rsiVal !== undefined) prevRsi = rsiVal;
+    if (macdL !== undefined) prevMacdLine = macdL;
+    if (macdS !== undefined) prevMacdSignal = macdS;
+  }
+
+  // Volume spike: only on latest bar
+  if (volumeRatio != null && volumeRatio >= 2 && sortedTimes.length > 0) {
+    signals.push({ time: sortedTimes[sortedTimes.length - 1], type: "volume_spike", dir: "bullish" });
+  }
+
+  return signals;
+}
+
 // ── Parse Binance kline response ────────────────────────────────
 export function parseKlines(raw: any[]): Kline[] {
   return raw.map((k) => ({

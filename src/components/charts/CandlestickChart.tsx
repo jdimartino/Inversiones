@@ -10,6 +10,8 @@ import { useChartSeries } from "../../hooks/useChartSeries";
 import { useChartPriceLines } from "../../hooks/useChartPriceLines";
 import { useMeasureTool } from "../../hooks/useMeasureTool";
 import { useChartIndicatorValues } from "../../hooks/useChartIndicatorValues";
+import { useChartSignals } from "../../hooks/useChartSignals";
+import { calcVolumeRatio } from "../../lib/indicators";
 import MeasureTool from "./candlestick/MeasureTool";
 import ChartToolbar from "./candlestick/ChartToolbar";
 import CoinExplorer from "./candlestick/CoinExplorer";
@@ -60,6 +62,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
         volumeSeriesRef,
         getIndicatorValuesAtTime,
         getLatestIndicatorValues,
+        getIndicatorPoints,
     } = useChartSeries({
         mainContainerRef: mainChartContainerRef,
         rsiContainerRef,
@@ -75,6 +78,20 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
 
     // Indicator values on crosshair (managed by useChartIndicatorValues)
     const indicatorValues = useChartIndicatorValues({ mainChartRef, getIndicatorValuesAtTime, getLatestIndicatorValues });
+
+    // Technical signal markers on main chart (managed by useChartSignals)
+    const indicatorPts = getIndicatorPoints();
+    const volumeRatio = currentKlines.length > 0 ? calcVolumeRatio(currentKlines) : 1;
+    useChartSignals({
+        candleSeriesRef,
+        klines: currentKlines,
+        ema20Points: indicatorPts.ema20,
+        sma50Points: indicatorPts.sma50,
+        rsiPoints: indicatorPts.rsi,
+        macdLinePoints: indicatorPts.macdLine,
+        macdSignalPoints: indicatorPts.macdSignal,
+        volumeRatio,
+    });
 
     // Price lines (managed by useChartPriceLines)
     useChartPriceLines({
