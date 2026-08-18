@@ -288,7 +288,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
             )}
 
             {/* Main chart */}
-            <div className="relative">
+            <div className="relative rounded overflow-hidden">
                 {loading && (
                     <div className="absolute inset-0 flex items-center justify-center bg-slate-900/70 rounded z-10">
                         <span className="text-xs text-slate-400">Cargando...</span>
@@ -301,7 +301,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                         </span>
                     </div>
                 )}
-                <div ref={mainContainerRef} style={{ height: `${expanded ? 760 : 560}px` }}>
+                <div ref={mainContainerRef} className="cursor-crosshair" style={{ height: `${expanded ? 760 : 560}px` }}>
                     <div ref={mainChartContainerRef} />
                     <div ref={rsiContainerRef} />
                     <div ref={macdContainerRef} />

@@ -42,10 +42,10 @@ const ChartToolbar: React.FC<ChartToolbarProps> = ({
                     <button
                         key={iv}
                         onClick={() => setSelectedInterval(iv)}
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors ${
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all duration-150 ${
                             selectedInterval === iv
-                                ? "bg-yellow-600 text-white"
-                                : "bg-slate-700 text-slate-400 hover:bg-slate-600"
+                                ? "bg-yellow-600 text-white shadow-sm"
+                                : "bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-300"
                         }`}
                     >
                         {INTERVAL_LABELS[iv]}
@@ -62,10 +62,10 @@ const ChartToolbar: React.FC<ChartToolbarProps> = ({
                     }
                     setShowAlertForm(v => !v);
                 }}
-                className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold border transition-colors ${
+                className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold border transition-all duration-150 ${
                     showAlertForm
                         ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40'
-                        : 'bg-slate-700 text-slate-400 border-slate-700 hover:text-yellow-300'
+                        : 'bg-slate-700 text-slate-400 border-slate-700 hover:text-yellow-300 hover:border-yellow-500/30'
                 }`}
                 title="Nueva alerta de precio"
             >
@@ -74,10 +74,10 @@ const ChartToolbar: React.FC<ChartToolbarProps> = ({
             </button>
             <button
                 onClick={() => setMeasureMode(v => !v)}
-                className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold border transition-colors ${
+                className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold border transition-all duration-150 ${
                     measureMode
                         ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
-                        : 'bg-slate-700 text-slate-400 border-slate-700 hover:text-sky-300'
+                        : 'bg-slate-700 text-slate-400 border-slate-700 hover:text-sky-300 hover:border-sky-500/30'
                 }`}
                 title={measureMode ? "Salir de medición (Esc)" : "Medir rango de precio"}
             >
