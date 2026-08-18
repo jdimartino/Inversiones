@@ -1,27 +1,50 @@
 {
   "files": {
+<<<<<<< Updated upstream
     "main.css": "/static/css/main.46944ab8.css",
     "main.js": "/static/js/main.e7b84d81.js",
     "static/js/87.a0dba162.chunk.js": "/static/js/87.a0dba162.chunk.js",
     "static/js/237.72805426.chunk.js": "/static/js/237.72805426.chunk.js",
     "static/js/397.4122ce0d.chunk.js": "/static/js/397.4122ce0d.chunk.js",
     "static/js/818.90fa7e47.chunk.js": "/static/js/818.90fa7e47.chunk.js",
+=======
+    "main.css": "/static/css/main.096cebeb.css",
+    "main.js": "/static/js/main.a87837f4.js",
+    "static/js/87.12194619.chunk.js": "/static/js/87.12194619.chunk.js",
+    "static/js/237.72805426.chunk.js": "/static/js/237.72805426.chunk.js",
+    "static/js/397.4122ce0d.chunk.js": "/static/js/397.4122ce0d.chunk.js",
+    "static/js/818.9c893a81.chunk.js": "/static/js/818.9c893a81.chunk.js",
+>>>>>>> Stashed changes
     "static/js/229.bba8ee17.chunk.js": "/static/js/229.bba8ee17.chunk.js",
     "static/js/440.27389947.chunk.js": "/static/js/440.27389947.chunk.js",
     "static/js/508.68d76de0.chunk.js": "/static/js/508.68d76de0.chunk.js",
     "index.html": "/index.html",
+<<<<<<< Updated upstream
     "main.46944ab8.css.map": "/static/css/main.46944ab8.css.map",
     "main.e7b84d81.js.map": "/static/js/main.e7b84d81.js.map",
     "87.a0dba162.chunk.js.map": "/static/js/87.a0dba162.chunk.js.map",
     "237.72805426.chunk.js.map": "/static/js/237.72805426.chunk.js.map",
     "397.4122ce0d.chunk.js.map": "/static/js/397.4122ce0d.chunk.js.map",
     "818.90fa7e47.chunk.js.map": "/static/js/818.90fa7e47.chunk.js.map",
+=======
+    "main.096cebeb.css.map": "/static/css/main.096cebeb.css.map",
+    "main.a87837f4.js.map": "/static/js/main.a87837f4.js.map",
+    "87.12194619.chunk.js.map": "/static/js/87.12194619.chunk.js.map",
+    "237.72805426.chunk.js.map": "/static/js/237.72805426.chunk.js.map",
+    "397.4122ce0d.chunk.js.map": "/static/js/397.4122ce0d.chunk.js.map",
+    "818.9c893a81.chunk.js.map": "/static/js/818.9c893a81.chunk.js.map",
+>>>>>>> Stashed changes
     "229.bba8ee17.chunk.js.map": "/static/js/229.bba8ee17.chunk.js.map",
     "440.27389947.chunk.js.map": "/static/js/440.27389947.chunk.js.map",
     "508.68d76de0.chunk.js.map": "/static/js/508.68d76de0.chunk.js.map"
   },
   "entrypoints": [
+<<<<<<< Updated upstream
     "static/css/main.46944ab8.css",
     "static/js/main.e7b84d81.js"
+=======
+    "static/css/main.096cebeb.css",
+    "static/js/main.a87837f4.js"
+>>>>>>> Stashed changes
   ]
 }

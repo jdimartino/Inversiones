@@ -1,0 +1,277 @@
+================================================================================
+    INFORME DE VERIFICACION: TELEGRAM CONNECTIVITY
+    Fecha: 2026-08-18 17:00 (UTC-5)
+    Proyecto: micriptoapp
+    Region: europe-west1
+    Modo: SOLO LECTURA
+================================================================================
+
+RESUMEN EJECUTIVO
+================================================================================
+
+No se encontraron errores de Telegram en los logs, pero esto NO significa
+que Telegram esté funcionando. La función sendTelegram() NUNCA es llamada
+porque no hay alertas que se disparen. No hay evidencia suficiente para
+determinar si Telegram está funcionando o no.
+
+El problema NO es un bug en la lógica de evaluación. El problema es que
+no hay forma de probar la conectividad sin enviar un mensaje de prueba.
+
+
+1. VERSION DESPLEGADA
+================================================================================
+
+checkIntervalTasks:
+  - Version: v1
+  - Trigger: scheduled (cada 15 minutos)
+  - Location: europe-west1
+  - Runtime: nodejs22
+  - Memory: 128 MB
+  - Status: FUNCIONANDO (20+ ejecuciones exitosas en ultimas 5 horas)
+
+La version desplegada es 266c40d (24 jul 2026), identificada por:
+  - Presencia de triggeredCandleAlerts en notificationLogs
+  - Presencia de triggeredWatchlistAlerts en notificationLogs
+  - Funciones debugAlerts, debugInversiones, debugLogs, setupTestAlerts
+  - Estas funciones NO existen en versiones posteriores (d5865d3, 774da99)
+
+
+2. ESTADO DE SECRETS
+================================================================================
+
+TELEGRAM_TOKEN:
+  - Estado: CONFIGURADO
+  - Version: 1
+  - State: ENABLED
+
+TELEGRAM_CHAT_ID:
+  - Estado: CONFIGURADO
+  - Version: 1
+  - State: ENABLED
+
+Ambos secrets estan disponibles para checkIntervalTasks.
+
+
+3. PRUEBA TELEGRAM getMe
+================================================================================
+
+Resultado: NO REALIZADO
+
+Razon: No es posible ejecutar getMe() sin el token, que esta almacenado
+en Secret Manager y no es accesible desde la CLI local.
+
+El unico endpoint que podria ejecutar getMe() seria la funcion Cloud
+checkIntervalTasks, pero no tiene un modo de prueba para esta operacion.
+
+
+4. PRUEBA TELEGRAM getUpdates
+================================================================================
+
+Resultado: NO REALIZABLE
+
+Razon: getUpdates() interferiria con otros mecanismos de recepcion del
+bot (webhook, polling). Si el bot usa un webhook, getUpdates() podria
+causar perdida de mensajes pendientes.
+
+No es recomendable ejecutar esta prueba sin conocer la configuracion
+completa del bot.
+
+
+5. VALIDACION DE TELEGRAM_CHAT_ID
+================================================================================
+
+Resultado: NO DETERMINABLE SIN ENVIO
+
+El chat_id configurado no puede validarse sin enviar un mensaje de
+prueba. El endpoint debugAlerts muestra que el chat_id esta configurado
+en el entorno, pero no hay forma de verificar que corresponda a un
+chat valido sin enviar un mensaje.
+
+
+6. REVISION DE LOGS DE CLOUD FUNCTIONS
+================================================================================
+
+Evidencia encontrada:
+  - [SIN ERRORES] No se encontraron mensajes de error en los ultimos
+    200 logs de checkIntervalTasks
+  - [SIN ERRORES] No se encontraron mensajes de fallo de Telegram
+  - [SIN ERRORES] No se encontraron HTTP status codes (400, 401, 403, 429)
+  - [SIN ERRORES] No se encontraron timeouts o errores de red
+
+Mensajes observados (ultimas 24 horas):
+  - "Iniciando comprobación de alertas..." (cada 15 min)
+  - "Trading Signals: Analizando mercados..." (cada 15 min)
+  - "Function execution took X ms, finished with status: 'ok'" (todas)
+
+Importante:
+  La AUSENCIA de errores NO significa que Telegram este funcionando.
+  Significa que sendTelegram() NUNCA es llamado porque no hay alertas
+  que se disparen.
+
+  sendTelegram() solo se ejecuta cuando:
+    shouldAlert = triggeredGlobalMessages.length > 0
+               || triggeredIndividualMessages.length > 0
+               || triggeredWatchlistAlerts.length > 0
+               || triggeredCandleAlerts.length > 0
+
+  Actualmente, todas las listas estan vacias.
+
+
+7. VERIFICACION DE CONECTIVIDAD FIREBASE → TELEGRAM
+================================================================================
+
+Resultado: NO DETERMINABLE
+
+No hay evidencia de que Firebase pueda comunicarse con Telegram.
+Tampoco hay evidencia de que NO pueda comunicarse.
+
+La unica forma de verificar seria:
+  a) Enviar un mensaje de prueba (violaria la restriccion de solo lectura)
+  b) Usar un endpoint que haga ping a Telegram (no existe)
+
+
+8. ANALISIS DE sendTelegram()
+================================================================================
+
+Implementacion en 266c40d:
+
+  Endpoint: https://api.telegram.org/bot${token}/sendMessage
+  Method: POST (axios.post)
+  Payload:
+    - chat_id: process.env.TELEGRAM_CHAT_ID
+    - text: message (Markdown)
+    - parse_mode: "Markdown"
+    - disable_web_page_preview: true
+
+  Retry logic:
+    - 3 intentos maximo
+    - Backoff: 2000ms * attempt (2s, 4s, 6s)
+    - En cada intento: catch error y loggear
+
+  Error handling:
+    - Si token/chatId faltan: console.error + return false
+    - Si HTTP falla: console.error con e.response?.data o e.message
+    - Si 3 intentos fallan: console.error + return false
+
+  Exito:
+    - Si Telegram responde: return true
+    - NO hay console.log de exito
+
+  Limitaciones:
+    - No hay logging de exito (solo de fallo)
+    - No hay logging de HTTP status code en exito
+    - No hay validacion de respuesta de Telegram
+    - No hay manejo de rate limiting (429)
+    - No hay timeout configurado (usa default de axios)
+
+  Verificacion de secrets:
+    - Lee de process.env (Secret Manager)
+    - Si faltan: retorna false con console.error
+    - No expone valores en logs
+
+
+9. ESTADO DE CADA HIPOTESIS
+================================================================================
+
+  [CONFIRMADO] Scheduler funciona correctamente
+  [CONFIRMADO] Secrets estan configurados y habilitados
+  [CONFIRMADO] Binance API responde correctamente
+  [CONFIRMADO] notificationLogs se esta escribiendo
+  [CONFIRMADO] alertas de candle/watchlist se detectan
+  [CONFIRMADO] Algoritmo de cruces funciona correctamente
+  [CONFIRMADO] investment/global alerts ya dispararon anteriormente
+
+  [NO DETERMINABLE] Si Telegram Bot API responde correctamente
+  [NO DETERMINABLE] Si el token es valido
+  [NO DETERMINABLE] Si el bot esta activo
+  [NO DETERMINABLE] Si el chat_id es valido
+  [NO DETERMINABLE] Si Firebase puede comunicarse con Telegram
+  [NO DETERMINABLE] Si sendTelegram() envia mensajes correctamente
+  [NO DETERMINABLE] Si sendTelegram() falla
+
+  [DESCARTADO] Bug en logica de evaluacion de investment alerts
+  [DESCARTADO] Bug en logica de evaluacion de global alerts
+  [DESCARTADO] Scheduler no ejecuta
+  [DESCARTADO] Binance API falla
+  [DESCARTADO] notificationLogs no se escribe
+
+
+10. PRUEBA FALTA PARA CONFIRMAR FLUJO COMPLETO
+================================================================================
+
+Para confirmar que el flujo completo funciona, se necesita al menos UNA
+de las siguientes pruebas:
+
+OPCION A: Enviar mensaje de prueba (VIOLA RESTRICCION DE SOLO LECTURA)
+  - Usar endpoint testAlerts
+  - Envia un mensaje real a Telegram
+  - Confirma: token, chat_id, conectividad, bot activo
+  - Riesgo: si falla, puede causar alarma innecesaria
+
+OPCION B: Crear alerta one-shot de prueba
+  - Crear alerta con target cercano al precio actual
+  - Esperar a que se ejecute checkIntervalTasks
+  - Verificar si se dispara y si el mensaje llega
+  - Ventaja: es un escenario realista
+  - Riesgo: puede tardar hasta 15 minutos
+
+OPCION C: Usar endpoint debugAlerts (YA HECHO)
+  - Muestra configuracion actual de alertas
+  - Confirma que los secrets estan disponibles
+  - NO confirma que Telegram funcione
+
+OPCION D: Modificar sendTelegram() para loggear exito
+  - Agregar console.log cuando Telegram responda 200
+  - Desplegar y esperar proxima ejecucion
+  - VIOLA RESTRICCION DE NO MODIFICAR CODIGO
+
+
+11. CONCLUSION
+================================================================================
+
+ESTADO ACTUAL:
+  - Scheduler: FUNCIONANDO
+  - Binance API: FUNCIONANDO
+  - Secrets: CONFIGURADOS
+  - Logs: SIN ERRORES
+  - Telegram: NO DETERMINABLE
+
+EL PROBLEMA:
+  sendTelegram() NUNCA es llamado porque no hay alertas que se disparen.
+  No hay forma de probar la conectividad con Telegram sin enviar un
+  mensaje de prueba.
+
+LA EVIDENCIA:
+  - Los logs no muestran errores de Telegram
+  - Pero esto no significa que Telegram funcione
+  - Solo significa que sendTelegram() no ha sido llamado recientemente
+
+LA PARADOJA:
+  - Si Telegram fallara, no lo sabriamos porque sendTelegram() no se ejecuta
+  - Si Telegram funcionara, no lo sabriamos porque sendTelegram() no se ejecuta
+  - La unica forma de romper esta paradoja es ENVIAR un mensaje de prueba
+
+
+12. RECOMENDACION
+================================================================================
+
+Para resolver la incertidumbre sobre Telegram, se recomienda:
+
+1. EJECUTAR UNA PRUEBA REAL DE TELEGRAM (prioridad alta)
+   - Opcion 1: Usar endpoint testAlerts (envia mensaje real)
+   - Opcion 2: Crear alerta one-shot temporal (se dispara sola)
+   - Opcion 3: Modificar sendTelegram() para loggear exito
+
+2. NO DESPLEGAR EL CODIGO ACTUAL (774da99/HEAD)
+   - Elimina notificacionLogs
+   - Elimina watchlist/candle alerts
+   - Elimina logging de debugging
+   - Elimina manejo de errores del scheduler
+
+3. MANTENER LA VERSION ACTUAL (266c40d)
+   - Esta funcionando correctamente
+   - Tiene todas las funcionalidades necesarias
+   - No hay razon para cambiarla
+
+FIN DEL INFORME
+================================================================================

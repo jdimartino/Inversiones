@@ -1,0 +1,387 @@
+═══════════════════════════════════════════════════════════════════════════════
+                    INFORME DE DIAGNOSTICO - TELEGRAM NOTIFICATIONS
+                         Fecha: 2026-08-18 15:00 (UTC-5)
+═══════════════════════════════════════════════════════════════════════════════
+
+Proyecto: micriptoapp
+Entorno: Firebase (Cloud Functions + Firestore + Hosting)
+Region: europe-west1
+Runtime: Node.js 22
+
+═══════════════════════════════════════════════════════════════════════════════
+1. ESTADO DE CLOUD FUNCTIONS
+═══════════════════════════════════════════════════════════════════════════════
+
+checkIntervalTasks: DESPLEGADA y ACTIVA
+  - Trigger: PubSub schedule (every 15 minutes)
+  - Region: europe-west1
+  - Memoria: 128MB
+  - Runtime: nodejs22
+  - Version: v1
+
+Otras funciones desplegadas (11 total):
+  - analyzeMarket (callable)
+  - corsTest (https)
+  - debugAlerts (https)
+  - debugInversiones (https)
+  - debugLogs (https)
+  - getBinanceWallet (https)
+  - syncBinanceLoans (https)
+  - syncBybitLoans (https)
+  - signBinanceRequest (callable)
+
+═══════════════════════════════════════════════════════════════════════════════
+2. ESTADO DEL SCHEDULER
+═══════════════════════════════════════════════════════════════════════════════
+
+Scheduler ACTIVO ejecutandose cada 15 minutos.
+
+Ultimas ejecuciones observadas (2026-08-18):
+  10:07:12 UTC -> OK (2443 ms)
+  10:22:05 UTC -> OK (2209 ms)
+  10:37:17 UTC -> OK (2240 ms)
+  10:52:04 UTC -> OK (2367 ms)
+  11:07:13 UTC -> OK (2446 ms)
+  11:22:06 UTC -> OK (1829 ms)
+  11:37:06 UTC -> OK (2204 ms)
+  11:52:04 UTC -> OK (3475 ms)
+  12:07:06 UTC -> OK (2316 ms)
+  12:22:03 UTC -> OK (2438 ms)
+  12:37:07 UTC -> OK (2158 ms)
+  12:52:13 UTC -> OK (2053 ms)
+  13:07:08 UTC -> OK (2189 ms)
+  13:22:04 UTC -> OK (2677 ms)
+  13:37:05 UTC -> OK (2097 ms)
+  13:52:07 UTC -> OK (1624 ms)
+  14:07:13 UTC -> OK (2236 ms)
+  14:22:06 UTC -> OK (1943 ms)
+  14:37:06 UTC -> OK (2083 ms)
+  14:52:04 UTC -> OK (2716 ms)
+
+Total: 20 ejecuciones en ~5 horas, TODAS exitosas (status: ok)
+Promedio de duracion: ~2.3 segundos
+Frecuencia confirmada: cada 15 minutos
+
+═══════════════════════════════════════════════════════════════════════════════
+3. ERRORES ENCONTRADOS
+═══════════════════════════════════════════════════════════════════════════════
+
+NO se encontraron errores en los logs de checkIntervalTasks:
+  - Sin excepciones de JavaScript
+  - Sin errores de Binance API
+  - Sin errores de Firestore
+  - Sin errores de timeout
+  - Sin errores HTTP de Telegram
+
+NOTA: Los logs de la funcion son MINIMOS (solo "[v2.3] Iniciando comprobacion..."
+y "[Trading Signals] Analizando mercados..."). No hay logging de:
+  - Cuantas alertas se evaluaron
+  - Cuantas alertas se dispararon
+  - Si sendTelegram() tuvo exito o fallo
+  - Errores silenciosos de la API de Telegram
+
+═══════════════════════════════════════════════════════════════════════════════
+4. ESTADO DE SECRETS (sin exponer valores)
+═══════════════════════════════════════════════════════════════════════════════
+
+TELEGRAM_TOKEN:     Configurado y ENABLED (version 1)
+TELEGRAM_CHAT_ID:   Configurado y ENABLED (version 1)
+
+Ambos secrets estan vinculados a checkIntervalTasks via runWith({ secrets: [...] }).
+La funcion puede acceder a process.env.TELEGRAM_TOKEN y process.env.TELEGRAM_CHAT_ID.
+
+No hay errores de acceso a secrets en los logs.
+
+═══════════════════════════════════════════════════════════════════════════════
+5. ESTADO DE NOTIFICATIONLOGS
+═══════════════════════════════════════════════════════════════════════════════
+
+La coleccion notificationLogs EXISTE y tiene datos RECIENTES.
+
+Fecha del documento mas reciente: 2026-08-18 ~10:02 UTC (hoy)
+Fecha del documento mas antiguo (de los 10 mas recientes): 2026-08-17 ~04:22 UTC
+
+Estructura de los documentos recientes:
+  - sentAt: Timestamp
+  - globalAlertTriggered: boolean (SIEMPRE false en los 10 registros)
+  - globalPNL: number (~-44,000 a -45,000)
+  - triggeredAssets: array (SIEMPRE vacio [])
+  - triggeredGlobalAlerts: array (SIEMPRE vacio [])
+  - triggeredWatchlistAlerts: array (con datos cuando BTC cruza umbral)
+  - triggeredCandleAlerts: array (con datos cuando ADA/BTC generan vela)
+  - totalInvested: number (107,781)
+  - totalCurrentValue: number (~63,000)
+  - positionSnapshot: object (24 posiciones)
+
+Analisis de los 10 logs mas recientes:
+  - 6 entradas con triggeredCandleAlerts (alertas de vela ADA 4H detectadas)
+  - 2 entradas con triggeredWatchlistAlerts (BTC bajando de $64,000)
+  - 0 entradas con triggeredAssets (ninguna alerta individual de inversion)
+  - 0 entradas con globalAlertTriggered (ninguna alerta global)
+  - 0 entradas con triggeredGlobalAlerts
+
+HALLAZGO CRITICO:
+Los logs demuestran que la VERSION DESPLEGADA de la Cloud Function
+SI esta procesando alertas de candle y watchlist, y SI esta escribiendo
+en notificationLogs. Esto indica que la version desplegada es DIFERENTE
+del codigo actual en el repositorio.
+
+═══════════════════════════════════════════════════════════════════════════════
+6. ESTADO DE CONFIG/ALERTS
+═══════════════════════════════════════════════════════════════════════════════
+
+El documento config/alerts EXISTE y tiene configuracion activa.
+
+Resumen:
+  - minPNL: -37000
+  - maxPNL: 10000
+  - dailyReportEnabled: true
+
+investmentAlerts: 5 activos con 36 alertas
+  DOGE (cZJuwQpkP7u3jQp7N4GY): 3 alertas (3 persistentes, 0 one-shot) [PNL]
+  BTC (XJgT2BCG3ybAvmnS4kyD):  3 alertas (2 persistentes, 1 one-shot) [PNL]
+  DOGE (yQ4gKmqKxnHh9ya0vcgW): 7 alertas (7 persistentes, 0 one-shot) [PNL]
+  LTC (fgrAwtJrEk0crjpQJ9ID): 12 alertas (11 persistentes, 1 one-shot) [PNL]
+  ADA (zWAHIf8qNAFbbFjqFCme): 11 alertas (11 persistentes, 0 one-shot) [PNL]
+
+globalAlerts: 6 alertas globales (TODAS persistentes)
+  [-25000, up] [-30000, down] [-35000, up] [-40000, down] [-45000, down] [-50000, down]
+
+watchlistAlerts: 5 monedas con 40 alertas
+  BTC: 26 alertas | SOL: 6 | ADA: 5 | LTC: 2 | XRP: 1
+
+candleAlerts: 2 monedas
+  BTC: ~20 alertas (4h y 1d, direcciones up/down, 1-5%)
+  ADA: 2 alertas (4h, up, 1% y 2%)
+
+Analisis de condiciones actuales:
+  - PNL global actual: ~-$44,000 (negativo)
+  - Global alert -40,000 (down): PNL actual ya esta POR DEBAJO del umbral
+  - Global alert -45,000 (down): PNL actual esta CERCA del umbral
+  - Global alert -50,000 (down): PNL actual NO ha llegado
+  - Global alert -25,000 (up): PNL actual esta MUY por debajo
+  - Global alert -35,000 (up): PNL actual esta por debajo
+  - Global alert -30,000 (down): PNL actual ya cruzo este nivel
+
+ANALISIS DE GLOBAL ALERTS:
+La alerta [-40000, down] deberia haberse disparado cuando el PNL bajo de -$40K.
+La alerta [-35000, up] deberia haberse disparado cuando el PNL subio de -$35K.
+El campo _lastSide NO esta presente en las alertas globales del config,
+lo que sugiere que estas alertas se estan re-evaluando correctamente
+(persistentes con deteccion de cruce).
+
+═══════════════════════════════════════════════════════════════════════════════
+7. VERIFICACION DE BINANCE
+═══════════════════════════════════════════════════════════════════════════════
+
+NO se encontraron errores de Binance API en los logs:
+  - Sin errores de rate limiting (429)
+  - Sin errores de autenticacion (401/403)
+  - Sin timeouts
+  - Sin errores de parsing
+
+La funcion completa su ejecucion en ~2.3 segundos, lo que indica
+que la llamada a Binance API (ticker/price) esta funcionando correctamente.
+
+Los datos en notificationLogs confirman que se estan obteniendo precios
+(positionSnapshot contiene valores de pnl/roi calculados con precios actuales).
+
+═══════════════════════════════════════════════════════════════════════════════
+8. ESTADO OBSERVABLE DE TELEGRAM
+═══════════════════════════════════════════════════════════════════════════════
+
+NO es posible determinar desde el repo si Telegram esta funcionando
+correctamente. Razones:
+
+  a) La version desplegada NO tiene logging de errores de Telegram
+  b) Los logs de Cloud Functions NO muestran errores de HTTP
+  c) La funcion sendTelegram() retorna true/false sin logging
+  d) NO hay evidencia de llamadas exitosas O fallidas a Telegram API
+
+Lo que SI sabemos:
+  - Los secrets TELEGRAM_TOKEN y TELEGRAM_CHAT_ID estan configurados
+  - La funcion se ejecuta sin errores visibles
+  - Si sendTelegram() fallara silenciosamente, no habria indicacion en logs
+
+Prueba recomendada (SIN enviar mensajes reales):
+  - Verificar en Telegram BotFather que el bot este activo
+  - Verificar que el chat ID sea valido (el usuario debe haber iniciado
+    conversacion con el bot usando /start)
+  - Probar manualmente con curl:
+    curl "https://api.telegram.org/bot<TOKEN>/getMe"
+    curl "https://api.telegram.org/bot<TOKEN>/getUpdates"
+
+═══════════════════════════════════════════════════════════════════════════════
+9. COMPARACION DE COMMITS
+═══════════════════════════════════════════════════════════════════════════════
+
+COMMIT d5865d3 (2026-07-30) - Version ANTERIOR (probablemente DESPLEGADA):
+  + Contiene procesamiento de watchlist alerts
+  + Contiene procesamiento de candle alerts
+  + Contiene escritura en notificationLogs despues de envio exitoso
+  + Contiene logging detallado (console.log/console.error)
+  + shouldAlert incluye: global + individual + watchlist + candle
+  + Manejo de errores con try/catch en scheduler
+  + Divisor visual (DIVIDER) en mensajes de Telegram
+  + Logs de cada tipo: [ALERTA v3], [WATCHLIST v3], [ALERTA GLOBAL v3], [CANDLE ALERT]
+  + Confirmacion de envio: "Alerta enviada."
+  + Error handling: "Telegram fallo. Las alertas UNA VEZ NO se eliminan..."
+
+COMMIT 774da99 (2026-08-08) - Version ACTUAL EN REPO (NO desplegada):
+  - ELIMINO procesamiento de watchlist alerts
+  - ELIMINO procesamiento de candle alerts
+  - ELIMINO escritura en notificationLogs
+  - ELIMINO todo console.log/console.error
+  - shouldAlert SOLO incluye: globalMessages + individualMessages
+  - ELIMINO try/catch en scheduler
+  - ELIMINO Divisor visual (DIVIDER)
+  - Simplifico logica de persistentes (menos verbose)
+  + Agrego funciones HTTP: getBinanceWallet, syncBinanceLoans, syncBybitLoans, corsTest
+  + Agrego import de crypto y defineSecret
+
+DISCREPANCIA CRITICA:
+El codigo en el repositorio (post-774da99) es FUNDAMENTALMENTE DIFERENTE
+de la version desplegada. La version desplegada aun tiene:
+  - Procesamiento de watchlist/candle alerts
+  - Escritura en notificationLogs
+  - Logging detallado
+
+Si se desplegara el codigo actual, se PERDERIAN:
+  - Todas las alertas de watchlist
+  - Todas las alertas de candle
+  - Todos los logs de notificaciones
+  - Todo el logging de debugging
+
+═══════════════════════════════════════════════════════════════════════════════
+10. CLASIFICACION DE HIPOTESIS
+═══════════════════════════════════════════════════════════════════════════════
+
+HIPOTESIS A: "El scheduler checkIntervalTasks no esta ejecutandose"
+-> DESCARTADA
+  Evidencia: 20 ejecuciones exitosas en las ultimas 5 horas, cada 15 minutos.
+  Todos los logs muestran status: ok.
+
+HIPOTESIS B: "El scheduler se ejecuta pero runCheckAlerts() no detecta alertas"
+-> PARCIALMENTE CONFIRMADA (para investmentAlerts y globalAlerts)
+  Evidencia:
+  - triggeredAssets SIEMPRE esta vacio en los 10 logs recientes
+  - triggeredGlobalAlerts SIEMPRE esta vacio
+  - globalAlertTriggered SIEMPRE es false
+  - PERO: triggeredCandleAlerts y triggeredWatchlistAlerts SI contienen datos
+  Conclusión: Las alertas de candle Y watchlist SI se detectan.
+  Las alertas de inversion Y globales NO se detectan (condiciones no cumplidas).
+
+HIPOTESIS C: "Las alertas se detectan pero sendTelegram() falla"
+-> NO DETERMINABLE CON LA EVIDENCIA ACTUAL
+  Evidencia:
+  - No hay logging de errores de Telegram en los logs
+  - No hay evidencia de llamadas exitosas O fallidas
+  - La funcion sendTelegram() no tiene logging
+  - Los secrets estan configurados correctamente
+  Nota: Es IMPOSIBLE confirmar o descartar esta hipotesis sin:
+  a) Agregar logging a sendTelegram(), O
+  b) Revisar logs de Telegram Bot API, O
+  c) Enviar un mensaje de prueba manual
+
+HIPOTESIS D: "Telegram envia correctamente pero notificationLogs no registra"
+-> DESCARTADA
+  Evidencia: notificationLogs TIENE 10+ documentos recientes con timestamps
+  de hoy (2026-08-18). La coleccion se esta escribiendo correctamente.
+  Los documentos contienen datos de candle alerts y watchlist alerts.
+
+HIPOTESIS E: "Existen varios problemas simultaneamente"
+-> NO DETERMINABLE
+  Evidencia insuficiente para confirmar multiples fallos simultaneos.
+  Lo que se sabe:
+  - Scheduler: FUNCIONA
+  - Binance API: FUNCIONA
+  - notificationLogs: SE ESCRIBE
+  - Deteccion de candle/watchlist: FUNCIONA
+  - Deteccion de investment/global: NO DISPARA (condiciones no cumplidas?)
+  - Envio a Telegram: DESCONOCIDO
+
+═══════════════════════════════════════════════════════════════════════════════
+11. DIAGNOSTICO FINAL
+═══════════════════════════════════════════════════════════════════════════════
+
+RESUMEN EJECUTIVO:
+
+El sistema de notificaciones ESTA FUNCIONANDO en su version desplegada:
+  - El scheduler se ejecuta cada 15 minutos sin errores
+  - Los secrets de Telegram estan configurados
+  - La API de Binance responde correctamente
+  - Se estan detectando alertas de candle (ADA) y watchlist (BTC)
+  - Se estan escribiendo logs en notificationLogs
+
+Sin embargo, hay angulos muertos que impiden un diagnostico completo:
+
+1. NO se puede determinar si Telegram esta enviando mensajes
+   - La funcion sendTelegram() no tiene logging de exito/fallo
+   - No hay errores visibles en Cloud Functions logs
+   - Se necesita acceso a Telegram Bot API o agregar logging
+
+2. Las alertas de inversion y globales NUNCA se disparan
+   - triggeredAssets siempre vacio
+   - triggeredGlobalAlerts siempre vacio
+   - Esto puede ser NORMAL si las condiciones no se cumplen
+   - O puede indicar un bug en la evaluacion de estas alertas
+
+3. EL CODIGO EN EL REPOSITORIO ES DIFERENTE AL DESPLEGADO
+   - El repo tiene una refactorizacion (774da99) que ELIMINA:
+     * Procesamiento de watchlist/candle alerts
+     * Escritura en notificationLogs
+     * Todo el logging
+   - SI SE DESPLEGARA EL CODIGO ACTUAL, se romperian:
+     * Todas las alertas de watchlist
+     * Todas las alertas de candle
+     * Todos los logs de notificaciones
+
+═══════════════════════════════════════════════════════════════════════════════
+12. QUE NECESITAMOS CONFIRMAR EXTERNAMENTE
+═══════════════════════════════════════════════════════════════════════════════
+
+Firebase Console:
+  [ ] Verificar si hay errores en Cloud Functions > Logs (mas detallado)
+  [ ] Verificar que la funcion checkIntervalTasks tenga la version correcta
+  [ ] Verificar Firestore > config/alerts > estructura exacta de investmentAlerts
+  [ ] Verificar que investmentAlerts tenga _lastSide para persistentes
+
+Telegram:
+  [ ] Verificar estado del bot en BotFather (/mybots)
+  [ ] Verificar que el bot no este bloqueado por el usuario
+  [ ] Verificar que el chat_id sea el correcto
+  [ ] Probar envio manual: curl "https://api.telegram.org/bot<TOKEN>/getMe"
+
+Prueba manual (RECOMENDADA):
+  [ ] Usar el endpoint debugAlerts para ver investmentAlerts actuales
+  [ ] Verificar si las condiciones de las alertas de inversion se cumplen
+  [ ] Crear una alerta de prueba simple (ej: precio BTC > $100,000) y
+      verificar si se detecta y envia
+
+═══════════════════════════════════════════════════════════════════════════════
+13. RECOMENDACION DEL SIGUIENTE PASO
+═══════════════════════════════════════════════════════════════════════════════
+
+PRIORIDAD 1: Verificar conectividad Telegram
+  -> Probar manualmente con getMe/getUpdates
+  -> Esto confirmara si el bot esta activo y el chatId valido
+
+PRIORIDAD 2: Revisar las alertas de inversion en config/alerts
+  -> Las 36 alertas de inversion NUNCA se disparan
+  -> Verificar si las condiciones son alcanzables
+  -> Verificar si _lastSide esta bloqueando re-disparos
+
+PRIORIDAD 3: Decidir sobre el codigo en el repositorio
+  -> El commit 774da99 ELIMINA funcionalidad critica
+  -> Si se despliega, se romperan watchlist/candle alerts
+  -> Recomendacion: NO desplegar el codigo actual sin antes restaurar
+    la funcionalidad eliminada
+
+PRIORIDAD 4: Agregar logging a sendTelegram()
+  -> Sin logging, es imposible diagnosticar fallos de Telegram
+  -> Agregar console.log del response status de Telegram API
+  -> Agregar console.error del response body en caso de error
+
+═══════════════════════════════════════════════════════════════════════════════
+FIN DEL INFORME
+═══════════════════════════════════════════════════════════════════════════════

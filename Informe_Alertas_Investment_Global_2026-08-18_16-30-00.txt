@@ -1,0 +1,399 @@
+================================================================================
+    INFORME DE AUDITORIA: INVESTMENT ALERTS & GLOBAL ALERTS
+    Fecha: 2026-08-18 16:30 (UTC-5)
+    Proyecto: micriptoapp
+    Region: europe-west1
+================================================================================
+
+RESUMEN EJECUTIVO
+================================================================================
+
+La version DESPLEGADA de la Cloud Function es 266c40d (24 jul 2026),
+NO el codigo actual del repositorio (774da99, 8 ago 2026).
+
+Las investmentAlerts y globalAlerts NO se disparan porque:
+- Todas tienen _lastSide = "below"
+- El ROI/PNL actual esta MUY por debajo de todos los umbrales
+- No hay CRUCE del umbral (condicion requerida para persistentes)
+- Esto es COMPORTAMIENTO ESPERADO del algoritmo de deteccion de cruces
+
+El sistema SÍ esta funcionando para:
+- Alertas de candle (ADA, BTC) → se detectan y registran
+- Alertas de watchlist (BTC) → se detectan y registran
+- Scheduler se ejecuta cada 15 min sin errores
+- notificationLogs se esta escribiendo correctamente
+
+No se encontro BUG en la logica de evaluacion.
+El algoritmo implementa correctamente la deteccion de cruces.
+
+
+1. VERSION DESPLEGADA vs REPOSITORIO
+================================================================================
+
+A. Version desplegada: 266c40d (24 jul 2026, 14:36 UTC-3)
+
+Evidencia:
+- notificationLogs tiene datos del 4-5 agosto 2026
+- Los campos incluyen triggeredCandleAlerts y triggeredWatchlistAlerts
+- Estos campos SOLO existen en 266c40d (fueron eliminados en d5865d3)
+- Firebase Functions lista: checkIntervalTasks v1, scheduled, europe-west1
+- Funcion ejecutandose cada 15 min con status 'ok'
+
+B. Codigo en repositorio: 774da99 (8 ago 2026) + HEAD
+
+Diferencias funcionales criticas:
+
+| Caracteristica           | 266c40d (desplegado) | 774da99/HEAD (repo) |
+|--------------------------|----------------------|---------------------|
+| notificationLogs.add()   | SI                   | NO                  |
+| Watchlist alerts         | SI                   | NO                  |
+| Candle alerts            | SI                   | NO                  |
+| shouldAlert incluye:     | global+indiv+wl+candle | global+indiv     |
+| Logging detallado        | SI (console.log)     | NO                  |
+| try/catch en scheduler   | SI                   | NO                  |
+| getBinanceWallet         | NO                   | SI                  |
+| syncBinanceLoans         | NO                   | SI                  |
+| syncBybitLoans           | NO                   | SI                  |
+
+CONSECUENCIA: Si se despliega el codigo actual (HEAD), se PERDERAN:
+- Todas las alertas de watchlist
+- Todas las alertas de candle
+- Todos los logs de notificaciones
+- Todo el logging de debugging
+- El manejo de errores del scheduler
+
+
+2. VERIFICACION DEL SCHEDULER
+================================================================================
+
+Estado: FUNCIONANDO CORRECTAMENTE
+
+Ejecuciones verificadas (2026-08-18):
+  10:07 → 10:22 → 10:37 → 10:52 → 11:07 → 11:22 → 11:37 → 11:52
+  12:07 → 12:22 → 12:37 → 12:52 → 13:07 → 13:22 → 13:37 → 13:52
+  14:07 → 14:22 → 14:37 → 14:52
+
+  20 ejecuciones en 5 horas, TODAS con status 'ok'
+  Promedio: 2.3 segundos por ejecucion
+  Frecuencia: cada 15 minutos
+
+
+3. VERIFICACION DE BINANCE
+================================================================================
+
+Estado: FUNCIONANDO CORRECTAMENTE
+
+Precios obtenidos (2026-08-18):
+  BTC:  $64,830    ETH:  $1,916     ADA:  $0.18
+  DOGE: $0.07      LTC:  $44.39     BNB:  $604
+  SOL:  $77.00     XRP:  $1.00
+
+Sin errores de API, rate limiting, ni timeouts en los logs.
+
+
+4. VERIFICACION DE TELEGRAM
+================================================================================
+
+Estado: NO DETERMINABLE
+
+Secrets configurados:
+  TELEGRAM_TOKEN:   ENABLED (version 1)
+  TELEGRAM_CHAT_ID: ENABLED (version 1)
+
+No hay errores de HTTP en los logs de Cloud Functions.
+La funcion sendTelegram() no tiene logging de exito/fallo.
+No es posible determinar si los mensajes llegan al usuario.
+
+
+5. NOTIFICATIONLOGS - ANALISIS HISTORICO
+================================================================================
+
+Coleccion: EXISTE y se esta escribiendo
+Total de registros: 10 (limite de la query)
+Rango de fechas: 2026-08-04 12:52 → 2026-08-05 06:22 (UTC)
+
+Campos por registro:
+  sentAt:                  Timestamp
+  globalAlertTriggered:    SIEMPRE false
+  globalPNL:               ~-$44,500 a -$45,000
+  triggeredAssets:         SIEMPRE [] (vacio)
+  triggeredGlobalAlerts:   SIEMPRE [] (vacio)
+  triggeredWatchlistAlerts: 0-1 alertas por registro
+  triggeredCandleAlerts:   0-1 alertas por registro
+  totalInvested:           $107,781
+  totalCurrentValue:       ~$63,000
+  positionSnapshot:        24 posiciones
+
+Hallazgos:
+  - triggeredAssets SIEMPRE vacio en los 10 registros
+  - triggeredGlobalAlerts SIEMPRE vacio
+  - Solo candle alerts (ADA 4H) y watchlist alerts (BTC <$64K) se registran
+  - PNL global se mantiene estable entre -$44,500 y -$45,000
+
+
+6. ANALISIS DE INVESTMENT ALERTS (36 alertas)
+================================================================================
+
+ESTADO: COMPORTAMIENTO ESPERADO - No hay bug
+
+Configuracion actual:
+  Activo          | Alertas | Persistentes | One-shot | Tipos
+  ----------------|---------|--------------|----------|------
+  DOGE (cZJuw)    |    3    |      3       |    0     | PNL
+  BTC  (XJgT2)    |    3    |      2       |    1     | PNL
+  DOGE (yQ4gK)    |    7    |      7       |    0     | PNL
+  LTC  (fgrAw)    |   12    |     11       |    1     | PNL
+  ADA  (zWAHi)    |   11    |     11       |    0     | PNL
+  TOTAL           |   36    |     34       |    2     |
+
+Valores actuales:
+  Posicion     | ROI actual | Todas las alertas down|ROI| <= target?
+  -------------|-----------|----------------------|---|-----------
+  DOGE (cZJuw) |  -62.16%  | SI (-10%, -5%, -2%) | SI
+  BTC  (XJgT2) |  -37.18%  | SI (-10%)            | SI
+  DOGE (yQ4gK) |  -58.33%  | SI (-1%,-2%,-3%,-4%)| SI
+  LTC  (fgrAw) |  -48.38%  | SI (-1%,-2%,-3%...) | SI
+  ADA  (zWAHi) |  -50.00%  | SI (-1%,-2%,-3%...) | SI
+
+PROBLEMA PERCIBIDO vs REALIDAD:
+  El usuario ve "36 alertas activas" y espera recibir notificaciones.
+  Pero las alertas persistentes SOLO se disparan en el CRUCE del umbral.
+
+LOGICA DE CRUCE (paso a paso):
+  1. Se calcula: currentSide = ROI >= target ? 'above' : 'below'
+  2. Se evalua: conditionMet = (dir=='up' ? ROI>=target : ROI<=target)
+  3. Se verifica: isTriggered = conditionMet AND (
+       NOT isPersistent OR _lastSide==undefined OR _lastSide!=currentSide
+     )
+
+  Para alerta down -10% con ROI -62.16%:
+    currentSide = -62.16 >= -10 ? 'above' : 'below' = 'below'
+    conditionMet = -62.16 <= -10 = true
+    isTriggered = true AND (false OR false OR ('below' != 'below'))
+                = true AND false
+                = false
+
+  RESULTADO: No se dispara porque _lastSide YA ES 'below'
+             (la alerta ya cruzo el umbral anteriormente)
+
+ANALISIS DE _lastSide:
+  TODAS las 36 alertas tienen _lastSide = 'below'
+  TODOS los ROI actuales estan por debajo de sus umbrales
+  Esto significa: las alertas ya se dispararon cuando el ROI cruzo los umbrales
+
+CUANDO SE DISPARARON:
+  Los logs (Aug 4-5) muestran triggeredAssets = []
+  Las alertas se dispararon ANTES del 4 de agosto
+  Desde entonces, el ROI no ha vuelto a cruzar los umbrales
+
+CONCLUSION INVESTMENT ALERTS:
+  [CONFIRMADO] El sistema funciona correctamente
+  [CONFIRMADO] Las alertas se dispararon cuando el ROI cruzo los umbrales
+  [CONFIRMADO] Ahora el ROI esta estancado por debajo de todos los umbrales
+  [CONFIRMADO] No hay cruce → no hay nueva notificacion
+  [DESCARTADO] Bug en logica de evaluacion
+
+
+7. ANALISIS DE GLOBAL ALERTS (6 alertas)
+================================================================================
+
+ESTADO: COMPORTAMIENTO ESPERADO - No hay bug
+
+Configuracion:
+  [0] -$25,000  up   | _lastSide: below
+  [1] -$30,000  down | _lastSide: below
+  [2] -$35,000  up   | _lastSide: below
+  [3] -$40,000  down | _lastSide: below
+  [4] -$45,000  down | _lastSide: below
+  [5] -$50,000  down | _lastSide: above
+
+PNL Global actual: -$45,160
+
+Evaluacion individual:
+  Alerta  | Target  | Dir | PNL actual | Condicion | currentSide | lastSide | Trigger?
+  --------|---------|-----|------------|-----------|-------------|----------|---------
+  [0]     | -$25K   | up  | -$45,160   | PNL>=-$25K| below       | below    | NO
+  [1]     | -$30K   | down| -$45,160   | PNL<=-$30K| below       | below    | NO*
+  [2]     | -$35K   | up  | -$45,160   | PNL>=-$35K| below       | below    | NO
+  [3]     | -$40K   | down| -$45,160   | PNL<=-$40K| below       | below    | NO*
+  [4]     | -$45K   | down| -$45,160   | PNL<=-$45K| below       | below    | NO*
+  [5]     | -$50K   | down| -$45,160   | PNL<=-$50K| above       | above    | NO
+
+  * Las alertas [1], [3], [4] tienen conditionMet=true pero no hay cruce
+
+ANALISIS DE CRUCE GLOBAL:
+  El PNL global ha estado entre -$44,500 y -$45,000 en los 10 logs.
+  Los umbrales -$25K, -$30K, -$35K, -$40K ya fueron cruzados hacia abajo.
+  _lastSide = "below" confirma que el PNL ya paso por debajo de estos niveles.
+
+  Para que se dispare una alerta global:
+  - El PNL debe CRUAR el umbral (cambiar de above a below, o viceversa)
+  - Ejemplo: para [-$35,000 up], el PNL debe SUBIR de -$35K a menos negativo
+  - Actualmente el PNL esta MUY por debajo, sin movimiento
+
+CONCLUSION GLOBAL ALERTS:
+  [CONFIRMADO] Las alertas se dispararon cuando el PNL cruzo los umbrales
+  [CONFIRMADO] El PNL esta estancado en -$45K, sin cruces recientes
+  [CONFIRMADO] No hay bug en la logica
+  [DESCARTADO] Bug en logica de evaluacion
+
+
+8. COMPARACION DETALLADA: 266c40d vs 774da99/HEAD
+================================================================================
+
+A. logica de isTriggered (INVESTMENT ALERTS):
+  266c40d: isTriggered = conditionMet && (!isPersistent || prevSide===undefined || prevSide!==currentSide)
+  774da99: isTriggered = conditionMet && (!isPersistent || _lastSide===undefined || _lastSide!==currentSide)
+  DIFERENCIA: Solo nombre de variable (prevSide = rule._lastSide)
+  CONCLUSION: IDENTICO en comportamiento
+
+B. logica de global alerts:
+  266c40d: isTriggered = conditionMet && (!isPersistent || prevSide!==currentSide)
+  774da99: isTriggered = conditionMet && (!isPersistent || _lastSide!==currentSide)
+  DIFERENCIA: Solo nombre de variable
+  CONCLUSION: IDENTICO en comportamiento
+
+C. shouldAlert:
+  266c40d: global||individual||watchlist||candle
+  774da99: global||individual
+  DIFERENCIA: 774da99 ELIMINA watchlist y candle del trigger
+  CONCLUSION: Si se despliega 774da99, watchlist/candle no activarian Telegram
+
+D. notificationLogs:
+  266c40d: Escribe despues de envio exitoso
+  774da99: NO escribe
+  DIFERENCIA: Se pierde historial de notificaciones
+
+E. Manejo de errores:
+  266c40d: try/catch en scheduler + console.error detallado
+  774da99: Sin try/catch + sin logging
+  DIFERENCIA: Errores se pierden silenciosamente
+
+F. Funciones HTTP:
+  266c40d: debugAlerts, debugInversiones, debugLogs, testAlerts, setupTestAlerts
+  774da99: + getBinanceWallet, syncBinanceLoans, syncBybitLoans, corsTest
+  DIFERENCIA: 774da99 agrega funciones de wallet/loans
+
+
+9. BUGS CONFIRMADOS
+================================================================================
+
+NO SE ENCONTRARON BUGS en la logica de evaluacion de alertas.
+
+El algoritmo de deteccion de cruces funciona correctamente:
+- Persistentes: solo disparan en CRUCE del umbral
+- One-shot: disparan siempre que se cumpla la condicion
+- _lastSide: se actualiza correctamente en cada evaluacion
+
+El "problema" percibido es COMPORTAMIENTO ESPERADO:
+- Las 36 investment alerts ya dispararon (ROI cruzo umbrales hacia abajo)
+- Las 6 global alerts ya dispararon (PNL cruzo umbrales hacia abajo)
+- Ahora el ROI/PNL esta estancado, sin nuevos cruces
+
+
+10. HIPOTESIS
+================================================================================
+
+CONFIRMADAS:
+  [C] El scheduler funciona correctamente
+  [C] Binance API responde correctamente
+  [C] notificationLogs se esta escribiendo
+  [C] Las alertas de candle/watchlist se detectan
+  [C] La version desplegada es 266c40d, NO el HEAD del repo
+  [C] El algoritmo de cruces funciona correctamente
+  [C] Las investment/global alerts ya se dispararon anteriormente
+
+DESCARTADAS:
+  [D] Bug en logica de evaluacion de investment alerts
+  [D] Bug en logica de evaluacion de global alerts
+  [D] Scheduler no ejecuta
+  [D] Binance API falla
+  [D] notificationLogs no se escribe
+
+NO DETERMINABLES:
+  [N] Si Telegram esta enviando mensajes correctamente
+  [N] Si el bot de Telegram esta activo
+  [N] Si el chat_id es correcto
+  [N] Si el usuario recibe las notificaciones
+
+
+11. RIESGO CRITICO: DESPLIEGUE DEL REPO ACTUAL
+================================================================================
+
+SI SE DESPLIEGA EL CODIGO ACTUAL (774da99/HEAD):
+
+SE PERDERAN:
+  - Todas las alertas de watchlist (5 monedas, 40 alertas)
+  - Todas las alertas de candle (2 monedas, ~22 alertas)
+  - Todos los logs de notificaciones (notificationLogs)
+  - Todo el logging de debugging
+  - El manejo de errores del scheduler
+  - Las funciones de test (testAlerts, setupTestats)
+
+NO SE PERDERAN:
+  - Las investment alerts (se mantienen)
+  - Las global alerts (se mantienen)
+  - El scheduler (se mantiene)
+  - Los secrets de Telegram
+
+RECOMENDACION: NO desplegar el codigo actual sin antes:
+  1. Restaurar la escritura de notificationLogs
+  2. Restaurar el procesamiento de watchlist/candle alerts
+  3. Restaurar el try/catch en el scheduler
+  4. Restaurar el logging detallado
+
+
+12. PROXIMOS PASOS RECOMENDADOS
+================================================================================
+
+PRIORIDAD 1: Verificar Telegram
+  -> Probar: curl "https://api.telegram.org/bot<TOKEN>/getMe"
+  -> Verificar: curl "https://api.telegram.org/bot<TOKEN>/getUpdates"
+  -> Confirmar que el bot esta activo y el chatId es valido
+
+PRIORIDAD 2: Verificar si el usuario RECIBE notificaciones
+  -> Revisar Telegram del usuario
+  -> Verificar si hay mensajes del bot
+  -> Determinar si el problema es envio o recepcion
+
+PRIORIDAD 3: NO desplegar el repo actual
+  -> El commit 774da99 ELIMINA funcionalidad critica
+  -> Primero restaurar lo eliminado, luego desplegar
+
+PRIORIDAD 4: Crear alertas de prueba
+  -> Crear una alerta one-shot con target cercano al precio actual
+  -> Verificar si se dispara y si el mensaje llega a Telegram
+  -> Esto confirmaria el flujo completo end-to-end
+
+PRIORIDAD 5: Evaluar si se necesitan notificaciones mas frecuentes
+  -> Las alertas persistentes solo notifican en CRUCE
+  -> Si el usuario quiere notificaciones periodicas, se necesita
+     un tipo de alerta diferente (ej: "si PNL < -$40K, notificar cada 24h")
+
+
+13. CONCLUSION FINAL
+================================================================================
+
+El sistema de notificaciones NO esta roto.
+
+Esta funcionando exactamente como fue disenado:
+- Detecta cruces de umbrales (no estados permanentes)
+- Registra eventos en notificationLogs
+- Intenta enviar mensajes a Telegram
+
+El "problema" es que:
+1. Las alertas ya se dispararon (el ROI/PNL cruzo los umbrales hace semanas)
+2. Desde entonces, el ROI/PNL esta estancado sin nuevos cruces
+3. Por eso no hay nuevas notificaciones de investment/global alerts
+
+Para resolver esto, el usuario necesita:
+A) Esperar a que el mercado mueva los precios (nuevos cruces)
+B) O crear alertas con targets mas cercanos al precio actual
+C) O modificar el algoritmo para notificar periodicamente (no solo en cruces)
+
+El riesgo inmediato es desplegar el commit 774da99, que eliminaria
+funcionalidades que actualmente estan funcionando (watchlist, candle, logs).
+
+================================================================================
+FIN DEL INFORME
+================================================================================

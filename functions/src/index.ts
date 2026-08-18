@@ -69,7 +69,8 @@ async function sendTelegram(text: string): Promise<boolean> {
     const payload = { chat_id: chatId, text, parse_mode: "Markdown", disable_web_page_preview: true };
     for (let attempt = 1; attempt <= 3; attempt++) {
         try {
-            await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, payload);
+            const resp = await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, payload);
+            console.log(`[Telegram] Mensaje enviado OK (status ${resp.status}, attempt ${attempt})`);
             return true;
         } catch (e: any) {
             if (attempt < 3) await sleep(2000 * attempt);

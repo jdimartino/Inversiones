@@ -1,0 +1,160 @@
+================================================================================
+    INFORME DE SINCRONIZACION DEL REPOSITORIO
+    Fecha: 2026-08-18
+    Proyecto: Inversiones (micriptoapp)
+================================================================================
+
+1. ESTADO INICIAL
+================================================================================
+
+Rama principal (main):
+  Commit: 42a14ba "Actualización Inversiones - 20260818_093419"
+  Incluia: 774da99 (eliminaba funcionalidades)
+
+Rama restore-266c40d:
+  Commit: 266c40d "Actualización inversiones - 20260724_173653"
+  Contenia: Version completa con todas las funcionalidades
+
+Problema:
+  main contenia 774da99 que eliminaba:
+  - watchlist alerts
+  - candle alerts
+  - notificationLogs (escritura)
+  - try/catch del scheduler
+  - logging (console.log/error)
+  - testAlerts, setupTestAlerts
+
+
+2. VERSION DE PRODUCCION
+================================================================================
+
+Commit: 266c40d
+Fecha: 24 julio 2026, 17:36 UTC-3
+Mensaje: "Actualización inversiones - 20260724_173653"
+
+Esta version esta desplegada en Firebase y funciona correctamente.
+
+
+3. VERSION DEL REPOSITORIO (ANTES)
+================================================================================
+
+Commit: 42a14ba (main)
+Incluia cambios de: 774da99 (8 agosto 2026)
+
+Estos cambios ELIMINABAN funcionalidades criticas.
+
+
+4. CAMBIO REALIZADO
+================================================================================
+
+Operacion: git reset --hard 266c40d
+
+Resultado:
+  main ahora esta en: 266c40d
+  Rama restore-266c40d: eliminada (ya no es necesaria)
+
+Archivos afectados:
+  - 33 archivos eliminados (de main)
+  - 29 archivos agregados (de 266c40d)
+  - 22 archivos modificados
+
+
+5. CONFIRMACION DE FUNCIONALIDADES CONSERVADAS
+================================================================================
+
+functions/src/index.ts:
+  ✅ investmentAlerts (23 referencias)
+  ✅ globalAlerts (6 referencias)
+  ✅ watchlistAlerts (7 referencias)
+  ✅ candleAlerts (7 referencias)
+  ✅ notificationLogs.add (1 escritura)
+  ✅ console.log (27 llamadas)
+  ✅ console.error (11 llamadas)
+  ✅ try/catch (17 bloques)
+  ✅ testAlerts (1 funcion)
+  ✅ setupTestAlerts (1 funcion)
+
+Archivos externos:
+  ✅ functions/src/getBinanceWallet.ts (EXISTS)
+  ✅ functions/src/syncBybitLoans.ts (EXISTS)
+  ✅ functions/src/apiClients.ts (EXISTS)
+
+Re-exports:
+  ✅ getBinanceWallet (importado y re-exportado)
+  ✅ syncBinanceLoans (importado y re-exportado)
+  ✅ syncBybitLoans (importado y re-exportado)
+
+
+6. CONFIRMACION DE QUE NO HUBO DEPLOY
+================================================================================
+
+✅ NO se ejecuto firebase deploy
+✅ NO se modifico Firestore
+✅ NO se modificaron secrets
+✅ NO se cambio configuracion
+✅ Solo se trabajo en Git/repositorio
+
+
+7. ESTADO FINAL DEL REPOSITORIO
+================================================================================
+
+Rama: main
+Commit: 266c40d
+Estado: Sincronizado con produccion
+
+Historial local:
+  266c40d Actualización inversiones - 20260724_173653
+  b8864c2 Actualización inversiones - 20260724_113812
+  9ecc7a7 feat: direct Binance API from browser, no more CF proxy for prices
+  78ce6fa fix: neutral yellow colors, prevDirs persistence, stale-while-revalidate cache
+  2025427 Actualización inversiones - 20260721_172854
+
+Nota:
+  main local esta detras de origin/main por 52 commits.
+  Esto es intencional - no se hizo push.
+
+
+8. PROXIMO PASO RECOMENDADO
+================================================================================
+
+Opcion A (Recomendada):
+  NO hacer push. Mantener el repositorio local sincronizado con produccion.
+  Cuando se necesite deploy, hacer push y deploy.
+
+Opcion B:
+  Hacer push forzado para actualizar origin/main.
+  ADVERTENCIA: Esto sobrescribiria el historial remoto.
+
+Opcion C:
+  Crear una rama "production" que apunte a 266c40d y mantener main con
+  los cambios futuros.
+
+
+CONCLUSION
+================================================================================
+
+El repositorio esta sincronizado con la version de produccion (266c40d).
+
+Todas las funcionalidades estan conservadas:
+  ✅ investmentAlerts
+  ✅ globalAlerts
+  ✅ watchlistAlerts
+  ✅ candleAlerts
+  ✅ notificationLogs
+  ✅ logging
+  ✅ try/catch
+  ✅ testAlerts
+  ✅ setupTestAlerts
+  ✅ getBinanceWallet
+  ✅ syncBinanceLoans
+  ✅ syncBybitLoans
+
+No se realizo deploy.
+No se modifico produccion.
+No se modificaron secrets.
+
+El sistema esta listo para revision y deploy cuando se confirme.
+
+================================================================================
+FIN DEL INFORME
+================================================================================

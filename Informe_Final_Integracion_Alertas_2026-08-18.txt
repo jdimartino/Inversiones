@@ -1,0 +1,202 @@
+================================================================================
+    INFORME FINAL DE INTEGRACION
+    Fecha: 2026-08-18
+    Base: 266c40d
+================================================================================
+
+1. ESTADO INICIAL
+================================================================================
+
+Versiones analizadas:
+  - 266c40d (24 jul 2026) - Version desplegada en Firebase
+  - d5865d3 (30 jul 2026) - Version intermedia
+  - 774da99 (8 ago 2026)  - Version actual del repositorio (HEAD)
+
+Problema detectado:
+  Los commits d5865d3 y 774da99 ELIMINARON funcionalidades criticas:
+  - watchlist alerts
+  - candle alerts
+  - notificationLogs (escritura)
+  - try/catch del scheduler
+  - console.log/error (logging)
+  - testAlerts, setupTestAlerts
+
+
+2. PROBLEMA ENCONTRADO
+================================================================================
+
+d5865d3 ELIMINO:
+  ❌ watchlist alerts (procesamiento)
+  ❌ candle alerts (procesamiento)
+  ❌ notificationLogs.add() (escritura despues de envio)
+  ❌ shouldAlert para watchlist/candle
+  ❌ try/catch en scheduler
+  ❌ console.log/error
+  ❌ testAlerts
+  ❌ setupTestAlerts
+
+774da99 MANTUVO las eliminaciones de d5865d3 y agregó:
+  ✅ getBinanceWallet (inline)
+  ✅ syncBinanceLoans (inline)
+  ✅ syncBybitLoans (inline)
+  ✅ corsTest (nuevo)
+  ✅ setCorsHeaders helper (nuevo)
+  ✅ binanceSignedRequest helper (nuevo)
+
+
+3. DECISION TOMADA
+================================================================================
+
+USAR 266c40d como base de produccion.
+
+RAZON:
+  266c40d YA CONTIENE todas las funcionalidades necesarias:
+  - Todas las alertas (investment, global, watchlist, candle)
+  - notificationLogs (escritura)
+  - try/catch en scheduler
+  - logging detallado
+  - testAlerts, setupTestAlerts
+  - getBinanceWallet (en getBinanceWallet.ts)
+  - syncBinanceLoans (en getBinanceWallet.ts)
+  - syncBybitLoans (en syncBybitLoans.ts)
+  - apiClients.ts (binanceRequest, bybitRequest)
+
+
+4. CAMBIOS REALIZADOS
+================================================================================
+
+NINGUNO.
+
+266c40d ya es la version completa. No se necesitan cambios.
+
+Se verifico que:
+  ✅ getBinanceWallet.ts existe y contiene getBinanceWallet + syncBinanceLoans
+  ✅ syncBybitLoans.ts existe y contiene syncBybitLoans
+  ✅ apiClients.ts existe y contiene binanceRequest + bybitRequest
+  ✅ index.ts importa y re-exporta todas las funciones
+  ✅ Todas las alertas estan presentes
+  ✅ notificationLogs.add() esta presente
+  ✅ try/catch esta presente
+  ✅ logging esta presente
+
+
+5. DIFF RESUMIDO
+================================================================================
+
+No hay diff. 266c40d es la version final.
+
+Comparacion con 774da99 (HEAD del repo):
+
+  266c40d tiene TODO lo que tiene 774da99:
+  ✅ getBinanceWallet
+  ✅ syncBinanceLoans
+  ✅ syncBybitLoans
+  ✅ apiClients.ts
+
+  Y ADemas:
+  ✅ watchlist alerts
+  ✅ candle alerts
+  ✅ notificationLogs.add()
+  ✅ try/catch
+  ✅ logging
+  ✅ testAlerts
+  ✅ setupTestAlerts
+
+  774da99 solo agrega:
+  ✅ corsTest (endpoint de prueba CORS)
+  ✅ setCorsHeaders (helper, pero 266c40d tiene CORS inline)
+
+
+6. VALIDACIONES REALIZADAS
+================================================================================
+
+  ✅ Verificado: getBinanceWallet.ts existe en 266c40d
+  ✅ Verificado: syncBybitLoans.ts existe en 266c40d
+  ✅ Verificado: apiClients.ts existe en 266c40d (identico al de 774da99)
+  ✅ Verificado: Todas las funciones estan importadas en index.ts
+  ✅ Verificado: Todas las funciones estan re-exportadas
+  ✅ Verificado: notificationLogs.add() esta en linea 714
+  ✅ Verificado: shouldAlert incluye watchlist + candle
+  ✅ Verificado: try/catch en scheduler
+  ✅ Verificado: console.log (27 ocurrencias)
+  ✅ Verificado: console.error (11 ocurrencias)
+  ✅ Verificado: testAlerts (1 ocurrencia)
+  ✅ Verificado: setupTestAlerts (1 ocurrencia)
+
+
+7. CONFIRMACION DE QUE NO SE PERDIO FUNCIONALIDAD
+================================================================================
+
+TODAS las funcionalidades estan presentes en 266c40d:
+
+  Alertas:
+    ✅ investmentAlerts (23 referencias)
+    ✅ globalAlerts (6 referencias)
+    ✅ watchlistAlerts (7 referencias)
+    ✅ candleAlerts (7 referencias)
+
+  Infraestructura:
+    ✅ notificationLogs.add() (escritura)
+    ✅ try/catch (17 bloques)
+    ✅ console.log (27 llamadas)
+    ✅ console.error (11 llamadas)
+
+  Funciones HTTP:
+    ✅ debugAlerts
+    ✅ debugInversiones
+    ✅ debugLogs
+    ✅ testAlerts
+    ✅ setupTestAlerts
+    ✅ checkIntervalTasks (scheduler)
+    ✅ dailyPortfolioReport
+    ✅ dailyPnlSnapshot
+    ✅ getBinanceWallet (importado)
+    ✅ syncBinanceLoans (importado)
+    ✅ syncBybitLoans (importado)
+
+  Archivos:
+    ✅ functions/src/index.ts
+    ✅ functions/src/apiClients.ts
+    ✅ functions/src/getBinanceWallet.ts
+    ✅ functions/src/syncBybitLoans.ts
+
+
+8. PROXIMO PASO RECOMENDADO
+================================================================================
+
+NO ES NECESARIO HACER NADA.
+
+266c40d es la version correcta y esta desplegada en produccion.
+
+Si se desea, se puede hacer merge de la rama restore-266c40d en main
+para documentar que 266c40d es la base oficial. Pero no es obligatorio.
+
+El repositorio actual (HEAD en main) contiene 774da99, que:
+  - Elimina funcionalidad critica (watchlist, candle, logs)
+  - No debe desplegarse
+
+RECOMENDACION:
+  Opcion A: Dejar main como esta (266c40d desplegado, 774da99 en repo)
+  Opcion B: Merge restore-266c40d en main (sincronizar repo con produccion)
+
+Cualquier opcion es segura mientras NO se despliegue 774da99.
+
+
+CONCLUSION
+================================================================================
+
+266c40d es la version completa y correcta.
+
+No se necesitan cambios ni integraciones.
+
+El problema de Telegram no esta en el codigo, sino en que:
+  1. Las alertas ya dispararon (ROI/PNL cruzo umbrales)
+  2. No hay nuevos cruces → no hay nuevas notificaciones
+  3. sendTelegram() no se ejecuta porque no hay alertas pendientes
+
+Para confirmar que Telegram funciona, se necesita enviar un mensaje
+de prueba (testAlerts endpoint).
+
+================================================================================
+FIN DEL INFORME
+================================================================================
