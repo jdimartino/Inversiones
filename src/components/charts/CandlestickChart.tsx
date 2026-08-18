@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { CandlestickChartProps } from "../../lib/types/chart";
 import ChartCard from "./ChartCard";
-import { fmtPrice } from "../../lib/format";
+import { fmtPrice, fmtUSD } from "../../lib/format";
 import { useAlerts } from "../../hooks/useAlerts";
 import { useChartAlerts } from "../../hooks/useChartAlerts";
 import { useChartLegend } from "../../hooks/useChartLegend";
@@ -12,10 +12,10 @@ import { useMeasureTool } from "../../hooks/useMeasureTool";
 import { useChartIndicatorValues } from "../../hooks/useChartIndicatorValues";
 import { useChartSignals } from "../../hooks/useChartSignals";
 import { calcVolumeRatio } from "../../lib/indicators";
+import { fmtVol } from "./candlestick/chartUtils";
 import MeasureTool from "./candlestick/MeasureTool";
 import ChartToolbar from "./candlestick/ChartToolbar";
 import CoinExplorer from "./candlestick/CoinExplorer";
-import ChartLegend from "./candlestick/ChartLegend";
 import IndicatorHud from "./candlestick/IndicatorHud";
 import AlertForm from "./candlestick/AlertForm";
 
@@ -167,8 +167,8 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
             subtitle="Velas OHLCV · pasa el cursor sobre una vela para ver detalle"
             hideTitleOnMobile
         >
-            {/* Controls */}
-            <div className="flex flex-wrap justify-between items-center gap-2">
+            {/* ── Row 1: Header (activos + precio + toolbar) ───────── */}
+            <div className="flex flex-wrap items-center gap-2">
                 <CoinExplorer
                     coins={coins}
                     portfolioCoins={portfolioCoins}
@@ -187,7 +187,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                     explorerRef={explorerRef}
                 />
 
-                {/* Price display — center */}
+                {/* Price display */}
                 {(() => {
                     const klines = currentKlines;
                     const last = klines[klines.length - 1];
@@ -196,15 +196,14 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                     const priceColor = dir === "up" ? "text-green-400" : dir === "down" ? "text-red-400" : "text-yellow-300";
                     if (!price) return null;
                     return (
-                        <div className="flex flex-col items-center">
-                            <span className={`font-mono font-bold text-xl leading-none tracking-tight ${priceColor}`}>
-                                {fmtPrice(price)}
-                            </span>
-                        </div>
+                        <span className={`font-mono font-bold text-lg leading-none tracking-tight ${priceColor}`}>
+                            {fmtPrice(price)}
+                        </span>
                     );
                 })()}
 
-                {/* Interval + expand */}
+                <div className="flex-1" />
+
                 <ChartToolbar
                     selectedInterval={selectedInterval}
                     setSelectedInterval={setSelectedInterval}
@@ -222,17 +221,48 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                 />
             </div>
 
-            {/* OHLCV + Lines + reference prices legend */}
-            <ChartLegend
-                legend={legend}
-                coinSales={coinSales}
-                coinItems={coinItems}
-                coinFutures={coinFutures}
-                currentPrice={currentPrice}
-            />
+            {/* ── Row 2: Info bar (OHLCV + indicators + positions) ── */}
+            <div className="flex items-center gap-3 text-[10px] font-mono leading-none flex-wrap">
+                {/* OHLCV */}
+                {legend && (
+                    <>
+                        <span className="text-slate-500">{legend.time}</span>
+                        <span>O <span className={legend.isUp ? "text-green-400" : "text-red-400"}>{fmtPrice(legend.open)}</span></span>
+                        <span>H <span className={legend.isUp ? "text-green-400" : "text-red-400"}>{fmtPrice(legend.high)}</span></span>
+                        <span>L <span className={legend.isUp ? "text-green-400" : "text-red-400"}>{fmtPrice(legend.low)}</span></span>
+                        <span>C <span className={legend.isUp ? "text-green-400" : "text-red-400"}>{fmtPrice(legend.close)}</span></span>
+                        <span className="text-slate-500">V <span className="text-slate-400">{fmtVol(legend.volume)}</span></span>
+                        <span className="text-slate-600">|</span>
+                    </>
+                )}
 
-            {/* Indicator values HUD */}
-            <IndicatorHud values={indicatorValues} volumeRatio={volumeRatio} />
+                {/* Indicator values */}
+                <IndicatorHud values={indicatorValues} volumeRatio={volumeRatio} />
+
+                {/* Spot/Futures compact */}
+                {(() => {
+                    const pnl = coinItems.reduce((s, i) => s + (currentPrice - i.buyPrice) * i.quantity, 0);
+                    const fPnl = coinFutures.reduce((s, p) => s + p.unrealizedPnl, 0);
+                    const hasSpot = coinItems.length > 0;
+                    const hasFutures = coinFutures.length > 0;
+                    if (!hasSpot && !hasFutures) return null;
+                    return (
+                        <>
+                            <span className="text-slate-600">|</span>
+                            {hasSpot && (
+                                <span className="text-sky-400">
+                                    Spot <span className={pnl >= 0 ? "text-green-400" : "text-red-400"}>{pnl >= 0 ? "+" : ""}{fmtUSD(pnl)}</span>
+                                </span>
+                            )}
+                            {hasFutures && (
+                                <span className="text-purple-400">
+                                    Fut <span className={fPnl >= 0 ? "text-green-400" : "text-red-400"}>{fPnl >= 0 ? "+" : ""}{fmtUSD(fPnl)}</span>
+                                </span>
+                            )}
+                        </>
+                    );
+                })()}
+            </div>
 
             {/* Inline alert form */}
             {showAlertForm && (
@@ -273,12 +303,12 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                     <div ref={macdContainerRef} />
                 </div>
 
-                {/* Separador RSI — línea horizontal entre precio/volumen y RSI */}
+                {/* Separador RSI */}
                 <div
                     className="absolute left-0 right-0 pointer-events-none z-10"
                     style={{ top: `${0.62 * (expanded ? 760 : 560)}px`, borderTop: '1px solid #334155' }}
                 />
-                {/* Separador MACD — línea horizontal entre RSI y MACD */}
+                {/* Separador MACD */}
                 <div
                     className="absolute left-0 right-0 pointer-events-none z-10"
                     style={{ top: `${0.84 * (expanded ? 760 : 560)}px`, borderTop: '1px solid #334155' }}
