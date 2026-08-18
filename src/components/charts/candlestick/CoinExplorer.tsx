@@ -50,10 +50,10 @@ const CoinExplorer: React.FC<CoinExplorerProps> = ({
                     <button
                         key={coin}
                         onClick={() => setSelectedCoin(coin)}
-                        className={`relative px-1.5 py-0.5 rounded text-[10px] font-bold transition-colors ${
+                        className={`relative px-1.5 py-0.5 rounded text-[10px] font-bold transition-all duration-150 ${
                             selectedCoin === coin
-                                ? "text-white"
-                                : "bg-slate-700 text-slate-400 hover:bg-slate-600"
+                                ? "text-white shadow-sm"
+                                : "bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-300"
                         }`}
                         style={selectedCoin === coin ? { backgroundColor: coinColor(coin) } : {}}
                     >
@@ -73,7 +73,7 @@ const CoinExplorer: React.FC<CoinExplorerProps> = ({
                 <>
                     <span className="text-slate-600 text-[10px] select-none">|</span>
                     <span
-                        className="relative flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold text-white"
+                        className="relative flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold text-white shadow-sm"
                         style={{ backgroundColor: coinColor(selectedCoin) }}
                     >
                         {selectedCoin}
