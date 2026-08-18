@@ -91,15 +91,20 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
     const [ema20Visible, setEma20Visible] = useState(prefs.ema20Visible);
     const [sma50Visible, setSma50Visible] = useState(prefs.sma50Visible);
     const [sma200Visible, setSma200Visible] = useState(prefs.sma200Visible);
-    const [volumeVisible, setVolumeVisible] = useState(prefs.volumeVisible);
+    const [volumeVisible, setVolumeVisibleRaw] = useState(prefs.volumeVisible);
     const [signalsVisible, setSignalsVisible] = useState(prefs.signalsVisible);
+
+    const setVolumeVisible = (v: boolean | ((prev: boolean) => boolean)) => {
+        const next = typeof v === "function" ? v(volumeVisible) : v;
+        setVolumeVisibleRaw(next);
+        updatePref("volumeVisible", next);
+    };
 
     const handleIndicatorToggle = (key: string) => {
         switch (key) {
             case "ema20": setEma20Visible(v => { updatePref("ema20Visible", !v); return !v; }); break;
             case "sma50": setSma50Visible(v => { updatePref("sma50Visible", !v); return !v; }); break;
             case "sma200": setSma200Visible(v => { updatePref("sma200Visible", !v); return !v; }); break;
-            case "volume": setVolumeVisible(v => { updatePref("volumeVisible", !v); return !v; }); break;
             case "signals": setSignalsVisible(v => { updatePref("signalsVisible", !v); return !v; }); break;
         }
     };
@@ -223,12 +228,13 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
 
                 <ChartIndicatorMenu
                     ema20Visible={ema20Visible} sma50Visible={sma50Visible}
-                    sma200Visible={sma200Visible} volumeVisible={volumeVisible}
+                    sma200Visible={sma200Visible}
                     signalsVisible={signalsVisible} onToggle={handleIndicatorToggle}
                 />
 
                 <span className="text-slate-600">|</span>
 
+                <ChartPanelToggle label="Volumen" color="#60a5fa" open={volumeVisible} onToggle={() => setVolumeVisible(v => !v)} />
                 <ChartPanelToggle label="RSI" color="#a78bfa" open={rsiOpen} onToggle={() => setRsiOpen(v => !v)} />
                 <ChartPanelToggle label="MACD" color="#38bdf8" open={macdOpen} onToggle={() => setMacdOpen(v => !v)} />
 

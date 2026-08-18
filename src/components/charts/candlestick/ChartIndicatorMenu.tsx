@@ -5,13 +5,12 @@ interface ChartIndicatorMenuProps {
     ema20Visible: boolean;
     sma50Visible: boolean;
     sma200Visible: boolean;
-    volumeVisible: boolean;
     signalsVisible: boolean;
     onToggle: (key: string) => void;
 }
 
 const ChartIndicatorMenu: React.FC<ChartIndicatorMenuProps> = ({
-    ema20Visible, sma50Visible, sma200Visible, volumeVisible, signalsVisible, onToggle,
+    ema20Visible, sma50Visible, sma200Visible, signalsVisible, onToggle,
 }) => {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
@@ -29,7 +28,6 @@ const ChartIndicatorMenu: React.FC<ChartIndicatorMenuProps> = ({
         { key: "ema20", label: "EMA 20", visible: ema20Visible },
         { key: "sma50", label: "SMA 50", visible: sma50Visible },
         { key: "sma200", label: "SMA 200", visible: sma200Visible },
-        { key: "volume", label: "Volumen", visible: volumeVisible },
         { key: "signals", label: "Señales", visible: signalsVisible },
     ];
 

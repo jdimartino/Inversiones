@@ -118,8 +118,8 @@ export function useChartSeries({
             height: macdHeight,
         });
 
-        // Price scale: candles occupy top 65%, volume bottom 30%
-        mainChart.priceScale("right").applyOptions({ scaleMargins: { top: 0.05, bottom: 0.32 } });
+        // Price scale: candles occupy top, volume bottom 28% (only when visible)
+        mainChart.priceScale("right").applyOptions({ scaleMargins: { top: 0.05, bottom: volumeVisible ? 0.32 : 0 } });
 
         const candleSeries = (mainChart as any).addCandlestickSeries({
             upColor: "#4ade80", downColor: "#f87171",
@@ -322,8 +322,11 @@ export function useChartSeries({
         mainChartRef.current?.applyOptions({ height: mainH });
         rsiChartRef.current?.applyOptions({ height: rsiH });
         macdChartRef.current?.applyOptions({ height: macdH });
-        mainChartRef.current?.priceScale("right").applyOptions({ autoScale: true });
-    }, [expanded, rsiOpen, macdOpen]);
+        // Adjust main chart price scale: volume takes bottom 28% only when visible
+        mainChartRef.current?.priceScale("right").applyOptions({
+            scaleMargins: { top: 0.05, bottom: volumeVisible ? 0.32 : 0 },
+        });
+    }, [expanded, rsiOpen, macdOpen, volumeVisible]);
 
     // Update series data when coin / interval / klines change
     useEffect(() => {

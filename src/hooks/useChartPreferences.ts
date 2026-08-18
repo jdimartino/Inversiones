@@ -21,7 +21,7 @@ const DEFAULTS: ChartPreferences = {
     ema20Visible: true,
     sma50Visible: true,
     sma200Visible: true,
-    volumeVisible: true,
+    volumeVisible: false,
     rsiOpen: false,
     macdOpen: false,
     signalsVisible: true,
