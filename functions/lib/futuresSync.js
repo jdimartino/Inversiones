@@ -29,12 +29,13 @@ async function sendTelegram(text) {
     if (!token || !chatId)
         return false;
     try {
-        await axios_1.default.post(`https://api.telegram.org/bot${token}/sendMessage`, {
+        const resp = await axios_1.default.post(`https://api.telegram.org/bot${token}/sendMessage`, {
             chat_id: chatId,
             text,
             parse_mode: "Markdown",
             disable_web_page_preview: true,
         });
+        console.log(`[FuturesSync] Telegram enviado OK (status ${resp.status})`);
         return true;
     }
     catch (e) {
