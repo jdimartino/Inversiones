@@ -168,26 +168,28 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
             hideTitleOnMobile
         >
             {/* ── Row 1: Header (activos + precio + toolbar) ───────── */}
-            <div className="flex items-center gap-2 flex-wrap">
-                <CoinExplorer
-                    coins={coins}
-                    portfolioCoins={portfolioCoins}
-                    selectedCoin={selectedCoin}
-                    setSelectedCoin={setSelectedCoin}
-                    signals={signals}
-                    showExplorer={showExplorer}
-                    setShowExplorer={setShowExplorer}
-                    explorerInput={explorerInput}
-                    setExplorerInput={setExplorerInput}
-                    explorerLoading={explorerLoading}
-                    explorerError={explorerError}
-                    setExplorerError={setExplorerError}
-                    extraCoins={extraCoins}
-                    handleSelectExplorerCoin={handleSelectExplorerCoin}
-                    explorerRef={explorerRef}
-                />
+            <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin">
+                <div className="flex items-center gap-1 flex-shrink-0">
+                    <CoinExplorer
+                        coins={coins}
+                        portfolioCoins={portfolioCoins}
+                        selectedCoin={selectedCoin}
+                        setSelectedCoin={setSelectedCoin}
+                        signals={signals}
+                        showExplorer={showExplorer}
+                        setShowExplorer={setShowExplorer}
+                        explorerInput={explorerInput}
+                        setExplorerInput={setExplorerInput}
+                        explorerLoading={explorerLoading}
+                        explorerError={explorerError}
+                        setExplorerError={setExplorerError}
+                        extraCoins={extraCoins}
+                        handleSelectExplorerCoin={handleSelectExplorerCoin}
+                        explorerRef={explorerRef}
+                    />
 
-                <span className="text-slate-600">|</span>
+                    <span className="text-slate-600">|</span>
+                </div>
 
                 {/* Price display */}
                 {(() => {
@@ -198,29 +200,31 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                     const priceColor = dir === "up" ? "text-green-400" : dir === "down" ? "text-red-400" : "text-yellow-300";
                     if (!price) return null;
                     return (
-                        <span className={`font-mono font-bold text-base leading-none tracking-tight ${priceColor}`}>
+                        <span className={`font-mono font-bold text-base leading-none tracking-tight ${priceColor} flex-shrink-0`}>
                             {fmtPrice(price)}
                         </span>
                     );
                 })()}
 
-                <span className="text-slate-600">|</span>
+                <span className="text-slate-600 flex-shrink-0">|</span>
 
-                <ChartToolbar
-                    selectedInterval={selectedInterval}
-                    setSelectedInterval={setSelectedInterval}
-                    showAlertForm={showAlertForm}
-                    setShowAlertForm={setShowAlertForm}
-                    measureMode={measureMode}
-                    setMeasureMode={setMeasureMode}
-                    expanded={expanded}
-                    setExpanded={setExpanded}
-                    currentPrice={currentPrice}
-                    setAlertTarget={setAlertTarget}
-                    setAlertDirection={setAlertDirection}
-                    setAlertNote={setAlertNote}
-                    setAlertPersistent={setAlertPersistent}
-                />
+                <div className="flex-shrink-0">
+                    <ChartToolbar
+                        selectedInterval={selectedInterval}
+                        setSelectedInterval={setSelectedInterval}
+                        showAlertForm={showAlertForm}
+                        setShowAlertForm={setShowAlertForm}
+                        measureMode={measureMode}
+                        setMeasureMode={setMeasureMode}
+                        expanded={expanded}
+                        setExpanded={setExpanded}
+                        currentPrice={currentPrice}
+                        setAlertTarget={setAlertTarget}
+                        setAlertDirection={setAlertDirection}
+                        setAlertNote={setAlertNote}
+                        setAlertPersistent={setAlertPersistent}
+                    />
+                </div>
             </div>
 
             {/* ── Row 2: Info bar (OHLCV + indicators + positions) ── */}

@@ -41,7 +41,7 @@ const CoinExplorer: React.FC<CoinExplorerProps> = ({
     explorerRef,
 }) => {
     return (
-        <div className="flex flex-wrap items-center gap-1">
+        <div className="flex items-center gap-1 overflow-x-auto scrollbar-thin">
             {/* Portfolio coin tabs */}
             {coins.map((coin) => {
                 const sig = signals.find((s) => s.coin === coin);
