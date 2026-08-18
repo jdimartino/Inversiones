@@ -188,6 +188,20 @@ export function computeMACDSeries(closes: number[]): {
   return { macd, signal, histogram };
 }
 
+// ── Binary search: value at exact time in a sorted points array ─
+export function findValueAtTime(points: { time: number; value: number }[], time: number): number | undefined {
+  let lo = 0;
+  let hi = points.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const t = points[mid].time;
+    if (t === time) return points[mid].value;
+    if (t < time) lo = mid + 1;
+    else hi = mid - 1;
+  }
+  return undefined;
+}
+
 // ── Parse Binance kline response ────────────────────────────────
 export function parseKlines(raw: any[]): Kline[] {
   return raw.map((k) => ({

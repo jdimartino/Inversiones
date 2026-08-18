@@ -9,10 +9,12 @@ import { useChartKlines } from "../../hooks/useChartKlines";
 import { useChartSeries } from "../../hooks/useChartSeries";
 import { useChartPriceLines } from "../../hooks/useChartPriceLines";
 import { useMeasureTool } from "../../hooks/useMeasureTool";
+import { useChartIndicatorValues } from "../../hooks/useChartIndicatorValues";
 import MeasureTool from "./candlestick/MeasureTool";
 import ChartToolbar from "./candlestick/ChartToolbar";
 import CoinExplorer from "./candlestick/CoinExplorer";
 import ChartLegend from "./candlestick/ChartLegend";
+import IndicatorHud from "./candlestick/IndicatorHud";
 import AlertForm from "./candlestick/AlertForm";
 
 // ── Types (imported from lib/types/chart.ts) ────────────────────────
@@ -56,6 +58,8 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
         mainChartRef,
         candleSeriesRef,
         volumeSeriesRef,
+        getIndicatorValuesAtTime,
+        getLatestIndicatorValues,
     } = useChartSeries({
         mainContainerRef: mainChartContainerRef,
         rsiContainerRef,
@@ -68,6 +72,9 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
 
     // OHLCV legend on crosshair (managed by useChartLegend)
     const { legend } = useChartLegend({ mainChartRef, candleSeriesRef, volumeSeriesRef });
+
+    // Indicator values on crosshair (managed by useChartIndicatorValues)
+    const indicatorValues = useChartIndicatorValues({ mainChartRef, getIndicatorValuesAtTime, getLatestIndicatorValues });
 
     // Price lines (managed by useChartPriceLines)
     useChartPriceLines({
@@ -206,6 +213,9 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                 coinFutures={coinFutures}
                 currentPrice={currentPrice}
             />
+
+            {/* Indicator values HUD */}
+            <IndicatorHud values={indicatorValues} />
 
             {/* Inline alert form */}
             {showAlertForm && (

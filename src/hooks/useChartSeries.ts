@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import type { RefObject } from "react";
 import {
     createChart,
@@ -12,7 +12,7 @@ import {
 } from "lightweight-charts";
 import type { Kline } from "../lib/types/signals";
 import type { Interval } from "../lib/types/chart";
-import { computeEMASeries, computeSMASeries, computeRSISeries, computeMACDSeries } from "../lib/indicators";
+import { computeEMASeries, computeSMASeries, computeRSISeries, computeMACDSeries, findValueAtTime } from "../lib/indicators";
 
 interface UseChartSeriesParams {
     mainContainerRef: RefObject<HTMLDivElement>;
@@ -47,6 +47,10 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
     const macdHasDataRef = useRef(false);
     const rsiPointsRef = useRef<{ time: number; value: number }[]>([]);
     const macdLinePointsRef = useRef<{ time: number; value: number }[]>([]);
+    const macdSignalPointsRef = useRef<{ time: number; value: number }[]>([]);
+    const ema20PointsRef = useRef<{ time: number; value: number }[]>([]);
+    const sma50PointsRef = useRef<{ time: number; value: number }[]>([]);
+    const sma200PointsRef = useRef<{ time: number; value: number }[]>([]);
 
     // Create charts once on mount
     useEffect(() => {
@@ -210,18 +214,6 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
         macdChart.timeScale().subscribeVisibleLogicalRangeChange(onMacdRangeChange);
 
         // ── Crosshair sync: RSI/MACD siguen el crosshair del main chart ──
-        const findValueAtTime = (points: { time: number; value: number }[], time: number) => {
-            let lo = 0;
-            let hi = points.length - 1;
-            while (lo <= hi) {
-                const mid = (lo + hi) >> 1;
-                const t = points[mid].time;
-                if (t === time) return points[mid].value;
-                if (t < time) lo = mid + 1;
-                else hi = mid - 1;
-            }
-            return undefined;
-        };
         const onMainCrosshairMove = (param: MouseEventParams) => {
             const time = param.time;
             if (time === undefined) {
@@ -361,6 +353,10 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
             macdHasDataRef.current = false;
             rsiPointsRef.current = [];
             macdLinePointsRef.current = [];
+            macdSignalPointsRef.current = [];
+            ema20PointsRef.current = [];
+            sma50PointsRef.current = [];
+            sma200PointsRef.current = [];
             return;
         }
         mainHasDataRef.current = true;
@@ -389,21 +385,21 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
 
         // EMA20 (seed = SMA, more accurate than old seed = data[0])
         const ema20 = computeEMASeries(closes, 20);
-        ema20Ref.current?.setData(
-            ema20.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []))
-        );
+        const ema20Points = ema20.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []));
+        ema20Ref.current?.setData(ema20Points);
+        ema20PointsRef.current = ema20Points;
 
         // SMA50
         const sma50 = computeSMASeries(closes, 50);
-        sma50Ref.current?.setData(
-            sma50.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []))
-        );
+        const sma50Points = sma50.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []));
+        sma50Ref.current?.setData(sma50Points);
+        sma50PointsRef.current = sma50Points;
 
         // SMA200
         const sma200 = computeSMASeries(closes, 200);
-        sma200Ref.current?.setData(
-            sma200.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []))
-        );
+        const sma200Points = sma200.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []));
+        sma200Ref.current?.setData(sma200Points);
+        sma200PointsRef.current = sma200Points;
 
         // RSI
         const rsi = computeRSISeries(closes);
@@ -424,6 +420,7 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
         macdHistRef.current?.setData(macdHistPoints);
         macdHasDataRef.current = macdLinePoints.length > 0;
         macdLinePointsRef.current = macdLinePoints;
+        macdSignalPointsRef.current = macdSignalPoints;
 
         if (coinOrIntervalChanged) {
             candleSeriesRef.current?.priceScale().applyOptions({ autoScale: true });
@@ -433,9 +430,49 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
         }
     }, [klines, selectedCoin, selectedInterval]);
 
+    // Stable getter: indicator values at a specific time (binary search over points)
+    const getIndicatorValuesAtTime = useCallback((time: number) => {
+        const ema20 = findValueAtTime(ema20PointsRef.current, time);
+        const sma50 = findValueAtTime(sma50PointsRef.current, time);
+        const sma200 = findValueAtTime(sma200PointsRef.current, time);
+        const rsi = findValueAtTime(rsiPointsRef.current, time);
+        const macdLine = findValueAtTime(macdLinePointsRef.current, time);
+        const macdSignal = findValueAtTime(macdSignalPointsRef.current, time);
+        if (ema20 === undefined && sma50 === undefined && rsi === undefined && macdLine === undefined) return null;
+        return {
+            ema20: ema20 ?? null,
+            sma50: sma50 ?? null,
+            sma200: sma200 ?? null,
+            rsi: rsi ?? null,
+            macdLine: macdLine ?? null,
+            macdSignal: macdSignal ?? null,
+            macdHistogram: (macdLine != null && macdSignal != null) ? macdLine - macdSignal : null,
+        };
+    }, []);
+
+    // Stable getter: latest indicator values (last available data point)
+    const getLatestIndicatorValues = useCallback(() => {
+        const last = (pts: { time: number; value: number }[]) => pts.length > 0 ? pts[pts.length - 1].value : null;
+        return {
+            ema20: last(ema20PointsRef.current),
+            sma50: last(sma50PointsRef.current),
+            sma200: last(sma200PointsRef.current),
+            rsi: last(rsiPointsRef.current),
+            macdLine: last(macdLinePointsRef.current),
+            macdSignal: last(macdSignalPointsRef.current),
+            macdHistogram: (() => {
+                const ml = last(macdLinePointsRef.current);
+                const ms = last(macdSignalPointsRef.current);
+                return (ml != null && ms != null) ? ml - ms : null;
+            })(),
+        };
+    }, []);
+
     return {
         mainChartRef,
         candleSeriesRef,
         volumeSeriesRef,
+        getIndicatorValuesAtTime,
+        getLatestIndicatorValues,
     };
 }
