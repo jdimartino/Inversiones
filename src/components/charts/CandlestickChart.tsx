@@ -11,6 +11,7 @@ import { useChartPriceLines } from "../../hooks/useChartPriceLines";
 import { useMeasureTool } from "../../hooks/useMeasureTool";
 import { useChartIndicatorValues } from "../../hooks/useChartIndicatorValues";
 import { useChartSignals } from "../../hooks/useChartSignals";
+import { useChartPreferences } from "../../hooks/useChartPreferences";
 import { calcVolumeRatio } from "../../lib/indicators";
 import { fmtVol } from "./candlestick/chartUtils";
 import MeasureTool from "./candlestick/MeasureTool";
@@ -18,10 +19,8 @@ import ChartToolbar from "./candlestick/ChartToolbar";
 import CoinExplorer from "./candlestick/CoinExplorer";
 import IndicatorHud from "./candlestick/IndicatorHud";
 import AlertForm from "./candlestick/AlertForm";
-
-// ── Types (imported from lib/types/chart.ts) ────────────────────────
-
-// ── Component ───────────────────────────────────────────────────────
+import ChartPanelToggle from "./candlestick/ChartPanelToggle";
+import ChartIndicatorMenu from "./candlestick/ChartIndicatorMenu";
 
 const CandlestickChart: React.FC<CandlestickChartProps> = ({
     aggregated, klinesMap = {}, items, initialCoin, signals = [], onCoinChange, priceDirections = {}, sales = [], futuresPositions = [],
@@ -32,9 +31,12 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
     const extraCoins = Object.keys(klinesMap).filter(c => !coins.includes(c));
     const { config, saveConfig } = useAlerts();
 
+    // ── Preferences ──────────────────────────────────────────────
+    const { prefs, updatePref } = useChartPreferences();
+
     const {
-        selectedCoin, setSelectedCoin,
-        selectedInterval, setSelectedInterval,
+        selectedCoin, setSelectedCoin: setCoinRaw,
+        selectedInterval, setSelectedInterval: setIntervalRaw,
         currentKlines, loading, fetchError,
         getCurrentKlines,
         handleSelectExplorerCoin,
@@ -43,26 +45,91 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
         explorerLoading, explorerError,
         setExplorerError,
         explorerRef,
-    } = useChartKlines({ coins, initialCoin, klinesMap });
+    } = useChartKlines({ coins, initialCoin: prefs.selectedCoin || initialCoin, klinesMap });
 
-    const [expanded, setExpanded] = useState(false);
-    // Altura del chart principal (62% del wrapper) — MeasureTool se limita a esta zona
-    const mainChartHeight = Math.round((expanded ? 760 : 560) * 0.62);
+    // Wrap setters to persist
+    const setSelectedCoin = (c: string | ((prev: string) => string)) => {
+        const next = typeof c === "function" ? c(selectedCoin) : c;
+        setCoinRaw(next);
+        updatePref("selectedCoin", next);
+    };
+    const setSelectedInterval = (iv: typeof selectedInterval | ((prev: typeof selectedInterval) => typeof selectedInterval)) => {
+        const next = typeof iv === "function" ? iv(selectedInterval) : iv;
+        setIntervalRaw(next);
+        updatePref("selectedInterval", next);
+    };
 
-    // Chart containers
+    // Sync initial interval from prefs
+    useEffect(() => {
+        if (prefs.selectedInterval && prefs.selectedInterval !== selectedInterval) {
+            setIntervalRaw(prefs.selectedInterval as typeof selectedInterval);
+        }
+    }, []);
+
+    const [expanded, setExpandedRaw] = useState(prefs.expanded);
+    const setExpanded = (v: boolean | ((prev: boolean) => boolean)) => {
+        const next = typeof v === "function" ? v(expanded) : v;
+        setExpandedRaw(next);
+        updatePref("expanded", next);
+    };
+
+    // ── Panel toggles (RSI / MACD) ───────────────────────────────
+    const [rsiOpen, setRsiOpenRaw] = useState(prefs.rsiOpen);
+    const [macdOpen, setMacdOpenRaw] = useState(prefs.macdOpen);
+    const setRsiOpen = (v: boolean | ((prev: boolean) => boolean)) => {
+        const next = typeof v === "function" ? v(rsiOpen) : v;
+        setRsiOpenRaw(next);
+        updatePref("rsiOpen", next);
+    };
+    const setMacdOpen = (v: boolean | ((prev: boolean) => boolean)) => {
+        const next = typeof v === "function" ? v(macdOpen) : v;
+        setMacdOpenRaw(next);
+        updatePref("macdOpen", next);
+    };
+
+    // ── Indicator visibility ──────────────────────────────────────
+    const [ema20Visible, setEma20Visible] = useState(prefs.ema20Visible);
+    const [sma50Visible, setSma50Visible] = useState(prefs.sma50Visible);
+    const [sma200Visible, setSma200Visible] = useState(prefs.sma200Visible);
+    const [volumeVisible, setVolumeVisible] = useState(prefs.volumeVisible);
+    const [signalsVisible, setSignalsVisible] = useState(prefs.signalsVisible);
+
+    const handleIndicatorToggle = (key: string) => {
+        switch (key) {
+            case "ema20": setEma20Visible(v => { updatePref("ema20Visible", !v); return !v; }); break;
+            case "sma50": setSma50Visible(v => { updatePref("sma50Visible", !v); return !v; }); break;
+            case "sma200": setSma200Visible(v => { updatePref("sma200Visible", !v); return !v; }); break;
+            case "volume": setVolumeVisible(v => { updatePref("volumeVisible", !v); return !v; }); break;
+            case "signals": setSignalsVisible(v => { updatePref("signalsVisible", !v); return !v; }); break;
+        }
+    };
+
+    // ── Dynamic chart heights ─────────────────────────────────────
+    const totalH = expanded ? 760 : 560;
+    const panelCount = (rsiOpen ? 1 : 0) + (macdOpen ? 1 : 0);
+    let mainH: number, rsiH: number, macdH: number;
+    if (panelCount === 0) {
+        mainH = totalH; rsiH = 0; macdH = 0;
+    } else if (panelCount === 1) {
+        mainH = Math.round(totalH * 0.75);
+        rsiH = rsiOpen ? totalH - mainH : 0;
+        macdH = macdOpen ? totalH - mainH : 0;
+    } else {
+        mainH = Math.round(totalH * 0.62);
+        rsiH = Math.round(totalH * 0.22);
+        macdH = totalH - mainH - rsiH;
+    }
+
+    // ── Chart containers ──────────────────────────────────────────
     const mainContainerRef = useRef<HTMLDivElement>(null);
     const mainChartContainerRef = useRef<HTMLDivElement>(null);
     const rsiContainerRef = useRef<HTMLDivElement>(null);
     const macdContainerRef = useRef<HTMLDivElement>(null);
 
-    // Chart + series (managed by useChartSeries)
+    // ── Chart series ──────────────────────────────────────────────
     const {
-        mainChartRef,
-        candleSeriesRef,
-        volumeSeriesRef,
-        getIndicatorValuesAtTime,
-        getLatestIndicatorValues,
-        getIndicatorPoints,
+        mainChartRef, candleSeriesRef, volumeSeriesRef,
+        getIndicatorValuesAtTime, getLatestIndicatorValues, getIndicatorPoints,
     } = useChartSeries({
         mainContainerRef: mainChartContainerRef,
         rsiContainerRef,
@@ -71,15 +138,18 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
         selectedCoin,
         selectedInterval,
         expanded,
+        rsiOpen,
+        macdOpen,
+        ema20Visible,
+        sma50Visible,
+        sma200Visible,
+        volumeVisible,
     });
 
-    // OHLCV legend on crosshair (managed by useChartLegend)
     const { legend } = useChartLegend({ mainChartRef, candleSeriesRef, volumeSeriesRef });
-
-    // Indicator values on crosshair (managed by useChartIndicatorValues)
     const indicatorValues = useChartIndicatorValues({ mainChartRef, getIndicatorValuesAtTime, getLatestIndicatorValues });
 
-    // Technical signal markers on main chart (managed by useChartSignals)
+    // ── Signals ───────────────────────────────────────────────────
     const indicatorPts = getIndicatorPoints();
     const volumeRatio = currentKlines.length > 0 ? calcVolumeRatio(currentKlines) : 1;
     useChartSignals({
@@ -91,61 +161,32 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
         macdLinePoints: indicatorPts.macdLine,
         macdSignalPoints: indicatorPts.macdSignal,
         volumeRatio,
+        enabled: signalsVisible,
     });
 
-    // Price lines (managed by useChartPriceLines)
+    // ── Price lines ───────────────────────────────────────────────
     useChartPriceLines({
-        candleSeriesRef,
-        selectedCoin,
-        selectedInterval,
-        items,
-        sales,
-        futuresPositions,
-        aggregated,
-        currentKlines,
+        candleSeriesRef, selectedCoin, selectedInterval,
+        items, sales, futuresPositions, aggregated, currentKlines,
         watchlistAlerts: config.watchlistAlerts,
     });
 
-    // Measure tool (managed by useMeasureTool)
+    // ── Measure tool ──────────────────────────────────────────────
     const {
-        measureMode,
-        setMeasureMode,
-        measureRect,
-        measureStats,
-        tooltipPos,
-        overlayRef: measureOverlayRef,
-        overlayHandlers,
-    } = useMeasureTool({
-        mainChartRef,
-        candleSeriesRef,
-        getCurrentKlines,
-        selectedCoin,
-        selectedInterval,
-        mainContainerRef,
-    });
+        measureMode, setMeasureMode, measureRect, measureStats, tooltipPos,
+        overlayRef: measureOverlayRef, overlayHandlers,
+    } = useMeasureTool({ mainChartRef, candleSeriesRef, getCurrentKlines, selectedCoin, selectedInterval, mainContainerRef });
 
-    useEffect(() => {
-        onCoinChange?.(selectedCoin);
-    }, [selectedCoin, onCoinChange]);
+    useEffect(() => { onCoinChange?.(selectedCoin); }, [selectedCoin, onCoinChange]);
 
     const currentPrice = aggregated.find(a => a.coin === selectedCoin)?.currentPrice ?? 0;
     const coinItems = items.filter((inv) => inv.coin === selectedCoin);
-    const coinSales = sales.filter((s) => s.coin === selectedCoin);
     const coinFutures = futuresPositions.filter((p) => p.symbol.replace("USDT", "") === selectedCoin);
 
     const {
-        showAlertForm,
-        setShowAlertForm,
-        alertTarget,
-        setAlertTarget,
-        alertDirection,
-        setAlertDirection,
-        alertPersistent,
-        setAlertPersistent,
-        alertNote,
-        setAlertNote,
-        alertSaved,
-        handleSaveChartAlert,
+        showAlertForm, setShowAlertForm, alertTarget, setAlertTarget,
+        alertDirection, setAlertDirection, alertPersistent, setAlertPersistent,
+        alertNote, setAlertNote, alertSaved, handleSaveChartAlert,
     } = useChartAlerts({ config, saveConfig, selectedCoin, currentPrice });
 
     useEffect(() => {
@@ -161,75 +202,51 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
 
     if (coins.length === 0) return null;
 
+    const priceDir = priceDirections[selectedCoin];
+    const priceColor = priceDir === "up" ? "text-green-400" : priceDir === "down" ? "text-red-400" : "text-yellow-300";
+
     return (
-        <ChartCard
-            title="Precio de Monedas"
-            subtitle="Velas OHLCV · pasa el cursor sobre una vela para ver detalle"
-            hideTitleOnMobile
-        >
-            {/* ── Row 1: Header (activos + precio + toolbar) ───────── */}
-            <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin">
-                <div className="flex items-center gap-1 flex-shrink-0">
-                    <CoinExplorer
-                        coins={coins}
-                        portfolioCoins={portfolioCoins}
-                        selectedCoin={selectedCoin}
-                        setSelectedCoin={setSelectedCoin}
-                        signals={signals}
-                        showExplorer={showExplorer}
-                        setShowExplorer={setShowExplorer}
-                        explorerInput={explorerInput}
-                        setExplorerInput={setExplorerInput}
-                        explorerLoading={explorerLoading}
-                        explorerError={explorerError}
-                        setExplorerError={setExplorerError}
-                        extraCoins={extraCoins}
-                        handleSelectExplorerCoin={handleSelectExplorerCoin}
-                        explorerRef={explorerRef}
-                    />
+        <ChartCard>
+            {/* ── Header: [Activo] [Timeframe] [Indicadores] [Alerta] [Medir] [Expand] ── */}
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-thin">
+                <CoinExplorer
+                    coins={coins} portfolioCoins={portfolioCoins} selectedCoin={selectedCoin}
+                    setSelectedCoin={setSelectedCoin} signals={signals}
+                    showExplorer={showExplorer} setShowExplorer={setShowExplorer}
+                    explorerInput={explorerInput} setExplorerInput={setExplorerInput}
+                    explorerLoading={explorerLoading} explorerError={explorerError}
+                    setExplorerError={setExplorerError} extraCoins={extraCoins}
+                    handleSelectExplorerCoin={handleSelectExplorerCoin} explorerRef={explorerRef}
+                />
 
-                    <span className="text-slate-600">|</span>
-                </div>
+                <span className="text-slate-600">|</span>
 
-                {/* Price display */}
-                {(() => {
-                    const klines = currentKlines;
-                    const last = klines[klines.length - 1];
-                    const price = currentPrice || last?.close || 0;
-                    const dir = priceDirections[selectedCoin];
-                    const priceColor = dir === "up" ? "text-green-400" : dir === "down" ? "text-red-400" : "text-yellow-300";
-                    if (!price) return null;
-                    return (
-                        <span className={`font-mono font-bold text-base leading-none tracking-tight ${priceColor} flex-shrink-0`}>
-                            {fmtPrice(price)}
-                        </span>
-                    );
-                })()}
+                <ChartIndicatorMenu
+                    ema20Visible={ema20Visible} sma50Visible={sma50Visible}
+                    sma200Visible={sma200Visible} volumeVisible={volumeVisible}
+                    signalsVisible={signalsVisible} onToggle={handleIndicatorToggle}
+                />
 
-                <span className="text-slate-600 flex-shrink-0">|</span>
+                <span className="text-slate-600">|</span>
 
-                <div className="flex-shrink-0">
-                    <ChartToolbar
-                        selectedInterval={selectedInterval}
-                        setSelectedInterval={setSelectedInterval}
-                        showAlertForm={showAlertForm}
-                        setShowAlertForm={setShowAlertForm}
-                        measureMode={measureMode}
-                        setMeasureMode={setMeasureMode}
-                        expanded={expanded}
-                        setExpanded={setExpanded}
-                        currentPrice={currentPrice}
-                        setAlertTarget={setAlertTarget}
-                        setAlertDirection={setAlertDirection}
-                        setAlertNote={setAlertNote}
-                        setAlertPersistent={setAlertPersistent}
-                    />
-                </div>
+                <ChartPanelToggle label="RSI" color="#a78bfa" open={rsiOpen} onToggle={() => setRsiOpen(v => !v)} />
+                <ChartPanelToggle label="MACD" color="#38bdf8" open={macdOpen} onToggle={() => setMacdOpen(v => !v)} />
+
+                <div className="flex-1" />
+
+                <ChartToolbar
+                    selectedInterval={selectedInterval} setSelectedInterval={setSelectedInterval}
+                    showAlertForm={showAlertForm} setShowAlertForm={setShowAlertForm}
+                    measureMode={measureMode} setMeasureMode={setMeasureMode}
+                    expanded={expanded} setExpanded={setExpanded}
+                    currentPrice={currentPrice} setAlertTarget={setAlertTarget}
+                    setAlertDirection={setAlertDirection} setAlertNote={setAlertNote}
+                    setAlertPersistent={setAlertPersistent}
+                />
             </div>
 
-            {/* ── Row 2: Info bar (OHLCV + indicators + positions) ── */}
+            {/* ── Info bar (OHLCV + indicators + positions) ── */}
             <div className="flex items-center gap-2 text-[10px] font-mono leading-none overflow-x-auto scrollbar-thin">
-                {/* OHLCV */}
                 {legend && (
                     <>
                         <span className="text-slate-500 whitespace-nowrap">{legend.time}</span>
@@ -241,13 +258,9 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                         <span className="text-slate-600">·</span>
                     </>
                 )}
-
-                {/* Indicator values */}
                 <div className="whitespace-nowrap">
                     <IndicatorHud values={indicatorValues} volumeRatio={volumeRatio} />
                 </div>
-
-                {/* Spot/Futures compact */}
                 {(() => {
                     const pnl = coinItems.reduce((s, i) => s + (currentPrice - i.buyPrice) * i.quantity, 0);
                     const fPnl = coinFutures.reduce((s, p) => s + p.unrealizedPnl, 0);
@@ -257,41 +270,27 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                     return (
                         <>
                             <span className="text-slate-600">·</span>
-                            {hasSpot && (
-                                <span className="text-sky-400 whitespace-nowrap">
-                                    Spot <span className={pnl >= 0 ? "text-green-400" : "text-red-400"}>{pnl >= 0 ? "+" : ""}{fmtUSD(pnl)}</span>
-                                </span>
-                            )}
-                            {hasFutures && (
-                                <span className="text-purple-400 whitespace-nowrap">
-                                    Fut <span className={fPnl >= 0 ? "text-green-400" : "text-red-400"}>{fPnl >= 0 ? "+" : ""}{fmtUSD(fPnl)}</span>
-                                </span>
-                            )}
+                            {hasSpot && <span className="text-sky-400 whitespace-nowrap">Spot <span className={pnl >= 0 ? "text-green-400" : "text-red-400"}>{pnl >= 0 ? "+" : ""}{fmtUSD(pnl)}</span></span>}
+                            {hasFutures && <span className="text-purple-400 whitespace-nowrap">Fut <span className={fPnl >= 0 ? "text-green-400" : "text-red-400"}>{fPnl >= 0 ? "+" : ""}{fmtUSD(fPnl)}</span></span>}
                         </>
                     );
                 })()}
             </div>
 
-            {/* Inline alert form */}
+            {/* ── Alert form ──────────────────────────────────────── */}
             {showAlertForm && (
                 <AlertForm
-                    selectedCoin={selectedCoin}
-                    currentPrice={currentPrice}
-                    alertTarget={alertTarget}
-                    setAlertTarget={setAlertTarget}
-                    alertDirection={alertDirection}
-                    setAlertDirection={setAlertDirection}
-                    alertPersistent={alertPersistent}
-                    setAlertPersistent={setAlertPersistent}
-                    alertNote={alertNote}
-                    setAlertNote={setAlertNote}
-                    alertSaved={alertSaved}
-                    handleSaveChartAlert={handleSaveChartAlert}
+                    selectedCoin={selectedCoin} currentPrice={currentPrice}
+                    alertTarget={alertTarget} setAlertTarget={setAlertTarget}
+                    alertDirection={alertDirection} setAlertDirection={setAlertDirection}
+                    alertPersistent={alertPersistent} setAlertPersistent={setAlertPersistent}
+                    alertNote={alertNote} setAlertNote={setAlertNote}
+                    alertSaved={alertSaved} handleSaveChartAlert={handleSaveChartAlert}
                     onClose={() => setShowAlertForm(false)}
                 />
             )}
 
-            {/* Main chart */}
+            {/* ── Chart area ──────────────────────────────────────── */}
             <div className="relative rounded overflow-hidden">
                 {loading && (
                     <div className="absolute inset-0 flex items-center justify-center bg-slate-900/70 rounded z-10">
@@ -305,38 +304,73 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                         </span>
                     </div>
                 )}
-                <div ref={mainContainerRef} className="cursor-crosshair" style={{ height: `${expanded ? 760 : 560}px` }}>
+
+                {/* Big price — top right */}
+                {currentPrice > 0 && (
+                    <div className="absolute top-2 right-2 z-20 pointer-events-none text-right">
+                        <span className={`font-mono font-bold text-2xl leading-none tracking-tight ${priceColor}`}>
+                            {fmtPrice(currentPrice)}
+                        </span>
+                        {priceDir && (
+                            <span className={`block text-[10px] font-mono mt-0.5 ${priceColor}`}>
+                                {priceDir === "up" ? "▲" : "▼"} {selectedCoin}
+                            </span>
+                        )}
+                    </div>
+                )}
+
+                {/* Chart containers — all always in DOM for refs to exist at mount */}
+                <div ref={mainContainerRef} className="cursor-crosshair" style={{ height: `${mainH}px` }}>
                     <div ref={mainChartContainerRef} />
-                    <div ref={rsiContainerRef} />
-                    <div ref={macdContainerRef} />
                 </div>
 
-                {/* Separador RSI */}
-                <div
-                    className="absolute left-0 right-0 pointer-events-none z-10"
-                    style={{ top: `${0.62 * (expanded ? 760 : 560)}px`, borderTop: '1px solid #334155' }}
-                />
-                {/* Separador MACD */}
-                <div
-                    className="absolute left-0 right-0 pointer-events-none z-10"
-                    style={{ top: `${0.84 * (expanded ? 760 : 560)}px`, borderTop: '1px solid #334155' }}
-                />
+                <div ref={rsiContainerRef} style={{ height: rsiOpen && rsiH > 0 ? `${rsiH}px` : '0px', overflow: 'hidden' }}>
+                    {rsiOpen && rsiH > 0 && (
+                        <div className="absolute left-0 right-0 pointer-events-none z-10" style={{ top: `${mainH}px`, borderTop: '1px solid #334155' }} />
+                    )}
+                </div>
 
-                {/* Labels flotantes RSI y MACD */}
-                <div className="absolute left-2 pointer-events-none z-10 flex items-center gap-1.5" style={{ top: `${0.62 * (expanded ? 760 : 560) + 5}px` }}>
-                    <span className="text-[9px] text-violet-400 font-mono font-bold uppercase tracking-widest">RSI(14)</span>
-                    <span className="w-3 h-px inline-block" style={{ background: "#a78bfa" }} />
-                    <span className="text-[9px] text-slate-600">30</span>
-                    <span className="text-[9px] text-slate-700">–</span>
-                    <span className="text-[9px] text-slate-600">70</span>
+                <div ref={macdContainerRef} style={{ height: macdOpen && macdH > 0 ? `${macdH}px` : '0px', overflow: 'hidden' }}>
+                    {macdOpen && macdH > 0 && (
+                        <div className="absolute left-0 right-0 pointer-events-none z-10" style={{ top: `${mainH + rsiH}px`, borderTop: '1px solid #334155' }} />
+                    )}
                 </div>
-                <div className="absolute left-2 pointer-events-none z-10 flex items-center gap-1.5" style={{ top: `${0.84 * (expanded ? 760 : 560) + 5}px` }}>
-                    <span className="text-[9px] text-sky-400 font-mono font-bold uppercase tracking-widest">MACD(12,26,9)</span>
-                    <span className="w-3 h-px inline-block" style={{ background: "#38bdf8" }} />
-                    <span className="text-[9px] text-slate-600">línea</span>
-                    <span className="w-3 h-px inline-block" style={{ background: "#f97316" }} />
-                    <span className="text-[9px] text-slate-600">señal</span>
-                </div>
+
+                {/* RSI/MACD labels (only when panels open) */}
+                {rsiOpen && rsiH > 0 && (
+                    <div className="absolute left-2 pointer-events-none z-10 flex items-center gap-1.5" style={{ top: `${mainH + 5}px` }}>
+                        <span className="text-[9px] text-violet-400 font-mono font-bold uppercase tracking-widest">RSI(14)</span>
+                        <span className="w-3 h-px inline-block" style={{ background: "#a78bfa" }} />
+                        <span className="text-[9px] text-slate-600">30</span>
+                        <span className="text-[9px] text-slate-700">–</span>
+                        <span className="text-[9px] text-slate-600">70</span>
+                    </div>
+                )}
+                {macdOpen && macdH > 0 && (
+                    <div className="absolute left-2 pointer-events-none z-10 flex items-center gap-1.5" style={{ top: `${mainH + rsiH + 5}px` }}>
+                        <span className="text-[9px] text-sky-400 font-mono font-bold uppercase tracking-widest">MACD(12,26,9)</span>
+                        <span className="w-3 h-px inline-block" style={{ background: "#38bdf8" }} />
+                        <span className="text-[9px] text-slate-600">línea</span>
+                        <span className="w-3 h-px inline-block" style={{ background: "#f97316" }} />
+                        <span className="text-[9px] text-slate-600">señal</span>
+                    </div>
+                )}
+
+                {/* Panel toggle buttons when closed — shown at bottom of chart */}
+                {(!rsiOpen || !macdOpen) && (
+                    <div className="absolute bottom-1 left-2 z-20 flex items-center gap-1 pointer-events-auto">
+                        {!rsiOpen && (
+                            <button onClick={() => setRsiOpen(true)} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-700/80 text-violet-400 hover:bg-slate-600 transition-colors">
+                                <span>RSI</span><span className="text-slate-500">▸</span>
+                            </button>
+                        )}
+                        {!macdOpen && (
+                            <button onClick={() => setMacdOpen(true)} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-700/80 text-sky-400 hover:bg-slate-600 transition-colors">
+                                <span>MACD</span><span className="text-slate-500">▸</span>
+                            </button>
+                        )}
+                    </div>
+                )}
 
                 {/* Measure overlay */}
                 {measureMode && (
@@ -347,11 +381,10 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                         measureStats={measureStats}
                         tooltipPos={tooltipPos}
                         selectedInterval={selectedInterval}
-                        height={mainChartHeight}
+                        height={mainH}
                     />
                 )}
             </div>
-
         </ChartCard>
     );
 };

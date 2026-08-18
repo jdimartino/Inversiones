@@ -22,15 +22,23 @@ interface UseChartSeriesParams {
     selectedCoin: string;
     selectedInterval: Interval;
     expanded: boolean;
+    rsiOpen: boolean;
+    macdOpen: boolean;
+    ema20Visible: boolean;
+    sma50Visible: boolean;
+    sma200Visible: boolean;
+    volumeVisible: boolean;
 }
 
-export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContainerRef, klines, selectedCoin, selectedInterval, expanded }: UseChartSeriesParams) {
-    // Chart instances
+export function useChartSeries({
+    mainContainerRef, rsiContainerRef, macdContainerRef,
+    klines, selectedCoin, selectedInterval, expanded,
+    rsiOpen, macdOpen, ema20Visible, sma50Visible, sma200Visible, volumeVisible,
+}: UseChartSeriesParams) {
     const mainChartRef = useRef<IChartApi | null>(null);
     const rsiChartRef = useRef<IChartApi | null>(null);
     const macdChartRef = useRef<IChartApi | null>(null);
 
-    // Series refs
     const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
     const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
     const ema20Ref = useRef<ISeriesApi<"Line"> | null>(null);
@@ -56,13 +64,11 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
     useEffect(() => {
         if (!mainContainerRef.current || !rsiContainerRef.current || !macdContainerRef.current) return;
 
-        // Ancho común del price scale para los 3 charts apilados.
-        // Con el mismo minimumWidth los ejes de precio quedan alineados verticalmente
-        // (LW calcula width = max(ancho mayor label, minimumWidth)).
         const priceScaleWidth = 78;
-        const mainHeight = Math.round(560 * 0.62);
-        const rsiHeight = Math.round(560 * 0.22);
-        const macdHeight = 560 - mainHeight - rsiHeight;
+        const totalH = expanded ? 760 : 560;
+        const mainHeight = Math.round(totalH * 0.62);
+        const rsiHeight = Math.round(totalH * 0.22);
+        const macdHeight = totalH - mainHeight - rsiHeight;
 
         const baseChartOptions = {
             layout: {
@@ -84,8 +90,6 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
                 horzLine: { color: "#475569", labelBackgroundColor: "#334155" },
             },
             timeScale: { ...timeScaleOptions, visible: false },
-            // LW 4.2.3 PaneWidget._private__pressedMouseTouchMoveEvent crashes on null priceRange.
-            // Disable built-in pressedMouseMove; custom time-pan is implemented below.
             handleScroll: { mouseWheel: true, pressedMouseMove: false, horzTouchDrag: true, vertTouchDrag: false },
             handleScale: {
                 mouseWheel: true,
@@ -98,7 +102,6 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
 
         const rsiChart = createChart(rsiContainerRef.current, {
             ...baseChartOptions,
-            // Línea vertical activa para el crosshair sync (sin labels extra).
             crosshair: { mode: CrosshairMode.Normal, vertLine: { visible: true, labelVisible: false }, horzLine: { visible: false } },
             timeScale: { ...timeScaleOptions, visible: false },
             handleScroll: false,
@@ -108,7 +111,6 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
 
         const macdChart = createChart(macdContainerRef.current, {
             ...baseChartOptions,
-            // Línea vertical activa para el crosshair sync (sin labels extra).
             crosshair: { mode: CrosshairMode.Normal, vertLine: { visible: true, labelVisible: false }, horzLine: { visible: false } },
             timeScale: { ...timeScaleOptions, visible: true },
             handleScroll: false,
@@ -116,10 +118,9 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
             height: macdHeight,
         });
 
-        // Candle price scale ocupa el 58% superior
-        mainChart.priceScale("right").applyOptions({ scaleMargins: { top: 0, bottom: 0.45 } });
+        // Price scale: candles occupy top 65%, volume bottom 30%
+        mainChart.priceScale("right").applyOptions({ scaleMargins: { top: 0.05, bottom: 0.32 } });
 
-        // ── Main chart series ────────────────────────────────────────
         const candleSeries = (mainChart as any).addCandlestickSeries({
             upColor: "#4ade80", downColor: "#f87171",
             borderUpColor: "#4ade80", borderDownColor: "#f87171",
@@ -129,51 +130,39 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
         const volumeSeries = (mainChart as any).addHistogramSeries({
             color: "#26a69a", priceFormat: { type: "volume" }, priceScaleId: "vol",
         });
-        volumeSeries.priceScale().applyOptions({ scaleMargins: { top: 0.50, bottom: 0.42 } });
+        volumeSeries.priceScale().applyOptions({ scaleMargins: { top: 0.72, bottom: 0 } });
 
         const ema20Series = (mainChart as any).addLineSeries({
-            priceScaleId: "right",
-            color: "#38bdf8", lineWidth: 1,
-            priceLineVisible: false, lastValueVisible: false,
-            title: "", crosshairMarkerVisible: false,
+            priceScaleId: "right", color: "#38bdf8", lineWidth: 1,
+            priceLineVisible: false, lastValueVisible: false, title: "", crosshairMarkerVisible: false,
         });
         const sma50Series = (mainChart as any).addLineSeries({
-            priceScaleId: "right",
-            color: "#fb923c", lineWidth: 1,
-            priceLineVisible: false, lastValueVisible: false,
-            title: "", crosshairMarkerVisible: false,
+            priceScaleId: "right", color: "#fb923c", lineWidth: 1,
+            priceLineVisible: false, lastValueVisible: false, title: "", crosshairMarkerVisible: false,
         });
         const sma200Series = (mainChart as any).addLineSeries({
-            priceScaleId: "right",
-            color: "#eab308", lineWidth: 2,
-            priceLineVisible: false, lastValueVisible: false,
-            title: "", crosshairMarkerVisible: false,
+            priceScaleId: "right", color: "#eab308", lineWidth: 2,
+            priceLineVisible: false, lastValueVisible: false, title: "", crosshairMarkerVisible: false,
         });
 
-        // ── RSI series + reference lines (chart propio) ──────────────
         const rsiSeries = (rsiChart as any).addLineSeries({
-            color: "#a78bfa", lineWidth: 1,
-            priceLineVisible: true, lastValueVisible: true,
+            color: "#a78bfa", lineWidth: 1, priceLineVisible: true, lastValueVisible: true,
         });
         rsiSeries.createPriceLine({ price: 70, color: "#f87171", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "" });
         rsiSeries.createPriceLine({ price: 50, color: "#475569", lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: false, title: "" });
         rsiSeries.createPriceLine({ price: 30, color: "#4ade80", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "" });
 
-        // ── MACD series + zero line (chart propio) ───────────────────
         const macdLineSeries = (macdChart as any).addLineSeries({
-            color: "#38bdf8", lineWidth: 1,
-            priceLineVisible: false, lastValueVisible: true,
+            color: "#38bdf8", lineWidth: 1, priceLineVisible: false, lastValueVisible: true,
         });
         const macdSignalSeries = (macdChart as any).addLineSeries({
-            color: "#f97316", lineWidth: 1,
-            priceLineVisible: false, lastValueVisible: true,
+            color: "#f97316", lineWidth: 1, priceLineVisible: false, lastValueVisible: true,
         });
         const macdHistSeries = (macdChart as any).addHistogramSeries({
             priceFormat: { type: "price" }, priceLineVisible: false,
         });
         macdLineSeries.createPriceLine({ price: 0, color: "#334155", lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: false, title: "" });
 
-        // Store refs
         mainChartRef.current = mainChart;
         rsiChartRef.current = rsiChart;
         macdChartRef.current = macdChart;
@@ -187,7 +176,6 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
         macdSignalRef.current = macdSignalSeries;
         macdHistRef.current = macdHistSeries;
 
-        // ResizeObserver
         const ro = new ResizeObserver(() => {
             const w = mainContainerRef.current?.clientWidth;
             if (!w) return;
@@ -197,13 +185,12 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
         });
         ro.observe(mainContainerRef.current);
 
-        // Sync del rango visible de tiempo entre los 3 charts
         let syncing = false;
-        const syncTimeScale = (target1: IChartApi, target2: IChartApi, hasData1: () => boolean, hasData2: () => boolean) => (range: LogicalRange | null) => {
+        const syncTimeScale = (t1: IChartApi, t2: IChartApi, h1: () => boolean, h2: () => boolean) => (range: LogicalRange | null) => {
             if (syncing || range === null) return;
             syncing = true;
-            if (hasData1()) target1.timeScale().setVisibleLogicalRange(range);
-            if (hasData2()) target2.timeScale().setVisibleLogicalRange(range);
+            if (h1()) t1.timeScale().setVisibleLogicalRange(range);
+            if (h2()) t2.timeScale().setVisibleLogicalRange(range);
             syncing = false;
         };
         const onMainRangeChange = syncTimeScale(rsiChart, macdChart, () => rsiHasDataRef.current, () => macdHasDataRef.current);
@@ -213,7 +200,6 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
         rsiChart.timeScale().subscribeVisibleLogicalRangeChange(onRsiRangeChange);
         macdChart.timeScale().subscribeVisibleLogicalRangeChange(onMacdRangeChange);
 
-        // ── Crosshair sync: RSI/MACD siguen el crosshair del main chart ──
         const onMainCrosshairMove = (param: MouseEventParams) => {
             const time = param.time;
             if (time === undefined) {
@@ -236,9 +222,6 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
         };
         mainChart.subscribeCrosshairMove(onMainCrosshairMove);
 
-        // ── Custom pan (bypasses LW 4.2.3 pressedMouseMove crash) ──
-        // Horizontal: uses public setVisibleLogicalRange API.
-        // Vertical: uses internal Model scroll methods with autoScale disabled.
         const psApi = (mainChart as any).priceScale("right");
         const model = psApi._private__chartWidget._internal_model();
         const paneInfo = model._internal_findPriceScale("right");
@@ -265,13 +248,9 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
         const onPanMouseMove = (e: MouseEvent) => {
             if (!isPanning) return;
             e.preventDefault();
-
             const dx = Math.abs(e.clientX - panStartX);
             const dy = Math.abs(e.clientY - panStartY);
-
-            if (!isVerticalPan && dy > dx && dy > 3) {
-                isVerticalPan = true;
-            }
+            if (!isVerticalPan && dy > dx && dy > 3) isVerticalPan = true;
 
             if (isVerticalPan) {
                 if (!priceScrollStarted) {
@@ -320,24 +299,36 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
         };
     }, []);
 
-    // Handle expand toggle
+    // Handle dynamic heights when panels open/close or expand toggles
     useEffect(() => {
-        const totalHeight = expanded ? 760 : 560;
-        const mainHeight = Math.round(totalHeight * 0.62);
-        const rsiHeight = Math.round(totalHeight * 0.22);
-        const macdHeight = totalHeight - mainHeight - rsiHeight;
-        mainChartRef.current?.applyOptions({ height: mainHeight });
-        rsiChartRef.current?.applyOptions({ height: rsiHeight });
-        macdChartRef.current?.applyOptions({ height: macdHeight });
+        const totalH = expanded ? 760 : 560;
+        const panelCount = (rsiOpen ? 1 : 0) + (macdOpen ? 1 : 0);
+        let mainH: number, rsiH: number, macdH: number;
+
+        if (panelCount === 0) {
+            mainH = totalH;
+            rsiH = 0;
+            macdH = 0;
+        } else if (panelCount === 1) {
+            mainH = Math.round(totalH * 0.75);
+            rsiH = rsiOpen ? totalH - mainH : 0;
+            macdH = macdOpen ? totalH - mainH : 0;
+        } else {
+            mainH = Math.round(totalH * 0.62);
+            rsiH = Math.round(totalH * 0.22);
+            macdH = totalH - mainH - rsiH;
+        }
+
+        mainChartRef.current?.applyOptions({ height: mainH });
+        rsiChartRef.current?.applyOptions({ height: rsiH });
+        macdChartRef.current?.applyOptions({ height: macdH });
         mainChartRef.current?.priceScale("right").applyOptions({ autoScale: true });
-    }, [expanded]);
+    }, [expanded, rsiOpen, macdOpen]);
 
     // Update series data when coin / interval / klines change
     useEffect(() => {
         if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
 
-        // Sin datos (moneda/timeframe sin cache): limpiar series para no mostrar
-        // velas de la moneda anterior bajo el nuevo selector.
         if (klines.length === 0) {
             candleSeriesRef.current.setData([]);
             volumeSeriesRef.current.setData([]);
@@ -370,45 +361,63 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
         const times = klines.map((k) => Math.floor(k.openTime / 1000) as any);
         const closes = klines.map((k) => k.close);
 
-        // Candles
         candleSeriesRef.current.setData(
             klines.map((k, i) => ({ time: times[i], open: k.open, high: k.high, low: k.low, close: k.close }))
         );
 
-        // Volume
-        volumeSeriesRef.current.setData(
-            klines.map((k, i) => ({
-                time: times[i], value: k.volume,
-                color: k.close >= k.open ? "#4ade8033" : "#f8717133",
-            }))
-        );
+        // Volume — conditional on volumeVisible
+        if (volumeVisible) {
+            volumeSeriesRef.current.setData(
+                klines.map((k, i) => ({
+                    time: times[i], value: k.volume,
+                    color: k.close >= k.open ? "#4ade8055" : "#f8717155",
+                }))
+            );
+        } else {
+            volumeSeriesRef.current.setData([]);
+        }
 
-        // EMA20 (seed = SMA, more accurate than old seed = data[0])
-        const ema20 = computeEMASeries(closes, 20);
-        const ema20Points = ema20.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []));
-        ema20Ref.current?.setData(ema20Points);
-        ema20PointsRef.current = ema20Points;
+        // EMA20
+        if (ema20Visible) {
+            const ema20 = computeEMASeries(closes, 20);
+            const ema20Points = ema20.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []));
+            ema20Ref.current?.setData(ema20Points);
+            ema20PointsRef.current = ema20Points;
+        } else {
+            ema20Ref.current?.setData([]);
+            ema20PointsRef.current = [];
+        }
 
         // SMA50
-        const sma50 = computeSMASeries(closes, 50);
-        const sma50Points = sma50.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []));
-        sma50Ref.current?.setData(sma50Points);
-        sma50PointsRef.current = sma50Points;
+        if (sma50Visible) {
+            const sma50 = computeSMASeries(closes, 50);
+            const sma50Points = sma50.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []));
+            sma50Ref.current?.setData(sma50Points);
+            sma50PointsRef.current = sma50Points;
+        } else {
+            sma50Ref.current?.setData([]);
+            sma50PointsRef.current = [];
+        }
 
         // SMA200
-        const sma200 = computeSMASeries(closes, 200);
-        const sma200Points = sma200.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []));
-        sma200Ref.current?.setData(sma200Points);
-        sma200PointsRef.current = sma200Points;
+        if (sma200Visible) {
+            const sma200 = computeSMASeries(closes, 200);
+            const sma200Points = sma200.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []));
+            sma200Ref.current?.setData(sma200Points);
+            sma200PointsRef.current = sma200Points;
+        } else {
+            sma200Ref.current?.setData([]);
+            sma200PointsRef.current = [];
+        }
 
-        // RSI
+        // RSI (always computed for crosshair sync, even when panel closed)
         const rsi = computeRSISeries(closes);
         const rsiPoints = rsi.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []));
         rsiSeriesRef.current?.setData(rsiPoints);
         rsiHasDataRef.current = rsiPoints.length > 0;
         rsiPointsRef.current = rsiPoints;
 
-        // MACD
+        // MACD (always computed for crosshair sync)
         const { macd, signal, histogram } = computeMACDSeries(closes);
         const macdLinePoints = macd.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []));
         const macdSignalPoints = signal.flatMap((v, i) => (v !== null ? [{ time: times[i], value: v }] : []));
@@ -428,9 +437,8 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
             if (rsiHasDataRef.current) rsiChartRef.current?.timeScale().fitContent();
             if (macdHasDataRef.current) macdChartRef.current?.timeScale().fitContent();
         }
-    }, [klines, selectedCoin, selectedInterval]);
+    }, [klines, selectedCoin, selectedInterval, ema20Visible, sma50Visible, sma200Visible, volumeVisible]);
 
-    // Stable getter: indicator values at a specific time (binary search over points)
     const getIndicatorValuesAtTime = useCallback((time: number) => {
         const ema20 = findValueAtTime(ema20PointsRef.current, time);
         const sma50 = findValueAtTime(sma50PointsRef.current, time);
@@ -440,50 +448,31 @@ export function useChartSeries({ mainContainerRef, rsiContainerRef, macdContaine
         const macdSignal = findValueAtTime(macdSignalPointsRef.current, time);
         if (ema20 === undefined && sma50 === undefined && rsi === undefined && macdLine === undefined) return null;
         return {
-            ema20: ema20 ?? null,
-            sma50: sma50 ?? null,
-            sma200: sma200 ?? null,
-            rsi: rsi ?? null,
-            macdLine: macdLine ?? null,
-            macdSignal: macdSignal ?? null,
+            ema20: ema20 ?? null, sma50: sma50 ?? null, sma200: sma200 ?? null,
+            rsi: rsi ?? null, macdLine: macdLine ?? null, macdSignal: macdSignal ?? null,
             macdHistogram: (macdLine != null && macdSignal != null) ? macdLine - macdSignal : null,
         };
     }, []);
 
-    // Stable getter: latest indicator values (last available data point)
     const getLatestIndicatorValues = useCallback(() => {
         const last = (pts: { time: number; value: number }[]) => pts.length > 0 ? pts[pts.length - 1].value : null;
         return {
-            ema20: last(ema20PointsRef.current),
-            sma50: last(sma50PointsRef.current),
-            sma200: last(sma200PointsRef.current),
-            rsi: last(rsiPointsRef.current),
-            macdLine: last(macdLinePointsRef.current),
-            macdSignal: last(macdSignalPointsRef.current),
+            ema20: last(ema20PointsRef.current), sma50: last(sma50PointsRef.current), sma200: last(sma200PointsRef.current),
+            rsi: last(rsiPointsRef.current), macdLine: last(macdLinePointsRef.current), macdSignal: last(macdSignalPointsRef.current),
             macdHistogram: (() => {
-                const ml = last(macdLinePointsRef.current);
-                const ms = last(macdSignalPointsRef.current);
+                const ml = last(macdLinePointsRef.current); const ms = last(macdSignalPointsRef.current);
                 return (ml != null && ms != null) ? ml - ms : null;
             })(),
         };
     }, []);
 
-    // Stable getter: raw indicator points arrays (for signal computation)
     const getIndicatorPoints = useCallback(() => ({
-        ema20: ema20PointsRef.current,
-        sma50: sma50PointsRef.current,
-        sma200: sma200PointsRef.current,
-        rsi: rsiPointsRef.current,
-        macdLine: macdLinePointsRef.current,
-        macdSignal: macdSignalPointsRef.current,
+        ema20: ema20PointsRef.current, sma50: sma50PointsRef.current, sma200: sma200PointsRef.current,
+        rsi: rsiPointsRef.current, macdLine: macdLinePointsRef.current, macdSignal: macdSignalPointsRef.current,
     }), []);
 
     return {
-        mainChartRef,
-        candleSeriesRef,
-        volumeSeriesRef,
-        getIndicatorValuesAtTime,
-        getLatestIndicatorValues,
-        getIndicatorPoints,
+        mainChartRef, candleSeriesRef, volumeSeriesRef,
+        getIndicatorValuesAtTime, getLatestIndicatorValues, getIndicatorPoints,
     };
 }

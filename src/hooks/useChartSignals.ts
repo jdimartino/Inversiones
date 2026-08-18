@@ -13,6 +13,7 @@ interface UseChartSignalsParams {
     macdLinePoints: { time: number; value: number }[];
     macdSignalPoints: { time: number; value: number }[];
     volumeRatio: number;
+    enabled: boolean;
 }
 
 export function useChartSignals({
@@ -24,11 +25,18 @@ export function useChartSignals({
     macdLinePoints,
     macdSignalPoints,
     volumeRatio,
+    enabled,
 }: UseChartSignalsParams) {
     const lastSigRef = useRef("");
 
     useEffect(() => {
         if (!candleSeriesRef.current) return;
+
+        if (!enabled) {
+            candleSeriesRef.current.setMarkers([]);
+            lastSigRef.current = "";
+            return;
+        }
 
         const signals = computeSignals({
             ema20: ema20Points,
@@ -83,7 +91,7 @@ export function useChartSignals({
         }));
 
         candleSeriesRef.current.setMarkers(markers);
-    }, [klines, ema20Points, sma50Points, rsiPoints, macdLinePoints, macdSignalPoints, volumeRatio]);
+    }, [klines, ema20Points, sma50Points, rsiPoints, macdLinePoints, macdSignalPoints, volumeRatio, enabled]);
 
     // Clear markers when no data
     useEffect(() => {
