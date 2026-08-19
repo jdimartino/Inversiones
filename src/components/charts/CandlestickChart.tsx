@@ -313,7 +313,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
 
                 {/* Big price — top right */}
                 {currentPrice > 0 && (
-                    <div className="absolute top-2 right-2 z-20 pointer-events-none text-right">
+                    <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none text-center">
                         <span className={`font-mono font-bold text-2xl leading-none tracking-tight ${priceColor}`}>
                             {fmtPrice(currentPrice)}
                         </span>
