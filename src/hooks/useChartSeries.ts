@@ -223,10 +223,19 @@ export function useChartSeries({
         mainChart.subscribeCrosshairMove(onMainCrosshairMove);
 
         const psApi = (mainChart as any).priceScale("right");
-        const model = psApi._private__chartWidget._internal_model();
-        const paneInfo = model._internal_findPriceScale("right");
-        const internalPriceScale = paneInfo._internal_priceScale;
-        const internalPane = paneInfo._internal_pane;
+        let model: any = null;
+        let internalPriceScale: any = null;
+        let internalPane: any = null;
+        let priceScrollSupported = false;
+        try {
+            model = psApi._private__chartWidget._internal_model();
+            const paneInfo = model._internal_findPriceScale("right");
+            internalPriceScale = paneInfo._internal_priceScale;
+            internalPane = paneInfo._internal_pane;
+            priceScrollSupported = true;
+        } catch {
+            // En producción los internals de lightweight-charts se minifican; se desactiva el pan vertical de precio.
+        }
 
         let panStartX = 0;
         let panStartY = 0;
@@ -252,7 +261,7 @@ export function useChartSeries({
             const dy = Math.abs(e.clientY - panStartY);
             if (!isVerticalPan && dy > dx && dy > 3) isVerticalPan = true;
 
-            if (isVerticalPan) {
+            if (isVerticalPan && priceScrollSupported) {
                 if (!priceScrollStarted) {
                     internalPriceScale._internal_setMode({ _internal_autoScale: false });
                     model._internal_startScrollPrice(internalPane, internalPriceScale, panStartY);
