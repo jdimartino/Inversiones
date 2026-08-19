@@ -90,7 +90,7 @@ export function useChartSeries({
                 horzLine: { color: "#475569", labelBackgroundColor: "#334155" },
             },
             timeScale: { ...timeScaleOptions, visible: false },
-            handleScroll: { mouseWheel: true, pressedMouseMove: false, horzTouchDrag: true, vertTouchDrag: false },
+            handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: true },
             handleScale: {
                 mouseWheel: true,
                 pinch: true,
@@ -222,81 +222,7 @@ export function useChartSeries({
         };
         mainChart.subscribeCrosshairMove(onMainCrosshairMove);
 
-        const psApi = (mainChart as any).priceScale("right");
-        let model: any = null;
-        let internalPriceScale: any = null;
-        let internalPane: any = null;
-        let priceScrollSupported = false;
-        try {
-            model = psApi._private__chartWidget._internal_model();
-            const paneInfo = model._internal_findPriceScale("right");
-            internalPriceScale = paneInfo._internal_priceScale;
-            internalPane = paneInfo._internal_pane;
-            priceScrollSupported = true;
-        } catch {
-            // En producción los internals de lightweight-charts se minifican; se desactiva el pan vertical de precio.
-        }
-
-        let panStartX = 0;
-        let panStartY = 0;
-        let panStartLogical: LogicalRange | null = null;
-        let isPanning = false;
-        let isVerticalPan = false;
-        let priceScrollStarted = false;
-
-        const onPanMouseDown = (e: MouseEvent) => {
-            if (e.button !== 0) return;
-            const range = mainChart.timeScale().getVisibleLogicalRange();
-            isPanning = true;
-            isVerticalPan = false;
-            priceScrollStarted = false;
-            panStartX = e.clientX;
-            panStartY = e.clientY;
-            panStartLogical = range;
-        };
-        const onPanMouseMove = (e: MouseEvent) => {
-            if (!isPanning) return;
-            e.preventDefault();
-            const dx = Math.abs(e.clientX - panStartX);
-            const dy = Math.abs(e.clientY - panStartY);
-            if (!isVerticalPan && dy > dx && dy > 3) isVerticalPan = true;
-
-            if (isVerticalPan && priceScrollSupported) {
-                if (!priceScrollStarted) {
-                    internalPriceScale._internal_setMode({ _internal_autoScale: false });
-                    model._internal_startScrollPrice(internalPane, internalPriceScale, panStartY);
-                    priceScrollStarted = true;
-                }
-                model._internal_scrollPriceTo(internalPane, internalPriceScale, e.clientY);
-            } else if (panStartLogical) {
-                const pixelDelta = e.clientX - panStartX;
-                const chartWidth = mainContainerRef.current?.clientWidth || 1;
-                const totalLogical = panStartLogical.to - panStartLogical.from;
-                const logicalDelta = (pixelDelta / chartWidth) * totalLogical;
-                mainChart.timeScale().setVisibleLogicalRange({
-                    from: panStartLogical.from - logicalDelta,
-                    to: panStartLogical.to - logicalDelta,
-                });
-            }
-        };
-        const onPanMouseUp = () => {
-            if (priceScrollStarted) {
-                model._internal_endScrollPrice(internalPane, internalPriceScale);
-            }
-            isPanning = false;
-            isVerticalPan = false;
-            priceScrollStarted = false;
-            panStartLogical = null;
-        };
-
-        mainContainerRef.current?.addEventListener("mousedown", onPanMouseDown);
-        window.addEventListener("mousemove", onPanMouseMove);
-        window.addEventListener("mouseup", onPanMouseUp);
-
         return () => {
-            mainContainerRef.current?.removeEventListener("mousedown", onPanMouseDown);
-            window.removeEventListener("mousemove", onPanMouseMove);
-            window.removeEventListener("mouseup", onPanMouseUp);
             ro.disconnect();
             mainChart.unsubscribeCrosshairMove(onMainCrosshairMove);
             mainChart.timeScale().unsubscribeVisibleLogicalRangeChange(onMainRangeChange);

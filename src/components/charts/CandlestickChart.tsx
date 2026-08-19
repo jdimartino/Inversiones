@@ -252,7 +252,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
             </div>
 
             {/* ── Info bar (OHLCV + indicators + positions) ── */}
-            <div className="flex items-center gap-2 text-[10px] font-mono leading-none overflow-x-auto scrollbar-thin">
+            <div className="flex items-center gap-2 text-[10px] font-mono leading-none overflow-hidden">
                 {legend && (
                     <>
                         <span className="text-slate-500 whitespace-nowrap">{legend.time}</span>
