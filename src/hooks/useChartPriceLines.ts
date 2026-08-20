@@ -54,7 +54,7 @@ export function useChartPriceLines({
             });
             alertPriceLinesRef.current.push(line);
         });
-    }, [watchlistAlerts, selectedCoin]);
+    }, [watchlistAlerts, selectedCoin, candleSeriesRef]);
 
     // Price lines: remove old, add new
     useEffect(() => {
@@ -103,5 +103,5 @@ export function useChartPriceLines({
         defs.forEach((d) => {
             priceLinesRef.current.push(candleSeriesRef.current!.createPriceLine(d));
         });
-    }, [selectedCoin, selectedInterval, aggregated, items, sales, currentKlines, futuresPositions]);
+    }, [selectedCoin, selectedInterval, aggregated, items, sales, currentKlines, futuresPositions, candleSeriesRef]);
 }

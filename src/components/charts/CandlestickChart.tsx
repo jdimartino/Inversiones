@@ -203,7 +203,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
         };
         if (showExplorer) document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, [showExplorer]);
+    }, [showExplorer, explorerRef, setExplorerError, setShowExplorer]);
 
     if (coins.length === 0) return null;
 

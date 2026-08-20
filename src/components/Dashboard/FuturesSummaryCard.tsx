@@ -24,7 +24,7 @@ const FuturesSummaryCard: React.FC<FuturesSummaryCardProps> = ({
         );
     }
 
-    const { account, positions } = futuresData;
+    const { positions } = futuresData;
     const openPositions = positions.length;
 
     return (
