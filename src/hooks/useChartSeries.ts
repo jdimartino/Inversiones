@@ -232,6 +232,7 @@ export function useChartSeries({
             rsiChart.remove();
             macdChart.remove();
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-once; dynamic geometry handled by effect below
     }, []);
 
     // Handle dynamic heights when panels open/close or expand toggles
@@ -409,8 +410,40 @@ export function useChartSeries({
         rsi: rsiPointsRef.current, macdLine: macdLinePointsRef.current, macdSignal: macdSignalPointsRef.current,
     }), []);
 
+    // Streaming update: update last candle in-place without re-computing everything
+    const prevCloseTimeRef = useRef<number>(0);
+    const streamingUpdate = useCallback((kline: Kline) => {
+        const candleSeries = candleSeriesRef.current;
+        const volumeSeries = volumeSeriesRef.current;
+        if (!candleSeries) return;
+
+        const time = Math.floor(kline.openTime / 1000) as any;
+
+        // Update candlestick
+        candleSeries.update({ time, open: kline.open, high: kline.high, low: kline.low, close: kline.close });
+
+        // Update volume
+        if (volumeSeries) {
+            volumeSeries.update({
+                time,
+                value: kline.volume,
+                color: kline.close >= kline.open ? "#4ade8055" : "#f8717155",
+            });
+        }
+
+        // Only re-compute indicators when candle closes
+        if (kline.closeTime !== prevCloseTimeRef.current) {
+            prevCloseTimeRef.current = kline.closeTime;
+
+            // Need full klines array — trigger via main useEffect (klines prop change handles this)
+            // The updateLastKline in useChartKlines already updates the klines array,
+            // which triggers the main useEffect in this hook to re-compute everything.
+        }
+    }, []);
+
     return {
         mainChartRef, candleSeriesRef, volumeSeriesRef,
         getIndicatorValuesAtTime, getLatestIndicatorValues, getIndicatorPoints,
+        streamingUpdate,
     };
 }

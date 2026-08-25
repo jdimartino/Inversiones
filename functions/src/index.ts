@@ -47,7 +47,8 @@ interface CandleAlertRule {
     direction: 'up' | 'down';
     isPersistent?: boolean;
     note?: string;
-    _lastSide?: 'above' | 'below';
+    _lastCandleOpenTime?: number;
+    _lastTriggered?: boolean;
 }
 
 // ─── Utils ────────────────────────────────────────────────────────────────────
@@ -315,52 +316,140 @@ async function runCheckAlerts() {
     const triggeredCandleMessages: string[] = [];
     const candleDbUpdates: any = {};
 
+    const candleIntervalMs: Record<string, number> = {
+        '4h': 4 * 60 * 60 * 1000,
+        '1d': 24 * 60 * 60 * 1000,
+    };
+
+    const fmtCandleRange = (openTime: number, interval: string, tz: string): string => {
+        const openDate = new Date(openTime);
+        const intervalMs = candleIntervalMs[interval] || candleIntervalMs['4h'];
+        const closeDate = new Date(openTime + intervalMs);
+        const tzHour: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', timeZone: tz };
+        const tzFull: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: tz };
+        if (interval === '1d') {
+            const o = openDate.toLocaleDateString('es-ES', tzFull);
+            const c = closeDate.toLocaleDateString('es-ES', tzFull);
+            return `${o} → ${c}`;
+        }
+        const o = openDate.toLocaleTimeString('es-ES', tzHour);
+        const c = closeDate.toLocaleTimeString('es-ES', tzHour);
+        return `${o} → ${c}`;
+    };
+
+    const speedLabel = (hoursElapsed: number): string => {
+        if (hoursElapsed < 1) return '⚡ Movimiento rápido detectado';
+        if (hoursElapsed < 4) return '⚡ Movimiento rápido detectado';
+        return '📊 Movimiento acumulado';
+    };
+
     for (const [coin, rules] of Object.entries(candleAlerts)) {
         const symbol = `${coin}USDT`;
         const currentPrice = prices[symbol] || 0;
         if (currentPrice === 0) continue;
-        const updatedRules: CandleAlertRule[] = [];
 
-        for (const rule of rules) {
-            if (rule.type !== 'candle_change') { updatedRules.push(rule); continue; }
+        const candleRules = rules.filter(r => r.type === 'candle_change');
+        const nonCandleRules = rules.filter(r => r.type !== 'candle_change');
+        const updatedRules: CandleAlertRule[] = [...nonCandleRules];
 
+        const intervals = [...new Set(candleRules.map(r => r.interval))];
+        const klineCache: Record<string, any> = {};
+
+        for (const interval of intervals) {
             let klineData: any[];
             try {
                 const { data } = await axios.get(`https://api.binance.com/api/v3/klines`, {
-                    params: { symbol, interval: rule.interval, limit: 2 },
+                    params: { symbol, interval, limit: 2 },
                 });
                 klineData = data;
             } catch (e: any) {
-                console.error(`[CandleAlert] Error fetching klines for ${coin}:`, e.message);
-                updatedRules.push(rule);
+                console.error(`[CandleAlert] Error fetching klines for ${coin}/${interval}:`, e.message);
+                for (const rule of candleRules.filter(r => r.interval === interval)) updatedRules.push(rule);
                 continue;
             }
+            klineCache[interval] = klineData;
+        }
+
+        const triggeredLevels: { threshold: number; direction: string }[] = [];
+        let sharedOpen = 0, sharedClose = 0, sharedOpenTime = 0;
+        let sharedInterval = '';
+        let sharedTimeElapsedH = 0;
+        let sharedHours = 0, sharedMinutes = 0;
+
+        for (const rule of candleRules) {
+            const klineData = klineCache[rule.interval];
+            if (!klineData) { updatedRules.push(rule); continue; }
 
             const currentKline = klineData[klineData.length - 1];
+            const openTime = currentKline[0];
             const open = parseFloat(currentKline[1]);
             const close = parseFloat(currentKline[4]);
             const changePct = ((close - open) / open) * 100;
             const threshold = rule.targetPercent;
-            const currentSide: 'above' | 'below' = changePct >= threshold ? 'above' : 'below';
-            const prevSide = rule._lastSide;
-            const conditionMet = rule.direction === 'up' ? changePct >= threshold : changePct <= -threshold;
-            const isTriggered = conditionMet && (!rule.isPersistent || prevSide === undefined || prevSide !== currentSide);
 
-            if (isTriggered) {
-                const emoji = changePct >= 0 ? '📈' : '📉';
-                triggeredCandleMessages.push(
-                    `${emoji} *${coin}* — Vela ${rule.interval.toUpperCase()}: *${pnlSign(changePct)}${changePct.toFixed(2)}%*\n` +
-                    `   Meta: ${rule.direction === 'up' ? '🔼' : '🔽'} Variación ${rule.direction === 'up' ? '>=' : '<='} ${threshold}%\n` +
-                    `   Apertura: ${fmtPrice(open)} · Cierre: ${fmtPrice(close)}` +
-                    (rule.note ? `\n   _📝 ${rule.note}_` : '')
-                );
+            if (rule._lastCandleOpenTime !== openTime) {
+                rule._lastCandleOpenTime = openTime;
+                rule._lastTriggered = false;
+            }
+
+            const isInTriggerZone = rule.direction === 'up'
+                ? changePct >= threshold
+                : changePct <= -threshold;
+
+            const shouldTrigger = isInTriggerZone && !rule._lastTriggered;
+
+            if (shouldTrigger) {
+                triggeredLevels.push({ threshold, direction: rule.direction });
+
+                if (triggeredLevels.length === 1) {
+                    const now = new Date();
+                    const openDate = new Date(openTime);
+                    const timeElapsedMs = now.getTime() - openDate.getTime();
+                    sharedOpenTime = openTime;
+                    sharedOpen = open;
+                    sharedClose = close;
+                    sharedInterval = rule.interval;
+                    sharedTimeElapsedH = timeElapsedMs / 3600000;
+                    sharedHours = Math.floor(timeElapsedMs / 3600000);
+                    sharedMinutes = Math.floor((timeElapsedMs % 3600000) / 60000);
+                }
+
                 console.log(`[CANDLE ALERT] ${coin} ${rule.interval}: ${changePct.toFixed(2)}% — Target: ${rule.direction === 'up' ? '>=' : '<='} ${threshold}%`);
-                if (rule.isPersistent) { updatedRules.push({ ...rule, _lastSide: currentSide }); }
+
+                if (rule.isPersistent) {
+                    updatedRules.push({ ...rule, _lastCandleOpenTime: openTime, _lastTriggered: true });
+                }
             } else {
-                if (rule.isPersistent) { updatedRules.push({ ...rule, _lastSide: currentSide }); }
-                else { updatedRules.push(rule); }
+                updatedRules.push({ ...rule, _lastCandleOpenTime: openTime, _lastTriggered: isInTriggerZone });
             }
         }
+
+        if (triggeredLevels.length > 0) {
+            const now = new Date();
+            const tz = 'America/Caracas';
+            const speed = sharedTimeElapsedH > 0 ? Math.abs((sharedClose - sharedOpen) / sharedOpen * 100) / sharedTimeElapsedH : 0;
+            const changePct = ((sharedClose - sharedOpen) / sharedOpen) * 100;
+            const emoji = changePct >= 0 ? '📈' : '📉';
+            const levelsStr = triggeredLevels.map(l => `${l.direction === 'up' ? '+' : '-'}${l.threshold}%`).join(' · ');
+            const nowStr = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: tz });
+            const candleRange = fmtCandleRange(sharedOpenTime, sharedInterval, tz);
+            const label = speedLabel(sharedTimeElapsedH);
+
+            triggeredCandleMessages.push(
+                `🚨 *MOVIMIENTO ${coin}*\n\n` +
+                `${emoji} ${pnlSign(changePct)}${changePct.toFixed(2)}%\n` +
+                `🎯 Niveles alcanzados: ${levelsStr}\n\n` +
+                `Datos de la vela:\n` +
+                `🕐 Vela ${sharedInterval.toUpperCase()}: ${candleRange}\n` +
+                `🔍 Detectado por el sistema: ${nowStr}\n` +
+                `⏱️ Desde apertura: ${sharedHours}h ${sharedMinutes}m\n\n` +
+                `💰 Apertura: ${fmtPrice(sharedOpen)}\n` +
+                `💰 Precio al detectar: ${fmtPrice(sharedClose)}\n\n` +
+                `${label}\n` +
+                `⚡ Ritmo promedio: ${speed.toFixed(2)}%/h`
+            );
+        }
+
         if (updatedRules.length === 0) { candleDbUpdates[`candleAlerts.${coin}`] = admin.firestore.FieldValue.delete(); }
         else { candleDbUpdates[`candleAlerts.${coin}`] = updatedRules; }
     }
@@ -615,7 +704,8 @@ const BINANCE_SECRET = defineSecret("FUNCTIONS_CONFIG_EXPORT");
 
 async function binanceSignedRequest(
     path: string,
-    params: Record<string, string> = {}
+    params: Record<string, string> = {},
+    method: "GET" | "POST" = "GET"
 ): Promise<any> {
     const bConfig = JSON.parse(BINANCE_SECRET.value() as string).binance;
     if (!bConfig?.api_key || !bConfig?.api_secret) {
@@ -629,7 +719,9 @@ async function binanceSignedRequest(
     const isFapi = path.startsWith("/fapi");
     const baseUrl = isFapi ? "https://fapi.binance.com" : "https://api.binance.com";
     const url = `${baseUrl}${path}?${qs}&signature=${signature}`;
-    const { data } = await axios.get(url, {
+    const { data } = await axios({
+        method,
+        url,
         headers: { "X-MBX-APIKEY": apiKey },
         timeout: 10000,
     });
@@ -656,11 +748,11 @@ export const getBinanceWallet = functions
                     if (total > 0) spot[asset.asset] = total;
                 }
             }
-            const futuresData = await binanceSignedRequest("/fapi/v2/balance");
+            const fundingRaw = await binanceSignedRequest("/sapi/v1/asset/get-funding-asset", {}, "POST");
             const funding: Record<string, number> = {};
-            if (Array.isArray(futuresData)) {
-                for (const b of futuresData) {
-                    const bal = parseFloat(b.balance || "0");
+            if (Array.isArray(fundingRaw)) {
+                for (const b of fundingRaw) {
+                    const bal = parseFloat(b.free || "0");
                     if (bal > 0) funding[b.asset] = bal;
                 }
             }

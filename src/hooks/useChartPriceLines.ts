@@ -17,6 +17,7 @@ interface UseChartPriceLinesParams {
     aggregated: AggregatedAsset[];
     currentKlines: Kline[];
     watchlistAlerts?: Record<string, WatchlistAlert[]>;
+    alertLinesVisible?: boolean;
 }
 
 export function useChartPriceLines({
@@ -29,6 +30,7 @@ export function useChartPriceLines({
     aggregated,
     currentKlines,
     watchlistAlerts,
+    alertLinesVisible = true,
 }: UseChartPriceLinesParams) {
     // Price line refs
     const priceLinesRef = useRef<ReturnType<ISeriesApi<"Candlestick">["createPriceLine"]>[]>([]);
@@ -42,6 +44,7 @@ export function useChartPriceLines({
             try { candleSeriesRef.current!.removePriceLine(line); } catch {}
         });
         alertPriceLinesRef.current = [];
+        if (!alertLinesVisible) return;
         const activeAlerts = watchlistAlerts?.[selectedCoin] ?? [];
         activeAlerts.forEach(alert => {
             const line = candleSeriesRef.current!.createPriceLine({
@@ -54,7 +57,7 @@ export function useChartPriceLines({
             });
             alertPriceLinesRef.current.push(line);
         });
-    }, [watchlistAlerts, selectedCoin, candleSeriesRef]);
+    }, [watchlistAlerts, selectedCoin, alertLinesVisible, candleSeriesRef]);
 
     // Price lines: remove old, add new
     useEffect(() => {

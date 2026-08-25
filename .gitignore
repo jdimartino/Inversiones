@@ -6,12 +6,18 @@ history/
 **/.env.local
 **/.env.*
 
+# macOS
+.DS_Store
+
 # Generated source maps
 *.js.map
 
 # Firebase hosting cache
 .firebase/
 firebase-debug.log
+
+# Build output
+build/
 
 # Functions build output
 functions/lib/

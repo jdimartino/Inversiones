@@ -71,11 +71,16 @@ export function useFuturesAlerts() {
         setAlerts(newAlerts);
         try {
             const docRef = doc(db, "config", "alerts");
-            await setDoc(docRef, { futuresAlerts: newAlerts }, { merge: true });
+            // Preserve _lastAlertedMargin from current state if not in newAlerts
+            const toSave: FuturesAlertConfig = {
+                ...newAlerts,
+                _lastAlertedMargin: newAlerts._lastAlertedMargin ?? alerts._lastAlertedMargin ?? null,
+            };
+            await setDoc(docRef, { futuresAlerts: toSave }, { merge: true });
         } catch (err) {
             console.error("Error saving futures alerts", err);
         }
-    }, []);
+    }, [alerts._lastAlertedMargin]);
 
     return { alerts, loading, saveAlerts };
 }

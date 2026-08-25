@@ -17,6 +17,7 @@ export function useChartKlines({ coins, initialCoin, klinesMap = {} }: UseChartK
     const [extraKlines, setExtraKlines] = useState<Record<string, Partial<Record<Interval, Kline[]>>>>({});
     const [loading, setLoading] = useState(false);
     const [fetchError, setFetchError] = useState<string>("");
+    const [, setTick] = useState(0); // bump to force re-render on streaming update
 
     // Explorer popover state (Coin Explorer selection)
     const [showExplorer, setShowExplorer] = useState(false);
@@ -108,6 +109,30 @@ export function useChartKlines({ coins, initialCoin, klinesMap = {} }: UseChartK
         }
     }, [klinesMap, extraKlines]);
 
+    // Streaming update: called by WebSocket hook
+    const latestKlinesRef = useRef<Kline[]>([]);
+    const updateLastKline = useCallback((kline: Kline) => {
+        setExtraKlines((prev) => {
+            const coin = selectedCoin;
+            const iv = selectedInterval;
+            const existing = prev[coin]?.[iv] || [];
+            const last = existing[existing.length - 1];
+
+            let updated: Kline[];
+            if (last && last.closeTime === kline.closeTime) {
+                // Same candle — update in place
+                updated = [...existing.slice(0, -1), kline];
+            } else {
+                // New candle — append
+                updated = [...existing, kline];
+            }
+
+            latestKlinesRef.current = updated;
+            return { ...prev, [coin]: { ...prev[coin], [iv]: updated } };
+        });
+        setTick((t) => t + 1);
+    }, [selectedCoin, selectedInterval]);
+
     return {
         selectedCoin,
         setSelectedCoin,
@@ -117,6 +142,7 @@ export function useChartKlines({ coins, initialCoin, klinesMap = {} }: UseChartK
         loading,
         fetchError,
         getCurrentKlines,
+        updateLastKline,
         handleSelectExplorerCoin,
         showExplorer,
         setShowExplorer,

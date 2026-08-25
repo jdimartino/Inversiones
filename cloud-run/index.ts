@@ -11,6 +11,11 @@ function sign(queryString: string, secret: string): string {
     return crypto.createHmac("sha256", secret).update(queryString).digest("hex");
 }
 
+function safeNum(value: unknown, fallback: number = 0): number {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+}
+
 async function binanceGet(path: string, params: Record<string, string>): Promise<any> {
     const timestamp = Date.now();
     const qs = new URLSearchParams({
@@ -36,70 +41,83 @@ async function handleSync(req: any, res: any) {
         // Obtener datos de Binance en paralelo
         const [accountRes, positionRes] = await Promise.all([
             binanceGet("/fapi/v3/account", {}),
-            binanceGet("/fapi/v2/positionRisk", {}),
+            binanceGet("/fapi/v2/positionRisk", { current: "true" }),
         ]);
 
-        // Construir mapa de posiciones
+        // Construir mapa de posiciones por symbol+positionSide (hedge mode)
         const positionMap = new Map<string, any>();
         for (const p of positionRes) {
-            if (parseFloat(p.positionAmt) !== 0) {
-                positionMap.set(p.symbol, p);
+            if (safeNum(p.positionAmt) !== 0) {
+                const posSide = p.positionSide || "BOTH";
+                positionMap.set(`${p.symbol}-${posSide}`, p);
             }
         }
 
         // Procesar posiciones
         const positions: any[] = accountRes.positions
-            .filter((p: any) => parseFloat(p.positionAmt) !== 0)
+            .filter((p: any) => safeNum(p.positionAmt) !== 0)
             .map((p: any) => {
-                const risk = positionMap.get(p.symbol) || {};
-                const entryPrice = parseFloat(risk.entryPrice || "0");
-                const markPrice = parseFloat(risk.markPrice || "0");
-                const liqPrice = parseFloat(risk.liquidationPrice || "0");
-                const unrealizedPnl = parseFloat(p.unrealizedProfit);
+                const posSide = p.positionSide || "BOTH";
+                const risk = positionMap.get(`${p.symbol}-${posSide}`) || {};
+                const entryPrice = safeNum(risk.entryPrice);
+                const markPrice = safeNum(risk.markPrice);
+                const liqPrice = safeNum(risk.liquidationPrice);
+                const unrealizedPnl = safeNum(p.unrealizedProfit);
 
                 let distToLiqPercent = 0;
                 if (liqPrice > 0 && markPrice > 0) {
-                    if (parseFloat(p.positionAmt) > 0) {
+                    if (safeNum(p.positionAmt) > 0) {
                         distToLiqPercent = ((markPrice - liqPrice) / markPrice) * 100;
                     } else {
                         distToLiqPercent = ((liqPrice - markPrice) / markPrice) * 100;
                     }
                 }
 
-                const initialMargin = parseFloat(p.initialMargin);
+                const initialMargin = safeNum(p.initialMargin);
                 const roe = initialMargin > 0 ? (unrealizedPnl / initialMargin) * 100 : 0;
+
+                // Derive side: use positionSide if hedge mode, else positionAmt sign
+                let side: "LONG" | "SHORT";
+                if (posSide === "LONG") side = "LONG";
+                else if (posSide === "SHORT") side = "SHORT";
+                else side = safeNum(p.positionAmt) > 0 ? "LONG" : "SHORT";
 
                 return {
                     symbol: p.symbol,
-                    side: parseFloat(p.positionAmt) > 0 ? "LONG" : "SHORT",
-                    size: Math.abs(parseFloat(p.positionAmt)),
-                    notional: Math.abs(parseFloat(p.notional)),
+                    side,
+                    size: Math.abs(safeNum(p.positionAmt)),
+                    notional: Math.abs(safeNum(p.notional)),
                     entryPrice,
                     markPrice,
                     liquidationPrice: liqPrice,
-                    leverage: parseInt(risk.leverage || "1"),
+                    leverage: Math.max(1, Math.round(safeNum(risk.leverage, 1))),
                     unrealizedPnl,
                     initialMargin,
-                    maintMargin: parseFloat(p.maintMargin),
+                    maintMargin: safeNum(p.maintMargin),
                     marginType: risk.marginType || "cross",
-                    breakEvenPrice: parseFloat(risk.breakEvenPrice || "0"),
-                    distToLiqPercent,
+                    breakEvenPrice: safeNum(risk.breakEvenPrice),
+                    distToLiqPercent: Math.max(0, distToLiqPercent),
                     roe,
-                    updateTime: p.updateTime,
-                    fundingRate: parseFloat(risk.lastFundingRate || "0"),
+                    updateTime: safeNum(p.updateTime),
+                    fundingRate: safeNum(risk.lastFundingRate),
                 };
             });
 
-        // Datos de cuenta
+        // Datos de cuenta — usa la misma fórmula que CF/browser
+        const totalMaintMargin = safeNum(accountRes.totalMaintMargin);
+        const totalMarginBalance = safeNum(accountRes.totalMarginBalance);
+
         const account = {
-            totalWalletBalance: parseFloat(accountRes.totalWalletBalance),
-            totalUnrealizedProfit: parseFloat(accountRes.totalUnrealizedProfit),
-            totalMarginBalance: parseFloat(accountRes.totalMarginBalance),
-            totalInitialMargin: parseFloat(accountRes.totalInitialMargin),
-            totalMaintMargin: parseFloat(accountRes.totalMaintMargin),
-            availableBalance: parseFloat(accountRes.availableBalance),
-            maxWithdrawAmount: parseFloat(accountRes.maxWithdrawAmount),
-            marginRatio: parseFloat(accountRes.marginRatio) || 0,
+            totalWalletBalance: safeNum(accountRes.totalWalletBalance),
+            totalUnrealizedProfit: safeNum(accountRes.totalUnrealizedProfit),
+            totalMarginBalance,
+            totalInitialMargin: safeNum(accountRes.totalInitialMargin),
+            totalMaintMargin,
+            availableBalance: safeNum(accountRes.availableBalance),
+            maxWithdrawAmount: safeNum(accountRes.maxWithdrawAmount),
+            marginRatio: totalMarginBalance > 0
+                ? (totalMaintMargin / totalMarginBalance) * 100
+                : 0,
         };
 
         // Guardar en Firestore

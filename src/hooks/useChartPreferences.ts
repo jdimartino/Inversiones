@@ -12,6 +12,7 @@ export interface ChartPreferences {
     rsiOpen: boolean;
     macdOpen: boolean;
     signalsVisible: boolean;
+    alertLinesVisible: boolean;
     expanded: boolean;
 }
 
@@ -25,6 +26,7 @@ const DEFAULTS: ChartPreferences = {
     rsiOpen: false,
     macdOpen: false,
     signalsVisible: true,
+    alertLinesVisible: true,
     expanded: false,
 };
 

@@ -12,6 +12,7 @@ import { useMeasureTool } from "../../hooks/useMeasureTool";
 import { useChartIndicatorValues } from "../../hooks/useChartIndicatorValues";
 import { useChartSignals } from "../../hooks/useChartSignals";
 import { useChartPreferences } from "../../hooks/useChartPreferences";
+import { useKlineWebSocket } from "../../hooks/useKlineWebSocket";
 import { calcVolumeRatio } from "../../lib/indicators";
 import { fmtVol } from "./candlestick/chartUtils";
 import MeasureTool from "./candlestick/MeasureTool";
@@ -38,7 +39,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
         selectedCoin, setSelectedCoin: setCoinRaw,
         selectedInterval, setSelectedInterval: setIntervalRaw,
         currentKlines, loading, fetchError,
-        getCurrentKlines,
+        getCurrentKlines, updateLastKline,
         handleSelectExplorerCoin,
         showExplorer, setShowExplorer,
         explorerInput, setExplorerInput,
@@ -59,12 +60,12 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
         updatePref("selectedInterval", next);
     };
 
-    // Sync initial interval from prefs
+    // Sync initial interval from prefs (mount-once — do not run on every interval change)
     useEffect(() => {
         if (prefs.selectedInterval && prefs.selectedInterval !== selectedInterval) {
             setIntervalRaw(prefs.selectedInterval as typeof selectedInterval);
         }
-    }, []);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const [expanded, setExpandedRaw] = useState(prefs.expanded);
     const setExpanded = (v: boolean | ((prev: boolean) => boolean)) => {
@@ -93,6 +94,8 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
     const [sma200Visible, setSma200Visible] = useState(prefs.sma200Visible);
     const [volumeVisible, setVolumeVisibleRaw] = useState(prefs.volumeVisible);
     const [signalsVisible, setSignalsVisible] = useState(prefs.signalsVisible);
+    const [alertLinesVisible, setAlertLinesVisible] = useState(prefs.alertLinesVisible);
+    const [showSignalLegend, setShowSignalLegend] = useState(false);
 
     const setVolumeVisible = (v: boolean | ((prev: boolean) => boolean)) => {
         const next = typeof v === "function" ? v(volumeVisible) : v;
@@ -106,6 +109,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
             case "sma50": setSma50Visible(v => { updatePref("sma50Visible", !v); return !v; }); break;
             case "sma200": setSma200Visible(v => { updatePref("sma200Visible", !v); return !v; }); break;
             case "signals": setSignalsVisible(v => { updatePref("signalsVisible", !v); return !v; }); break;
+            case "alertLines": setAlertLinesVisible(v => { updatePref("alertLinesVisible", !v); return !v; }); break;
         }
     };
 
@@ -135,6 +139,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
     const {
         mainChartRef, candleSeriesRef, volumeSeriesRef,
         getIndicatorValuesAtTime, getLatestIndicatorValues, getIndicatorPoints,
+        streamingUpdate,
     } = useChartSeries({
         mainContainerRef: mainChartContainerRef,
         rsiContainerRef,
@@ -169,11 +174,23 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
         enabled: signalsVisible,
     });
 
+    // ── Real-time WebSocket ──────────────────────────────────────
+    const { connected: wsConnected } = useKlineWebSocket({
+        coin: selectedCoin,
+        interval: selectedInterval,
+        enabled: true,
+        onKline: (kline) => {
+            updateLastKline(kline);
+            streamingUpdate(kline);
+        },
+    });
+
     // ── Price lines ───────────────────────────────────────────────
     useChartPriceLines({
         candleSeriesRef, selectedCoin, selectedInterval,
         items, sales, futuresPositions, aggregated, currentKlines,
         watchlistAlerts: config.watchlistAlerts,
+        alertLinesVisible,
     });
 
     // ── Measure tool ──────────────────────────────────────────────
@@ -213,7 +230,7 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
     return (
         <ChartCard>
             {/* ── Header: [Activo] [Timeframe] [Indicadores] [Alerta] [Medir] [Expand] ── */}
-            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-thin">
+            <div className="flex flex-wrap items-center gap-1.5">
                 <CoinExplorer
                     coins={coins} portfolioCoins={portfolioCoins} selectedCoin={selectedCoin}
                     setSelectedCoin={setSelectedCoin} signals={signals}
@@ -229,7 +246,8 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                 <ChartIndicatorMenu
                     ema20Visible={ema20Visible} sma50Visible={sma50Visible}
                     sma200Visible={sma200Visible}
-                    signalsVisible={signalsVisible} onToggle={handleIndicatorToggle}
+                    signalsVisible={signalsVisible} alertLinesVisible={alertLinesVisible}
+                    onToggle={handleIndicatorToggle}
                 />
 
                 <span className="text-slate-600">|</span>
@@ -320,6 +338,11 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                         {priceDir && (
                             <span className={`block text-[10px] font-mono mt-0.5 ${priceColor}`}>
                                 {priceDir === "up" ? "▲" : "▼"} {selectedCoin}
+                                <span
+                                    className="inline-block w-1.5 h-1.5 rounded-full ml-1.5 align-middle"
+                                    style={{ backgroundColor: wsConnected ? "#22c55e" : "#ef4444" }}
+                                    title={wsConnected ? "WebSocket conectado" : "WebSocket desconectado"}
+                                />
                             </span>
                         )}
                     </div>
@@ -362,9 +385,38 @@ const CandlestickChart: React.FC<CandlestickChartProps> = ({
                     </div>
                 )}
 
+                {/* Signal legend toggle + panel */}
+                <div className="absolute bottom-1 left-2 z-20 pointer-events-auto">
+                    <button
+                        onClick={() => setShowSignalLegend(v => !v)}
+                        className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-700/80 text-slate-400 hover:bg-slate-600 hover:text-slate-300 transition-colors"
+                    >
+                        {showSignalLegend ? "✕ Señales" : "? Señales"}
+                    </button>
+                    {showSignalLegend && (
+                        <div className="absolute bottom-6 left-0 bg-slate-900/95 border border-slate-700 rounded p-2 min-w-[180px] text-[9px] font-mono leading-relaxed z-30">
+                            {[
+                                { letter: "G", label: "Golden Cross", desc: "EMA20 > SMA50", color: "#22c55e" },
+                                { letter: "D", label: "Death Cross", desc: "EMA20 < SMA50", color: "#ef4444" },
+                                { letter: "M+", label: "MACD Cross +", desc: "MACD > Señal", color: "#38bdf8" },
+                                { letter: "M-", label: "MACD Cross −", desc: "MACD < Señal", color: "#f97316" },
+                                { letter: "OB", label: "Overbought", desc: "RSI > 70", color: "#ef4444" },
+                                { letter: "OS", label: "Oversold", desc: "RSI < 30", color: "#22c55e" },
+                                { letter: "V", label: "Volume Spike", desc: "Vol alto", color: "#22d3ee" },
+                            ].map(s => (
+                                <div key={s.letter} className="flex items-center gap-2">
+                                    <span className="font-bold w-5 text-center" style={{ color: s.color }}>{s.letter}</span>
+                                    <span className="text-slate-400">{s.label}</span>
+                                    <span className="text-slate-600 ml-auto">{s.desc}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
                 {/* Panel toggle buttons when closed — shown at bottom of chart */}
                 {(!rsiOpen || !macdOpen) && (
-                    <div className="absolute bottom-1 left-2 z-20 flex items-center gap-1 pointer-events-auto">
+                    <div className="absolute bottom-1 left-[80px] z-20 flex items-center gap-1 pointer-events-auto">
                         {!rsiOpen && (
                             <button onClick={() => setRsiOpen(true)} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-700/80 text-violet-400 hover:bg-slate-600 transition-colors">
                                 <span>RSI</span><span className="text-slate-500">▸</span>

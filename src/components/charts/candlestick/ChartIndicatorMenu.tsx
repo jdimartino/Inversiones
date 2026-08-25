@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { BarChart3, ChevronDown } from "lucide-react";
 
 interface ChartIndicatorMenuProps {
@@ -6,34 +7,49 @@ interface ChartIndicatorMenuProps {
     sma50Visible: boolean;
     sma200Visible: boolean;
     signalsVisible: boolean;
+    alertLinesVisible: boolean;
     onToggle: (key: string) => void;
 }
 
 const ChartIndicatorMenu: React.FC<ChartIndicatorMenuProps> = ({
-    ema20Visible, sma50Visible, sma200Visible, signalsVisible, onToggle,
+    ema20Visible, sma50Visible, sma200Visible, signalsVisible, alertLinesVisible, onToggle,
 }) => {
     const [open, setOpen] = useState(false);
-    const ref = useRef<HTMLDivElement>(null);
+    const btnRef = useRef<HTMLButtonElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
+    const [menuPos, setMenuPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+
+    const updatePos = useCallback(() => {
+        if (!btnRef.current) return;
+        const rect = btnRef.current.getBoundingClientRect();
+        setMenuPos({ top: rect.bottom + 4, left: rect.left });
+    }, []);
 
     useEffect(() => {
         if (!open) return;
+        updatePos();
         const handler = (e: MouseEvent) => {
-            if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+            if (
+                btnRef.current && !btnRef.current.contains(e.target as Node) &&
+                menuRef.current && !menuRef.current.contains(e.target as Node)
+            ) setOpen(false);
         };
         document.addEventListener("mousedown", handler);
         return () => document.removeEventListener("mousedown", handler);
-    }, [open]);
+    }, [open, updatePos]);
 
     const items = [
         { key: "ema20", label: "EMA 20", visible: ema20Visible },
         { key: "sma50", label: "SMA 50", visible: sma50Visible },
         { key: "sma200", label: "SMA 200", visible: sma200Visible },
         { key: "signals", label: "Señales", visible: signalsVisible },
+        { key: "alertLines", label: "🔔 Alertas", visible: alertLinesVisible },
     ];
 
     return (
-        <div className="relative" ref={ref}>
+        <>
             <button
+                ref={btnRef}
                 onClick={() => setOpen(v => !v)}
                 className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold border transition-all duration-150 ${
                     open
@@ -46,8 +62,12 @@ const ChartIndicatorMenu: React.FC<ChartIndicatorMenuProps> = ({
                 <ChevronDown className={`w-2.5 h-2.5 transition-transform ${open ? "rotate-180" : ""}`} />
             </button>
 
-            {open && (
-                <div className="absolute top-full left-0 mt-1 z-50 bg-slate-800 border border-slate-600/60 rounded-lg p-2 shadow-2xl min-w-[160px]">
+            {open && createPortal(
+                <div
+                    ref={menuRef}
+                    className="fixed z-[9999] bg-slate-800 border border-slate-600/60 rounded-lg p-2 shadow-2xl min-w-[160px]"
+                    style={{ top: menuPos.top, left: menuPos.left }}
+                >
                     {items.map(item => (
                         <label
                             key={item.key}
@@ -64,9 +84,10 @@ const ChartIndicatorMenu: React.FC<ChartIndicatorMenuProps> = ({
                             </span>
                         </label>
                     ))}
-                </div>
+                </div>,
+                document.body
             )}
-        </div>
+        </>
     );
 };
 

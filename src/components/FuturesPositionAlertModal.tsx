@@ -26,6 +26,7 @@ export default function FuturesPositionAlertModal({
         (direction === "up" && currentAlertValue >= targetValue) ||
         (direction === "down" && currentAlertValue <= targetValue)
     );
+    const canAdd = targetValue !== 0 && !isNaN(targetValue);
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -195,6 +196,14 @@ export default function FuturesPositionAlertModal({
                         </div>
                     </div>
 
+                    {/* Current value indicator */}
+                    <div className="bg-[#0E1014] rounded-lg p-3 border border-gray-800 flex items-center justify-between">
+                        <span className="text-xs text-gray-500">Actual</span>
+                        <span className={`text-sm font-mono font-bold ${currentAlertValue >= 0 ? "text-green-400" : "text-red-400"}`}>
+                            {alertType === "roe" ? `${currentAlertValue >= 0 ? "+" : ""}${currentAlertValue.toFixed(2)}%` : `${currentAlertValue >= 0 ? "+" : ""}$${Math.abs(currentAlertValue).toFixed(2)}`}
+                        </span>
+                    </div>
+
                     {/* Warning: already triggered */}
                     {isAlreadyTriggered && (
                         <p className="text-center text-[10px] font-bold mb-1.5 text-yellow-400">
@@ -217,7 +226,12 @@ export default function FuturesPositionAlertModal({
                     {/* Add button */}
                     <button
                         onClick={handleAdd}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-yellow-500 text-black font-medium text-sm hover:bg-yellow-400 transition-colors"
+                        disabled={!canAdd}
+                        className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                            canAdd
+                                ? "bg-yellow-500 text-black hover:bg-yellow-400"
+                                : "bg-gray-800 text-gray-500 cursor-not-allowed"
+                        }`}
                     >
                         <Plus size={16} />
                         Agregar alerta
@@ -229,13 +243,22 @@ export default function FuturesPositionAlertModal({
                     <div className="px-4 pb-4">
                         <div className="text-sm text-gray-400 mb-2">Alertas configuradas</div>
                         <div className="space-y-2">
-                            {draftAlerts.map((alert, index) => (
+                            {draftAlerts.map((alert, index) => {
+                                const val = alert.type === "roe" ? position.roe : position.unrealizedPnl;
+                                const triggered = alert.direction === "up"
+                                    ? val >= alert.targetValue
+                                    : val <= alert.targetValue;
+                                return (
                                 <div
                                     key={index}
-                                    className="flex items-center justify-between bg-[#0E1014] rounded-lg px-3 py-2 border border-gray-800"
+                                    className={`flex items-center justify-between rounded-lg px-3 py-2 border transition-colors ${
+                                        triggered
+                                            ? "bg-yellow-500/10 border-yellow-500/30"
+                                            : "bg-[#0E1014] border-gray-800 hover:border-gray-700"
+                                    }`}
                                 >
-                                    <div className="flex items-center gap-2">
-                                        <Bell size={14} className="text-yellow-400" />
+                                    <div className="flex items-center gap-2 flex-wrap min-w-0">
+                                        <Bell size={14} className="text-yellow-400 flex-shrink-0" />
                                         <span className="text-white text-sm">
                                             {alert.type === "roe" ? "ROE %" : "ROE USD"}{" "}
                                             {alert.direction === "up" ? ">=" : "<="}{" "}
@@ -244,18 +267,24 @@ export default function FuturesPositionAlertModal({
                                         <span className="text-xs text-gray-500">
                                             ({alert.isPersistent ? "siempre" : "una vez"})
                                         </span>
+                                        {triggered && (
+                                            <span className="text-[10px] text-yellow-400 font-medium bg-yellow-500/20 px-1.5 py-0.5 rounded">
+                                                ✓ activa
+                                            </span>
+                                        )}
                                         {alert.note && (
-                                            <span className="text-xs text-gray-600">— {alert.note}</span>
+                                            <span className="text-xs text-gray-600 truncate">— {alert.note}</span>
                                         )}
                                     </div>
                                     <button
                                         onClick={() => handleRemove(index)}
-                                        className="text-gray-500 hover:text-red-400 transition-colors"
+                                        className="text-gray-500 hover:text-red-400 transition-colors flex-shrink-0 ml-2"
                                     >
                                         <Trash2 size={14} />
                                     </button>
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 )}

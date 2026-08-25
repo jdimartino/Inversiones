@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { getFirestore, doc, setDoc } from "firebase/firestore";
 import { fetchBinanceFutures } from "../lib/binanceFutures";
+import { safeNum } from "../lib/futures";
 
 interface SyncFuturesResult {
     success: boolean;
@@ -11,76 +12,92 @@ interface SyncFuturesResult {
 export function useFuturesSync() {
     const syncRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const isMountedRef = useRef(false);
+    const isSyncingRef = useRef(false);
 
-    // ⚠️ La CF signBinanceRequest NO requiere Firebase Auth (no verifica context.auth).
-    // Se eliminó el chequeo de autenticación que bloqueaba la sincronización cuando
-    // Anonymous Auth no está habilitado en el proyecto Firebase.
     const syncFutures = useCallback(async (): Promise<SyncFuturesResult> => {
+        // Prevent concurrent syncs
+        if (isSyncingRef.current) {
+            return { success: false, message: "Sync already in progress" };
+        }
+        isSyncingRef.current = true;
+
         try {
             const [accountRes, positionRes] = await Promise.all([
                 fetchBinanceFutures("/fapi/v3/account", {}),
                 fetchBinanceFutures("/fapi/v2/positionRisk", { current: "true" }),
             ]);
 
+            // Build position risk map keyed by symbol+positionSide (handles hedge mode)
             const positionMap = new Map<string, any>();
             for (const p of positionRes) {
-                if (parseFloat(p.positionAmt) !== 0) {
-                    positionMap.set(p.symbol, p);
+                if (safeNum(p.positionAmt) !== 0) {
+                    const posSide = p.positionSide || "BOTH";
+                    positionMap.set(`${p.symbol}-${posSide}`, p);
                 }
             }
 
             const positions: any[] = (accountRes.positions || [])
-                .filter((p: any) => parseFloat(p.positionAmt) !== 0)
+                .filter((p: any) => safeNum(p.positionAmt) !== 0)
                 .map((p: any) => {
-                    const risk = positionMap.get(p.symbol) || {};
-                    const entryPrice = parseFloat(risk.entryPrice || "0");
-                    const markPrice = parseFloat(risk.markPrice || "0");
-                    const liqPrice = parseFloat(risk.liquidationPrice || "0");
-                    const unrealizedPnl = parseFloat(p.unrealizedProfit);
+                    const posSide = p.positionSide || "BOTH";
+                    const risk = positionMap.get(`${p.symbol}-${posSide}`) || {};
+                    const entryPrice = safeNum(risk.entryPrice);
+                    const markPrice = safeNum(risk.markPrice);
+                    const liqPrice = safeNum(risk.liquidationPrice);
+                    const unrealizedPnl = safeNum(p.unrealizedProfit);
 
                     let distToLiqPercent = 0;
                     if (liqPrice > 0 && markPrice > 0) {
-                        if (parseFloat(p.positionAmt) > 0) {
+                        if (safeNum(p.positionAmt) > 0) {
                             distToLiqPercent = ((markPrice - liqPrice) / markPrice) * 100;
                         } else {
                             distToLiqPercent = ((liqPrice - markPrice) / markPrice) * 100;
                         }
                     }
 
-                    const initialMargin = parseFloat(p.initialMargin);
+                    const initialMargin = safeNum(p.initialMargin);
                     const roe = initialMargin > 0 ? (unrealizedPnl / initialMargin) * 100 : 0;
+
+                    // Derive side: use positionSide if hedge mode, else positionAmt sign
+                    let side: "LONG" | "SHORT";
+                    if (posSide === "LONG") side = "LONG";
+                    else if (posSide === "SHORT") side = "SHORT";
+                    else side = safeNum(p.positionAmt) > 0 ? "LONG" : "SHORT";
 
                     return {
                         symbol: p.symbol,
-                        side: parseFloat(p.positionAmt) > 0 ? "LONG" : "SHORT",
-                        size: Math.abs(parseFloat(p.positionAmt)),
-                        notional: Math.abs(parseFloat(p.notional)),
+                        side,
+                        size: Math.abs(safeNum(p.positionAmt)),
+                        notional: Math.abs(safeNum(p.notional)),
                         entryPrice,
                         markPrice,
                         liquidationPrice: liqPrice,
-                        leverage: parseInt(risk.leverage || "1"),
+                        leverage: Math.max(1, Math.round(safeNum(risk.leverage, 1))),
                         unrealizedPnl,
                         initialMargin,
-                        maintMargin: parseFloat(p.maintMargin),
+                        maintMargin: safeNum(p.maintMargin),
                         marginType: risk.marginType || "cross",
-                        breakEvenPrice: parseFloat(risk.breakEvenPrice || "0"),
-                        distToLiqPercent,
+                        breakEvenPrice: safeNum(risk.breakEvenPrice),
+                        distToLiqPercent: Math.max(0, distToLiqPercent),
                         roe,
-                        updateTime: p.updateTime,
-                        fundingRate: parseFloat(risk.lastFundingRate || "0"),
+                        updateTime: safeNum(p.updateTime),
+                        fundingRate: safeNum(risk.lastFundingRate),
                     };
                 });
 
+            const totalMaintMargin = safeNum(accountRes.totalMaintMargin);
+            const totalMarginBalance = safeNum(accountRes.totalMarginBalance);
+
             const account = {
-                totalWalletBalance: parseFloat(accountRes.totalWalletBalance),
-                totalUnrealizedProfit: parseFloat(accountRes.totalUnrealizedProfit),
-                totalMarginBalance: parseFloat(accountRes.totalMarginBalance),
-                totalInitialMargin: parseFloat(accountRes.totalInitialMargin),
-                totalMaintMargin: parseFloat(accountRes.totalMaintMargin),
-                availableBalance: parseFloat(accountRes.availableBalance),
-                maxWithdrawAmount: parseFloat(accountRes.maxWithdrawAmount),
-                marginRatio: parseFloat(accountRes.totalMaintMargin) > 0 && parseFloat(accountRes.totalMarginBalance) > 0
-                    ? (parseFloat(accountRes.totalMaintMargin) / parseFloat(accountRes.totalMarginBalance)) * 100
+                totalWalletBalance: safeNum(accountRes.totalWalletBalance),
+                totalUnrealizedProfit: safeNum(accountRes.totalUnrealizedProfit),
+                totalMarginBalance,
+                totalInitialMargin: safeNum(accountRes.totalInitialMargin),
+                totalMaintMargin,
+                availableBalance: safeNum(accountRes.availableBalance),
+                maxWithdrawAmount: safeNum(accountRes.maxWithdrawAmount),
+                marginRatio: totalMarginBalance > 0
+                    ? (totalMaintMargin / totalMarginBalance) * 100
                     : 0,
             };
 
@@ -102,10 +119,12 @@ export function useFuturesSync() {
         } catch (error: any) {
             console.error("[useFuturesSync] Error:", error?.message, error?.code);
             throw error;
+        } finally {
+            isSyncingRef.current = false;
         }
     }, []);
 
-    // Limpiar intervalos cuando el componente se desmonta
+    // Clean up intervals on unmount
     useEffect(() => {
         isMountedRef.current = true;
 
@@ -118,11 +137,12 @@ export function useFuturesSync() {
         };
     }, []);
 
-    // Iniciar refresco automático cada 5 minutos
+    // Auto-refresh every 5 minutes
     useEffect(() => {
         if (!isMountedRef.current) return;
 
         syncRef.current = setInterval(async () => {
+            if (isSyncingRef.current) return; // skip if already syncing
             try {
                 await syncFutures();
             } catch (error) {

@@ -7,16 +7,24 @@ import {
     AlertTriangle,
     Clock,
     Zap,
-    DollarSign,
-    Target,
     Bell,
     FlaskConical,
     ArrowUp,
     ArrowDown,
     ArrowUpRight,
+    CheckCircle,
+    Info,
+    Wallet,
+    Gauge,
+    Layers,
+    Settings,
+    ChevronDown,
+    ChevronRight,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useFutures, useFuturesAlerts } from "../hooks/useFutures";
 import { useFuturesSync } from "../hooks/useFuturesSync";
+import { useBinanceFuturesMarkPrices, FuturesWSStatus } from "../hooks/useBinanceFuturesWS";
 import {
     FuturesPosition,
     FuturesPositionAlert,
@@ -24,8 +32,8 @@ import {
     FuturesAlertConfig,
     formatPnl,
     formatRoe,
+    safeNum,
     getMarginColor,
-    getMarginBarColor,
     getMarginLabel,
     getMarginLabelColor,
     getDistToLiqColor,
@@ -34,90 +42,213 @@ import {
     getDistToLiqDirectionColor,
     simulateMarketMove,
     findLiquidationThreshold,
+    applyLivePrices,
+    sumUnrealizedPnl,
 } from "../lib/futures";
-import { fmtPercent } from "../lib/format";
+import { fmtPrice, fmtUSD, fmtPercent } from "../lib/format";
 import { PriceDirection } from "../hooks/usePrices";
 import FuturesPositionAlertModal from "./FuturesPositionAlertModal";
 import PositionTradesDetail from "./PositionTradesDetail";
 
-// ─── Position Card ────────────────────────────────────────────────────────────
+type IconType = LucideIcon;
 
-function PositionCard({ pos, priceDirections, onClick }: { pos: FuturesPosition; priceDirections: Record<string, PriceDirection>; onClick?: () => void }) {
+// ─── Live Badge ───────────────────────────────────────────────────────────────
+
+function LiveBadge({ status }: { status: FuturesWSStatus }) {
+    if (status === "live") {
+        return (
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 rounded-full px-1.5 py-0.5 whitespace-nowrap">
+                <span className="relative flex h-1.5 w-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400" />
+                </span>
+                Live
+            </span>
+        );
+    }
+    if (status === "reconnecting" || status === "connecting") {
+        return (
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/25 rounded-full px-1.5 py-0.5 whitespace-nowrap">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+                Reconectando
+            </span>
+        );
+    }
+    return null;
+}
+
+// ─── Primary Stat Card (centered) ─────────────────────────────────────────────
+
+function StatCard({
+    icon: Icon,
+    label,
+    value,
+    valueClass = "text-white",
+    accent,
+}: {
+    icon: IconType;
+    label: string;
+    value: string;
+    valueClass?: string;
+    accent?: "green" | "red";
+}) {
+    return (
+        <div
+            className={`relative rounded-xl border bg-white/[0.03] p-3 sm:p-4 overflow-hidden transition-colors hover:border-white/[0.14] ${
+                accent === "green"
+                    ? "border-emerald-500/25"
+                    : accent === "red"
+                      ? "border-rose-500/25"
+                      : "border-white/[0.07]"
+            }`}
+        >
+            {accent && (
+                <div
+                    className={`absolute top-0 left-0 right-0 h-px ${
+                        accent === "green" ? "bg-emerald-500/50" : "bg-rose-500/50"
+                    }`}
+                />
+            )}
+            <div className="flex flex-col items-center text-center">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                    <Icon size={13} className="text-slate-400 flex-shrink-0" />
+                    <span className="text-[10px] uppercase tracking-wider text-slate-500 font-medium">
+                        {label}
+                    </span>
+                </div>
+                <div className={`text-base sm:text-xl font-bold font-mono tabular-nums leading-tight ${valueClass}`}>
+                    {value}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ─── Mini Stat (centered) ─────────────────────────────────────────────────────
+
+function MiniStat({
+    icon: Icon,
+    label,
+    value,
+    valueClass = "text-white",
+}: {
+    icon: IconType;
+    label: string;
+    value: string;
+    valueClass?: string;
+}) {
+    return (
+        <div className="rounded-lg border border-white/[0.06] bg-white/[0.025] px-2 py-2 flex flex-col items-center text-center gap-0.5 transition-colors hover:border-white/[0.12] min-w-0">
+            <div className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-slate-500 font-medium leading-none">
+                <Icon size={9} className="opacity-60 flex-shrink-0" />
+                <span className="truncate">{label}</span>
+            </div>
+            <div className={`text-xs sm:text-sm font-bold font-mono tabular-nums leading-tight ${valueClass} truncate`}>
+                {value}
+            </div>
+        </div>
+    );
+}
+
+// ─── Distance-to-liquidation explanation panel ────────────────────────────────
+
+function LiqExplanation({ pos }: { pos: FuturesPosition }) {
+    const isLong = pos.side === "LONG";
+    const liqDir = getDistToLiqDirection(pos.side);
+    const liqDirColor = getDistToLiqDirectionColor(pos.side);
+    const hasLiq = pos.liquidationPrice > 0;
+    return (
+        <div className="px-4 py-3 text-[11px] text-slate-400 space-y-1.5 bg-black/20">
+            <div>La barra indica qué tan lejos está el Mark Price del precio de liquidación.</div>
+            <div className="flex items-center gap-2">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
+                <span><span className="text-emerald-400 font-medium">Verde</span> = mayor distancia / menor riesgo.</span>
+            </div>
+            <div className="flex items-center gap-2">
+                <span className="inline-block w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />
+                <span><span className="text-amber-400 font-medium">Amarillo</span> = el precio se acerca / riesgo creciente.</span>
+            </div>
+            <div className="flex items-center gap-2">
+                <span className="inline-block w-2 h-2 rounded-full bg-rose-500 flex-shrink-0" />
+                <span><span className="text-rose-400 font-medium">Rojo</span> = proximidad crítica a liquidación.</span>
+            </div>
+            <div>
+                {isLong ? (
+                    <><span className="text-emerald-400 font-medium">LONG</span>: para acercarse a liquidación, el precio debe <span className="text-rose-400 font-medium">BAJAR</span>.</>
+                ) : (
+                    <><span className="text-rose-400 font-medium">SHORT</span>: para acercarse a liquidación, el precio debe <span className="text-emerald-400 font-medium">SUBIR</span>.</>
+                )}
+            </div>
+            {hasLiq && (
+                <div>Dirección: <span className={`font-medium ${liqDirColor}`}>{liqDir}</span></div>
+            )}
+        </div>
+    );
+}
+
+// ─── Mobile Position Card (compact) ───────────────────────────────────────────
+
+function MobilePositionCard({ pos, onClick }: { pos: FuturesPosition; onClick?: () => void }) {
     const isLong = pos.side === "LONG";
     const pnlPositive = pos.unrealizedPnl >= 0;
-    const distColor = getDistToLiqColor(pos.distToLiqPercent);
-    const distBarColor = getDistToLiqBarColor(pos.distToLiqPercent);
+    const hasLiq = pos.liquidationPrice > 0;
+    const distColor = hasLiq ? getDistToLiqColor(pos.distToLiqPercent) : "text-slate-600";
+    const distBarColor = hasLiq ? getDistToLiqBarColor(pos.distToLiqPercent) : "bg-slate-700";
     const liqDir = getDistToLiqDirection(pos.side);
     const liqDirColor = getDistToLiqDirectionColor(pos.side);
 
     return (
         <div
-            className={`bg-[#0E1014] rounded-xl border border-gray-800 p-4 transition-colors ${onClick ? "cursor-pointer hover:border-blue-500/50" : "hover:border-gray-700"}`}
+            className={`rounded-xl border border-white/[0.06] bg-white/[0.025] overflow-hidden transition-colors ${
+                onClick ? "cursor-pointer hover:border-white/[0.14]" : ""
+            }`}
             onClick={onClick}
         >
-            <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2 flex-1">
-                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${isLong ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"}`}>
-                        {isLong ? "LONG" : "SHORT"}
-                    </span>
-                    <span className="text-white font-bold text-base">{pos.symbol}</span>
-                    <span className="text-gray-500 text-xs">{pos.leverage}x</span>
-                </div>
-                <div className={`flex-1 text-center font-bold ${pnlPositive ? "text-green-400" : "text-red-400"}`}>
-                    {formatPnl(pos.unrealizedPnl)}
-                    <div className="text-xs font-normal text-gray-500">{formatRoe(pos.roe)}</div>
-                </div>
-                <div className="flex-1"></div>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-7 gap-2 sm:gap-3 mb-3">
-                <div>
-                    <div className="text-xs text-gray-500">Entrada</div>
-                    <div className="text-white text-sm font-mono">${pos.entryPrice.toLocaleString()}</div>
-                </div>
-                <div className="text-right sm:text-left">
-                    <div className="text-xs text-gray-500">Break Even</div>
-                    <div className="text-white text-sm font-mono">${pos.breakEvenPrice.toLocaleString()}</div>
-                </div>
-                <div>
-                    <div className="text-xs text-gray-500">Actual</div>
-                    <div className={`text-sm font-mono ${priceDirections[pos.symbol.replace('USDT', '')] === 'up' ? 'text-green-400' : priceDirections[pos.symbol.replace('USDT', '')] === 'down' ? 'text-red-400' : 'text-white'}`}>${pos.markPrice.toLocaleString()}</div>
-                </div>
-                <div className="text-right sm:text-left">
-                    <div className="text-xs text-gray-500">Liquidación</div>
-                    <div className={`text-sm font-mono ${distColor}`}>${pos.liquidationPrice.toLocaleString()}</div>
-                </div>
-                <div>
-                    <div className="text-xs text-gray-500">Tamaño</div>
-                    <div className="text-white text-sm">{pos.size} {pos.symbol.replace("USDT", "")}</div>
-                </div>
-                <div className="text-right sm:text-left">
-                    <div className="text-xs text-gray-500">Valor</div>
-                    <div className="text-white text-sm">${pos.notional.toFixed(2)}</div>
-                </div>
-                <div>
-                    <div className="text-xs text-gray-500">Margen</div>
-                    <div className="text-white text-sm">${pos.initialMargin.toFixed(2)}</div>
-                </div>
-            </div>
-
-            {/* Distance to liquidation bar with direction */}
-            <div>
-                <div className="flex justify-between items-center mb-1">
-                    <span className="text-xs text-gray-500 flex items-center gap-1">
-                        Distancia a liquidación
-                        <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${liqDirColor}`}>
-                            {isLong ? <ArrowDown size={10} /> : <ArrowUp size={10} />}
-                            {liqDir}
+            <div className={`h-0.5 ${isLong ? "bg-emerald-500" : "bg-rose-500"}`} />
+            <div className="p-3">
+                <div className="flex items-center justify-between mb-2.5">
+                    <div className="flex items-center gap-2 min-w-0">
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold flex-shrink-0 ${isLong ? "bg-emerald-500/15 text-emerald-400" : "bg-rose-500/15 text-rose-400"}`}>
+                            {pos.side}
                         </span>
-                    </span>
-                    <span className={`text-xs font-bold ${distColor}`}>{pos.distToLiqPercent.toFixed(1)}%</span>
+                        <span className="text-white font-bold text-sm truncate">{pos.symbol}</span>
+                        <span className="text-slate-500 text-[10px] flex-shrink-0">{pos.leverage}x</span>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                        <div className={`font-bold font-mono text-sm ${pnlPositive ? "text-emerald-400" : "text-rose-400"}`}>
+                            {formatPnl(pos.unrealizedPnl)}
+                        </div>
+                        <div className="text-[10px] text-slate-500 font-mono">{formatRoe(pos.roe)}</div>
+                    </div>
                 </div>
-                <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
-                    <div
-                        className={`h-full rounded-full transition-all duration-500 ${distBarColor}`}
-                        style={{ width: `${Math.min(pos.distToLiqPercent, 100)}%` }}
-                    />
+                <div className="grid grid-cols-3 gap-x-2 gap-y-1.5 mb-2.5">
+                    <div><div className="text-[9px] text-slate-500">Entrada</div><div className="text-white text-xs font-mono">{fmtPrice(pos.entryPrice)}</div></div>
+                    <div><div className="text-[9px] text-slate-500">Actual</div><div className="text-white text-xs font-mono">{fmtPrice(pos.markPrice)}</div></div>
+                    <div><div className="text-[9px] text-slate-500">Break Even</div><div className="text-white text-xs font-mono">{fmtPrice(pos.breakEvenPrice)}</div></div>
+                    <div><div className="text-[9px] text-slate-500">Liquidación</div><div className={`text-xs font-mono ${hasLiq ? distColor : "text-slate-600"}`}>{hasLiq ? fmtPrice(pos.liquidationPrice) : "Sin dato"}</div></div>
+                    <div><div className="text-[9px] text-slate-500">Valor</div><div className="text-white text-xs font-mono">{fmtUSD(pos.notional)}</div></div>
+                    <div><div className="text-[9px] text-slate-500">Margen</div><div className="text-white text-xs font-mono">{fmtUSD(pos.initialMargin)}</div></div>
+                </div>
+                <div>
+                    <div className="flex justify-between items-center mb-1">
+                        <span className="text-[9px] text-slate-500 flex items-center gap-1">
+                            Dist. Liq
+                            {hasLiq && (
+                                <span className={`inline-flex items-center gap-0.5 text-[9px] font-medium ${liqDirColor}`}>
+                                    {isLong ? <ArrowDown size={8} /> : <ArrowUp size={8} />}
+                                    {liqDir}
+                                </span>
+                            )}
+                        </span>
+                        <span className={`text-[10px] font-bold ${distColor}`}>{hasLiq ? `${pos.distToLiqPercent.toFixed(1)}%` : "Sin dato"}</span>
+                    </div>
+                    {hasLiq ? (
+                        <div className="w-full bg-white/[0.06] rounded-full h-1.5 overflow-hidden">
+                            <div className={`h-full rounded-full transition-all duration-500 ${distBarColor}`} style={{ width: `${Math.min(pos.distToLiqPercent, 100)}%` }} />
+                        </div>
+                    ) : (
+                        <div className="text-[9px] text-slate-600">Sin dato de liquidación</div>
+                    )}
                 </div>
             </div>
         </div>
@@ -154,338 +285,190 @@ function AlertSettings({
     };
 
     const getThresholdColor = (val: number) => {
-        if (val >= 90) return "bg-red-500/20 text-red-400 border-red-500/40";
-        if (val >= 80) return "bg-orange-500/20 text-orange-400 border-orange-500/40";
-        if (val >= 70) return "bg-yellow-500/20 text-yellow-400 border-yellow-500/40";
-        return "bg-green-500/20 text-green-400 border-green-500/40";
+        if (val >= 90) return "bg-rose-500/15 text-rose-400 border-rose-500/30";
+        if (val >= 80) return "bg-orange-500/15 text-orange-400 border-orange-500/30";
+        if (val >= 70) return "bg-amber-500/15 text-amber-400 border-amber-500/30";
+        return "bg-emerald-500/15 text-emerald-400 border-emerald-500/30";
     };
 
     return (
-        <div className="bg-[#181A20] rounded-xl border border-gray-800 p-4">
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="text-white font-semibold flex items-center gap-2">
-                    <Zap className="text-yellow-400" size={18} />
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.025] p-4">
+            <div className="flex items-center justify-between mb-3">
+                <h3 className="text-white font-semibold flex items-center gap-2 text-sm">
+                    <Zap className="text-amber-400" size={16} />
                     Alertas de Futuros
                 </h3>
                 <button
                     onClick={toggleEnabled}
-                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${
                         alerts.enabled
-                            ? "bg-green-500/20 text-green-400 border border-green-500/40"
-                            : "bg-gray-700 text-gray-400 border border-gray-600"
+                            ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                            : "bg-white/[0.04] text-slate-400 border border-white/[0.08]"
                     }`}
                 >
                     {alerts.enabled ? "Activo" : "Desactivado"}
                 </button>
             </div>
-
-            <div className="space-y-4">
-                {/* Margin thresholds */}
+            <div className="space-y-3">
                 <div>
-                    <div className="text-sm text-gray-400 mb-2">
-                        Notificarme cuando el margen supere:
-                    </div>
+                    <div className="text-xs text-slate-400 mb-2">Notificarme cuando el margen supere:</div>
                     <div className="flex flex-wrap gap-2 mb-2">
                         {alerts.marginThresholds.map((threshold) => (
-                            <span
-                                key={threshold}
-                                className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium border ${getThresholdColor(threshold)}`}
-                            >
+                            <span key={threshold} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border ${getThresholdColor(threshold)}`}>
                                 {threshold}%
-                                <button
-                                    onClick={() => removeThreshold(threshold)}
-                                    className="ml-1 hover:text-white transition-colors"
-                                >
-                                    ✕
-                                </button>
+                                <button onClick={() => removeThreshold(threshold)} className="ml-1 hover:text-white transition-colors">✕</button>
                             </span>
                         ))}
                         {alerts.marginThresholds.length === 0 && (
-                            <span className="text-gray-600 text-sm">Sin umbrales configurados</span>
+                            <span className="text-slate-600 text-xs">Sin umbrales configurados</span>
                         )}
                     </div>
                     <div className="flex gap-2">
                         <input
-                            type="number"
-                            min="1"
-                            max="99"
-                            value={newThreshold}
+                            type="number" min="1" max="99" value={newThreshold}
                             onChange={(e) => setNewThreshold(e.target.value)}
                             onKeyDown={(e) => e.key === "Enter" && addThreshold()}
                             placeholder="%"
-                            className="w-20 bg-[#0E1014] border border-gray-700 rounded-lg px-3 py-1.5 text-white text-sm outline-none focus:border-yellow-500 transition-colors"
+                            className="w-16 bg-black/30 border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-white text-sm outline-none focus:border-amber-500 transition-colors"
                         />
-                        <button
-                            onClick={addThreshold}
-                            className="px-3 py-1.5 rounded-lg text-sm font-medium bg-yellow-500 text-black hover:bg-yellow-400 transition-colors"
-                        >
+                        <button onClick={addThreshold} className="px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-500 text-black hover:bg-amber-400 transition-colors">
                             + Agregar
                         </button>
                     </div>
                 </div>
-
             </div>
         </div>
     );
 }
 
-// ─── Cross-Margin Simulator ────────────────────────────────────────────────────
+// ─── Stress Test de Cuenta ────────────────────────────────────────────────────
 
-function CrossMarginSimulator({
-    positions,
-    account,
-}: {
-    positions: FuturesPosition[];
-    account: FuturesAccount;
-}) {
+function StressTestSimulator({ positions, account }: { positions: FuturesPosition[]; account: FuturesAccount; }) {
     const [isOpen, setIsOpen] = useState(false);
     const [movePercent, setMovePercent] = useState(0);
 
-    // Effective leverage and net exposure
-    const { totalLongNotional, totalShortNotional } = useMemo(() => {
-        let longs = 0;
-        let shorts = 0;
-        for (const p of positions) {
-            if (p.side === "LONG") longs += p.notional;
-            else shorts += p.notional;
-        }
-        return { totalLongNotional: longs, totalShortNotional: shorts };
-    }, [positions]);
-
-    const totalNotional = totalLongNotional + totalShortNotional;
-    const netExposure = totalLongNotional - totalShortNotional;
-    const effectiveLeverage = account.totalMarginBalance > 0
-        ? totalNotional / account.totalMarginBalance
-        : 0;
-
-    const simulation = useMemo(
-        () => simulateMarketMove(positions, account, movePercent),
-        [positions, account, movePercent],
-    );
-
-    const currentPnlSum = useMemo(
-        () => positions.reduce((s, p) => s + p.unrealizedPnl, 0),
-        [positions],
-    );
-
-    const balanceChangePercent = account.totalMarginBalance > 0
-        ? (simulation.newUnrealizedPnl - currentPnlSum) / account.totalMarginBalance * 100
-        : 0;
-
-    const liqThresholdDown = useMemo(
-        () => findLiquidationThreshold(positions, account, "down"),
-        [positions, account],
-    );
-    const liqThresholdUp = useMemo(
-        () => findLiquidationThreshold(positions, account, "up"),
-        [positions, account],
-    );
+    const simulation = useMemo(() => simulateMarketMove(positions, account, movePercent), [positions, account, movePercent]);
+    const baseSimulation = useMemo(() => simulateMarketMove(positions, account, 0), [positions, account]);
+    const currentPnlSum = useMemo(() => positions.reduce((s, p) => s + p.unrealizedPnl, 0), [positions]);
+    const balanceChangePercent = account.totalMarginBalance > 0 ? (simulation.newUnrealizedPnl - currentPnlSum) / account.totalMarginBalance * 100 : 0;
+    const liqThresholdDown = useMemo(() => findLiquidationThreshold(positions, account, "down"), [positions, account]);
+    const liqThresholdUp = useMemo(() => findLiquidationThreshold(positions, account, "up"), [positions, account]);
 
     const simMarginColor = getMarginColor(simulation.newMarginRatio);
     const simMarginBarColor = getMarginBarColor(simulation.newMarginRatio);
     const simPnlPositive = simulation.newUnrealizedPnl >= 0;
+    const moveLabel = movePercent === 0 ? "Actual" : movePercent < 0 ? `${fmtPercent(movePercent)} caída` : `${fmtPercent(movePercent)} subida`;
 
-    const netExposureLabel = netExposure >= 0 ? "LONG" : "SHORT";
-    const netExposureColor = netExposure >= 0 ? "text-green-400" : "text-red-400";
-
-    const moveLabel =
-        movePercent === 0
-            ? "Actual"
-            : movePercent < 0
-              ? `${fmtPercent(movePercent)} caída`
-              : `${fmtPercent(movePercent)} subida`;
+    const baseBuffer = baseSimulation.isLiquidated ? 0 : baseSimulation.bufferToLiq;
+    const baseBufferColor = baseSimulation.isLiquidated ? "text-rose-400" : getMarginColor(baseSimulation.newMarginRatio);
+    const downReached = liqThresholdDown !== null;
+    const upReached = liqThresholdUp !== null;
+    const downLabel = downReached ? `${Math.abs(liqThresholdDown).toFixed(1)}%` : "No alcanza";
+    const upLabel = upReached ? `${liqThresholdUp.toFixed(1)}%` : "No alcanza";
+    const downColor = downReached ? "text-rose-400" : "text-slate-500";
+    const upColor = upReached ? "text-amber-400" : "text-slate-500";
 
     return (
-        <div className="bg-[#181A20] rounded-xl border border-gray-800 overflow-hidden">
-            <button
-                onClick={() => setIsOpen(!isOpen)}
-                className="w-full flex items-center justify-between p-4 hover:bg-[#1E2028] transition-colors"
-            >
-                <h3 className="text-white font-semibold flex items-center gap-2">
-                    <FlaskConical className="text-purple-400" size={18} />
-                    Simulador de Liquidación
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.025] overflow-hidden">
+            <button onClick={() => setIsOpen(!isOpen)} className="w-full flex items-center justify-between p-3.5 hover:bg-white/[0.02] transition-colors">
+                <h3 className="text-white font-semibold flex items-center gap-2 text-sm">
+                    <FlaskConical className="text-violet-400" size={16} />
+                    Stress Test de Cuenta
                 </h3>
-                <span className="text-gray-500 text-xs">
-                    {isOpen ? "▲" : "▼"}
-                </span>
+                <ChevronDown size={15} className={`text-slate-500 transition-transform ${isOpen ? "rotate-180" : ""}`} />
             </button>
-
+            {!isOpen && (
+                <div className="px-3.5 pb-3.5 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div className="bg-black/20 rounded-lg px-2.5 py-2 border border-white/[0.06]">
+                        <div className="text-[10px] text-slate-500 mb-0.5">Buffer hasta liquidación</div>
+                        <div className={`text-base font-bold ${baseBufferColor}`}>{baseBuffer.toFixed(1)}%</div>
+                    </div>
+                    <div className="bg-black/20 rounded-lg px-2.5 py-2 border border-white/[0.06]">
+                        <div className="text-[10px] text-slate-500 mb-0.5 flex items-center gap-1"><ArrowDown size={10} className="text-rose-400" /> Liq. con caída</div>
+                        <div className={`text-base font-bold ${downColor}`}>{downLabel}</div>
+                    </div>
+                    <div className="bg-black/20 rounded-lg px-2.5 py-2 border border-white/[0.06]">
+                        <div className="text-[10px] text-slate-500 mb-0.5 flex items-center gap-1"><ArrowUp size={10} className="text-amber-400" /> Liq. con subida</div>
+                        <div className={`text-base font-bold ${upColor}`}>{upLabel}</div>
+                    </div>
+                </div>
+            )}
             {isOpen && (
-                <div className="px-4 pb-4 space-y-4">
-                    {/* Effective leverage & exposure */}
-                    <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-[#0E1014] rounded-lg p-3 border border-gray-800">
-                            <div className="text-xs text-gray-500 mb-1">Apalancamiento Efectivo</div>
-                            <div className="text-white text-lg font-bold">
-                                {effectiveLeverage.toFixed(1)}x
-                            </div>
-                            <div className="text-xs text-gray-600">
-                                {totalNotional.toFixed(2)} USDT en posiciones
-                            </div>
-                        </div>
-                        <div className="bg-[#0E1014] rounded-lg p-3 border border-gray-800">
-                            <div className="text-xs text-gray-500 mb-1">Exposición Neta</div>
-                            <div className={`text-lg font-bold ${netExposureColor}`}>
-                                {netExposure >= 0 ? "+" : ""}${netExposure.toFixed(2)}
-                            </div>
-                            <div className="text-xs text-gray-600">
-                                {netExposureLabel}
-                            </div>
-                        </div>
+                <div className="px-3.5 pb-4 space-y-3.5">
+                    <div className="text-[10px] text-slate-500 bg-black/20 rounded-lg px-2.5 py-1.5 border border-white/[0.06] flex items-start gap-1.5">
+                        <Info size={11} className="mt-0.5 flex-shrink-0 text-violet-400" />
+                        Estimación basada en movimiento uniforme del mercado. No incluye funding, fees ni cambios dinámicos de tiers de margen.
                     </div>
-
-                    {/* Disclaimer */}
-                    <div className="text-xs text-gray-600 bg-[#0E1014] rounded-lg px-3 py-2 border border-gray-800">
-                        ⚙ La simulación asume movimiento uniforme del mercado para todas las posiciones. Resultados aproximados.
-                    </div>
-
-                    {/* Slider */}
                     <div>
-                        <div className="flex items-center justify-between text-sm text-gray-400 mb-2">
-                            <span className="text-red-400 flex items-center gap-1">
-                                <ArrowDown size={14} /> Caída
-                            </span>
+                        <div className="flex items-center justify-between text-sm text-slate-400 mb-2">
+                            <span className="text-rose-400 flex items-center gap-1"><ArrowDown size={13} /> Caída</span>
                             <div className="flex flex-col items-center">
-                                <span className="text-white font-bold text-lg">{moveLabel}</span>
-                                {movePercent !== 0 && (
-                                    <span className={`text-xs font-medium ${balanceChangePercent >= 0 ? "text-green-400" : "text-red-400"}`}>
-                        Balance: {fmtPercent(balanceChangePercent)}
-                                    </span>
-                                )}
+                                <span className="text-white font-bold text-base">{moveLabel}</span>
+                                {movePercent !== 0 && <span className={`text-xs font-medium ${balanceChangePercent >= 0 ? "text-emerald-400" : "text-rose-400"}`}>Balance: {fmtPercent(balanceChangePercent)}</span>}
                             </div>
-                            <span className="text-green-400 flex items-center gap-1">
-                                <ArrowUp size={14} /> Subida
-                            </span>
+                            <span className="text-emerald-400 flex items-center gap-1"><ArrowUp size={13} /> Subida</span>
                         </div>
                         <div className="relative">
-                            <input
-                                type="range"
-                                min="-100"
-                                max="100"
-                                step="1"
-                                value={movePercent}
-                                onChange={(e) => setMovePercent(Number(e.target.value))}
-                                className="w-full cursor-pointer accent-purple-500"
-                            />
-                            <div className="flex justify-between text-xs text-gray-600 mt-1">
-                                <span>-100%</span>
-                                <span className="text-gray-400 font-bold">0%</span>
-                                <span>+100%</span>
-                            </div>
+                            <input type="range" min="-100" max="100" step="1" value={movePercent} onChange={(e) => setMovePercent(Number(e.target.value))} className="w-full cursor-pointer accent-violet-500" />
+                            <div className="flex justify-between text-[10px] text-slate-600 mt-1"><span>-100%</span><span className="text-slate-400 font-bold">0%</span><span>+100%</span></div>
                         </div>
-                        {/* Markers for liquidation points */}
-                        {liqThresholdDown !== null && (
-                            <div className="text-xs mt-1 flex items-center gap-1 text-red-400">
-                                <ArrowDown size={10} /> Liq. con caída de{" "}
-                                <strong>{Math.abs(liqThresholdDown).toFixed(1)}%</strong>
-                            </div>
-                        )}
-                        {liqThresholdUp !== null && (
-                            <div className="text-xs flex items-center gap-1 text-yellow-400">
-                                <ArrowUp size={10} /> Liq. con subida de{" "}
-                                <strong>{liqThresholdUp.toFixed(1)}%</strong>
-                            </div>
-                        )}
+                        {downReached
+                            ? <div className="text-xs mt-1 flex items-center gap-1 text-rose-400"><ArrowDown size={10} /> Liq. con caída de <strong>{Math.abs(liqThresholdDown).toFixed(1)}%</strong></div>
+                            : <div className="text-xs mt-1 flex items-center gap-1 text-slate-500"><ArrowDown size={10} /> No alcanza liquidación en el rango del simulador</div>}
+                        {upReached
+                            ? <div className="text-xs flex items-center gap-1 text-amber-400"><ArrowUp size={10} /> Liq. con subida de <strong>{liqThresholdUp.toFixed(1)}%</strong></div>
+                            : <div className="text-xs flex items-center gap-1 text-slate-500"><ArrowUp size={10} /> No alcanza liquidación en el rango del simulador</div>}
                     </div>
-
-                    {/* Projected margin gauge */}
                     <div>
                         <div className="flex justify-between items-center mb-1">
-                            <span className="text-xs text-gray-500">Margen proyectado</span>
+                            <span className="text-[10px] text-slate-500">Margen proyectado</span>
                             <div className="flex items-center gap-2">
-                                <span className={`text-xs font-bold ${simMarginColor}`}>
-                                    {simulation.newMarginRatio.toFixed(2)}%
-                                </span>
-                                {simulation.isLiquidated && (
-                                    <span className="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded font-bold">
-                                        LIQUIDADO
-                                    </span>
-                                )}
+                                <span className={`text-xs font-bold ${simMarginColor}`}>{simulation.newMarginRatio.toFixed(2)}%</span>
+                                {simulation.isLiquidated && <span className="text-[10px] bg-rose-500/20 text-rose-400 px-1.5 py-0.5 rounded font-bold">LIQUIDADO</span>}
                             </div>
                         </div>
-                        <div className="w-full bg-gray-800 rounded-full h-2.5 overflow-hidden">
-                            <div
-                                className={`h-full rounded-full transition-all duration-300 ${simMarginBarColor}`}
-                                style={{ width: `${Math.min(simulation.newMarginRatio, 100)}%` }}
-                            />
+                        <div className="w-full bg-white/[0.06] rounded-full h-2 overflow-hidden">
+                            <div className={`h-full rounded-full transition-all duration-300 ${simMarginBarColor}`} style={{ width: `${Math.min(simulation.newMarginRatio, 100)}%` }} />
                         </div>
-                        {/* Threshold markers */}
-                        <div className="relative h-0">
-                            {[50, 80, 95].map((t) => (
-                                <div
-                                    key={t}
-                                    className="absolute top-1 w-px h-2 bg-gray-600"
-                                    style={{ left: `${t}%` }}
-                                />
-                            ))}
+                        <div className="relative h-0">{[50, 80, 95].map((t) => <div key={t} className="absolute top-1 w-px h-2 bg-slate-600" style={{ left: `${t}%` }} />)}</div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2.5">
+                        <div className="bg-black/20 rounded-lg p-2.5 border border-white/[0.06]">
+                            <div className="text-[10px] text-slate-500 mb-1">Balance de Margen</div>
+                            <div className="text-white text-base font-bold font-mono">{fmtUSD(simulation.newMarginBalance)}</div>
+                        </div>
+                        <div className="bg-black/20 rounded-lg p-2.5 border border-white/[0.06]">
+                            <div className="text-[10px] text-slate-500 mb-1">PnL Proyectado</div>
+                            <div className={`text-base font-bold font-mono ${simPnlPositive ? "text-emerald-400" : "text-rose-400"}`}>{formatPnl(simulation.newUnrealizedPnl)}</div>
                         </div>
                     </div>
-
-                    {/* Projected values grid */}
-                    <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-[#0E1014] rounded-lg p-3 border border-gray-800">
-                            <div className="text-xs text-gray-500 mb-1">Balance de Margen</div>
-                            <div className="text-white text-lg font-bold font-mono">
-                                ${simulation.newMarginBalance.toFixed(2)}
-                            </div>
-                        </div>
-                        <div className="bg-[#0E1014] rounded-lg p-3 border border-gray-800">
-                            <div className="text-xs text-gray-500 mb-1">PnL Proyectado</div>
-                            <div className={`text-lg font-bold font-mono ${simPnlPositive ? "text-green-400" : "text-red-400"}`}>
-                                {formatPnl(simulation.newUnrealizedPnl)}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Status + buffer */}
                     {!simulation.isLiquidated && (
-                        <div className={`rounded-lg p-3 border text-center ${
-                            simulation.newMarginRatio >= 80
-                                ? "bg-orange-950/30 border-orange-800/50 text-orange-300"
-                                : simulation.newMarginRatio >= 50
-                                  ? "bg-yellow-950/30 border-yellow-800/50 text-yellow-300"
-                                  : "bg-green-950/30 border-green-800/50 text-green-300"
-                        }`}>
+                        <div className={`rounded-lg p-2.5 border text-center ${simulation.newMarginRatio >= 80 ? "bg-orange-950/30 border-orange-800/50 text-orange-300" : simulation.newMarginRatio >= 50 ? "bg-amber-950/30 border-amber-800/50 text-amber-300" : "bg-emerald-950/30 border-emerald-800/50 text-emerald-300"}`}>
                             <span className="font-bold text-sm">Buffer hasta liquidación: </span>
-                            <span className="font-bold text-lg">
-                                {simulation.bufferToLiq.toFixed(1)}%
-                            </span>
+                            <span className="font-bold text-base">{simulation.bufferToLiq.toFixed(1)}%</span>
                         </div>
                     )}
                     {simulation.isLiquidated && (
-                        <div className="bg-red-950/40 border border-red-800/60 rounded-lg p-3 text-center">
-                            <AlertTriangle size={20} className="text-red-400 mx-auto mb-1" />
-                            <span className="text-red-300 font-bold text-sm">
-                                LIQUIDACIÓN ALCANZADA con {moveLabel}
-                            </span>
+                        <div className="bg-rose-950/40 border border-rose-800/60 rounded-lg p-2.5 text-center">
+                            <AlertTriangle size={18} className="text-rose-400 mx-auto mb-1" />
+                            <span className="text-rose-300 font-bold text-sm">LIQUIDACIÓN ALCANZADA con {moveLabel}</span>
                         </div>
                     )}
-
-                    {/* Liq thresholds summary */}
-                    <div className="grid grid-cols-2 gap-2 text-xs text-gray-500 pt-1 border-t border-gray-800">
-                        <div className="flex items-center gap-1">
-                            <ArrowDown size={12} className="text-red-400" />
-                            Caída máx. segura:
-                            <strong className={liqThresholdDown !== null ? "text-red-400" : "text-green-400"}>
-                                {liqThresholdDown !== null
-                                    ? `${Math.abs(liqThresholdDown).toFixed(1)}%`
-                                    : "Ilimitada"}
-                            </strong>
+                    <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-500 pt-1 border-t border-white/[0.06]">
+                            <div className="flex items-center gap-1"><ArrowDown size={11} className="text-rose-400" /> Caída máx. segura: <strong className={downColor}>{downLabel}</strong></div>
+                            <div className="flex items-center gap-1 justify-end">Subida máx. segura: <strong className={upColor}>{upLabel}</strong><ArrowUp size={11} className="text-amber-400" /></div>
                         </div>
-                        <div className="flex items-center gap-1 justify-end">
-                            Subida máx. segura:
-                            <strong className={liqThresholdUp !== null ? "text-yellow-400" : "text-green-400"}>
-                                {liqThresholdUp !== null
-                                    ? `${liqThresholdUp.toFixed(1)}%`
-                                    : "Ilimitada"}
-                            </strong>
-                            <ArrowUp size={12} className="text-yellow-400" />
-                        </div>
-                    </div>
                 </div>
             )}
         </div>
     );
+}
+
+function getMarginBarColor(ratio: number): string {
+    if (ratio >= 95) return "bg-rose-500";
+    if (ratio >= 80) return "bg-orange-500";
+    if (ratio >= 50) return "bg-amber-500";
+    return "bg-emerald-500";
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -501,21 +484,22 @@ export default function FuturesTab({ priceDirections }: FuturesTabProps) {
 
     const { account, positions, lastSync } = futuresData;
 
-    // Modal state
     const [selectedPosition, setSelectedPosition] = useState<FuturesPosition | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [expandedPosition, setExpandedPosition] = useState<string | null>(null);
+    const [openAlertsKey, setOpenAlertsKey] = useState<string | null>(null);
+    const [openLiqInfoKey, setOpenLiqInfoKey] = useState<string | null>(null);
     const [syncing, setSyncing] = useState(false);
     const [syncError, setSyncError] = useState<string | null>(null);
+    const [syncSuccess, setSyncSuccess] = useState(false);
+    const [showSettings, setShowSettings] = useState(true);
 
-    // Re-render every 60s to update stale data indicator
     const [now, setNow] = useState(Date.now());
     useEffect(() => {
         const id = setInterval(() => setNow(Date.now()), 60_000);
         return () => clearInterval(id);
     }, []);
 
-    // Sincronizar al montar el componente
     useEffect(() => {
         const performSync = async () => {
             try {
@@ -529,7 +513,6 @@ export default function FuturesTab({ priceDirections }: FuturesTabProps) {
                 setSyncing(false);
             }
         };
-
         performSync();
     }, [syncFutures]);
 
@@ -543,7 +526,6 @@ export default function FuturesTab({ priceDirections }: FuturesTabProps) {
         if (newAlerts.length === 0) {
             delete updatedPositionAlerts[symbol];
         } else {
-            // Preserve _lastSide from existing alerts to avoid losing cooldown state
             const existingAlerts = alerts.positionAlerts?.[symbol] || [];
             const mergedAlerts = newAlerts.map((newAlert) => {
                 const match = existingAlerts.find(
@@ -559,13 +541,15 @@ export default function FuturesTab({ priceDirections }: FuturesTabProps) {
         saveAlerts({ ...alerts, positionAlerts: updatedPositionAlerts });
     };
 
-    // Manual sync button handler
     const handleManualSync = async () => {
         if (syncing) return;
         try {
             setSyncing(true);
             setSyncError(null);
+            setSyncSuccess(false);
             await syncFutures();
+            setSyncSuccess(true);
+            setTimeout(() => setSyncSuccess(false), 2000);
         } catch (error: any) {
             console.error("[FuturesTab] Manual sync FAILED:", error?.code, error?.message, error);
             setSyncError(`Error: ${error?.message || "Error al sincronizar"}`);
@@ -574,32 +558,31 @@ export default function FuturesTab({ priceDirections }: FuturesTabProps) {
         }
     };
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // ⚠️ IMPORTANTE: Los datos de futuros (markPrice, unrealizedPnl, roe, etc.)
-    // SIEMPRE vienen de la API de Binance Futures (/fapi/*) a través de
-    // futuresSync.ts (Cloud Function cada 3 minutos).
-    //
-    // NO sobrescribir markPrice con precios spot ni recalcular PnL en el frontend.
-    // Binance calcula el PnL considerando funding fees acumulados, comisiones,
-    // break-even price real y otros factores que no se pueden replicar con una
-    // simple fórmula de (markPrice - entryPrice) * size.
-    //
-    // Referencia: futuresSync.ts línea 144 usa unrealizedProfit directo de Binance,
-    // y línea 160 calcula ROE con los valores exactos de la exchange.
-    // ──────────────────────────────────────────────────────────────────────────
-    const livePositions = positions;
+    const positionSymbols = useMemo(
+        () => Array.from(new Set(positions.map((p) => p.symbol))),
+        [positions],
+    );
+    const { markPrices: liveMarkPrices, status: wsStatus } =
+        useBinanceFuturesMarkPrices(positionSymbols);
 
-    const totalPnl = account.totalUnrealizedProfit;
-    const marginRatio = account.marginRatio ?? (account as any).marginUsedPercent ?? 0;
+    const livePositions = useMemo(
+        () => applyLivePrices(positions, liveMarkPrices),
+        [positions, liveMarkPrices],
+    );
+
+    const hasLivePrices = liveMarkPrices && Object.keys(liveMarkPrices).length > 0;
+    const totalPnl =
+        wsStatus === "live" && hasLivePrices
+            ? sumUnrealizedPnl(livePositions)
+            : safeNum(account.totalUnrealizedProfit);
+    const marginRatio = safeNum(account.marginRatio);
     const marginColor = getMarginColor(marginRatio);
-    const marginBarColor = getMarginBarColor(marginRatio);
     const marginLabel = getMarginLabel(marginRatio);
     const marginLabelColor = getMarginLabelColor(marginRatio);
+    const marginBarColor = getMarginBarColor(marginRatio);
 
-    // Effective leverage & net exposure for cross-margin context
     const effLeverageMetrics = useMemo(() => {
-        let totalLong = 0;
-        let totalShort = 0;
+        let totalLong = 0; let totalShort = 0;
         for (const p of livePositions) {
             if (p.side === "LONG") totalLong += p.notional;
             else totalShort += p.notional;
@@ -610,220 +593,406 @@ export default function FuturesTab({ priceDirections }: FuturesTabProps) {
         return { totalNotional: totalN, netExposure: netExp, effectiveLeverage: effLev };
     }, [livePositions, account.totalMarginBalance]);
 
+    const healthDist = useMemo(() => {
+        const denom = Math.max(account.totalMarginBalance, 1);
+        const initialPct = Math.min(100, Math.max(0, (safeNum(account.totalInitialMargin) / denom) * 100));
+        const availPct = Math.min(100 - initialPct, Math.max(0, (safeNum(account.availableBalance) / denom) * 100));
+        return { initialPct, availPct };
+    }, [account.totalMarginBalance, account.totalInitialMargin, account.availableBalance]);
+
+    const ageMin = lastSync > 0 ? (now - lastSync) / 60_000 : 0;
+    const isStale5 = ageMin > 5;
+    const isStale15 = ageMin > 15;
+
+    const sortedPositions = useMemo(
+        () => [...livePositions].sort((a, b) => b.unrealizedPnl - a.unrealizedPnl),
+        [livePositions],
+    );
+
     if (dataLoading) {
-        return (
-            <div className="text-center py-10 text-gray-500 animate-pulse">
-                Cargando datos de futuros...
-            </div>
-        );
+        return <div className="text-center py-20 text-slate-500 animate-pulse">Cargando datos de futuros...</div>;
     }
 
-    return (
-        <div className="space-y-4">
-            {/* ── Account & Margin Stats ── */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
-                <div className="bg-[#0E1014] rounded-lg p-1.5 flex flex-col items-center text-center">
-                    <div className="text-[10px] text-gray-500 flex items-center gap-0.5">
-                        <DollarSign size={9} /> Balance
-                    </div>
-                    <div className="text-white text-xs font-bold">
-                        ${account.totalWalletBalance.toFixed(2)}
-                    </div>
-                </div>
-                <div className="bg-[#0E1014] rounded-lg p-1.5 flex flex-col items-center text-center">
-                    <div className="text-[10px] text-gray-500 flex items-center gap-0.5">
-                        {totalPnl >= 0 ? <TrendingUp size={9} /> : <TrendingDown size={9} />} PnL
-                    </div>
-                    <div className={`text-xs font-bold ${totalPnl >= 0 ? "text-green-400" : "text-red-400"}`}>
-                        {formatPnl(totalPnl)}
-                    </div>
-                </div>
-                <div className="bg-[#0E1014] rounded-lg p-1.5 flex flex-col items-center text-center">
-                    <div className="text-[10px] text-gray-500 flex items-center gap-0.5">
-                        <ArrowUpRight size={9} /> Transferible
-                    </div>
-                    <div className="text-white text-xs font-bold">
-                        ${account.maxWithdrawAmount.toFixed(2)}
-                    </div>
-                </div>
-                <div className="bg-[#0E1014] rounded-lg p-1.5 flex flex-col items-center text-center">
-                    <div className="text-[10px] text-gray-500">Bal. Margen</div>
-                    <div className="text-white text-xs font-bold font-mono">
-                        ${account.totalMarginBalance.toFixed(2)}
-                    </div>
-                </div>
-                <div className="bg-[#0E1014] rounded-lg p-1.5 flex flex-col items-center text-center">
-                    <div className={`text-[10px] font-medium ${marginLabelColor}`}>
-                        {marginLabel}
-                    </div>
-                    <div className={`text-xs font-bold ${marginColor}`}>
-                        {marginRatio.toFixed(2)}%
-                    </div>
-                </div>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
-                <div className="bg-[#0E1014] rounded-lg p-1.5 border border-gray-800 flex flex-col items-center text-center">
-                    <div className="text-[10px] text-gray-500">Marg. Manto.</div>
-                    <div className="text-white text-xs font-bold font-mono">
-                        ${account.totalMaintMargin.toFixed(2)}
-                    </div>
-                </div>
-                <div className="bg-[#0E1014] rounded-lg p-1.5 border border-gray-800 flex flex-col items-center text-center">
-                    <div className="text-[10px] text-gray-500">Marg. Inicial</div>
-                    <div className="text-white text-xs font-bold font-mono">
-                        ${account.totalInitialMargin.toFixed(2)}
-                    </div>
-                </div>
-                <div className="bg-[#0E1014] rounded-lg p-1.5 border border-gray-800 flex flex-col items-center text-center">
-                    <div className="text-[10px] text-gray-500">Apal. Efectivo</div>
-                    <div className="text-white text-xs font-bold">{effLeverageMetrics.effectiveLeverage.toFixed(1)}x</div>
-                </div>
-                <div className="bg-[#0E1014] rounded-lg p-1.5 border border-gray-800 flex flex-col items-center text-center">
-                    <div className="text-[10px] text-gray-500">Exp. Neta</div>
-                    <div className={`text-xs font-bold ${effLeverageMetrics.netExposure >= 0 ? "text-green-400" : "text-red-400"}`}>
-                        {effLeverageMetrics.netExposure >= 0 ? "+" : ""}${effLeverageMetrics.netExposure.toFixed(2)}
-                    </div>
-                </div>
-                <div className="bg-[#0E1014] rounded-lg p-1.5 border border-gray-800 flex flex-col items-center text-center">
-                    <div className="text-[10px] text-gray-500 flex items-center gap-0.5">
-                        <Shield size={9} /> Posiciones
-                    </div>
-                    <div className="text-white text-xs font-bold">
-                        {livePositions.length}
-                    </div>
-                </div>
-            </div>
+    const TABLE_COLS = 13;
 
-            {/* ── Positions ── */}
-            <div>
-                <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-white font-semibold flex items-center gap-2">
-                        <Activity className="text-purple-400" size={18} />
-                        Posiciones Abiertas
-                    </h3>
-                    
+    return (
+        <div className="space-y-3 sm:space-y-4">
+            {/* ── HEADER (compact, single line) ── */}
+            <header className="flex items-center justify-between gap-2 flex-wrap rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+                <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-7 h-7 rounded-lg bg-indigo-500/15 border border-indigo-500/20 flex items-center justify-center flex-shrink-0">
+                        <Activity className="text-indigo-300" size={15} />
+                    </div>
+                    <h2 className="text-sm font-bold tracking-tight text-white">FUTUROS</h2>
+                    <LiveBadge status={wsStatus} />
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                    {lastSync > 0 && (
+                        <span className="flex items-center gap-1 text-[10px] text-slate-500 bg-white/[0.03] border border-white/[0.06] rounded-md px-2 py-1 whitespace-nowrap">
+                            <Clock size={11} />
+                            {new Date(lastSync).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
+                            {isStale15 && <span className="text-rose-400 font-medium">· {Math.round(ageMin)}min</span>}
+                            {isStale5 && !isStale15 && <span className="text-amber-400 font-medium">· {Math.round(ageMin)}min</span>}
+                        </span>
+                    )}
                     <button
                         onClick={handleManualSync}
                         disabled={syncing}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
                             syncing
-                                ? "bg-gray-700 text-gray-400 cursor-not-allowed"
-                                : "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/30"
+                                ? "bg-white/[0.04] text-slate-500 cursor-not-allowed border border-white/[0.06]"
+                                : syncSuccess
+                                  ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                                  : "bg-indigo-500/15 text-indigo-300 border border-indigo-500/25 hover:bg-indigo-500/25"
                         }`}
                     >
-                        {syncing ? (
-                            <>
-                                <Clock size={14} className="animate-spin" />
-                                Sincronizando...
-                            </>
-                        ) : (
-                            <>
-                                <Zap size={14} />
-                                Sincronizar
-                            </>
-                        )}
+                        {syncing ? <><Clock size={12} className="animate-spin" />Sync...</> : syncSuccess ? <><CheckCircle size={12} />OK</> : <><Zap size={12} />Sincronizar</>}
+                    </button>
+                    <button
+                        onClick={() => setShowSettings(!showSettings)}
+                        className={`flex items-center px-2 py-1 rounded-md transition-all border ${showSettings ? "bg-white/[0.06] text-white border-white/[0.12]" : "bg-white/[0.02] text-slate-400 border-white/[0.06] hover:text-white"}`}
+                        title="Configuración de alertas"
+                    >
+                        <Settings size={13} />
                     </button>
                 </div>
-                
-                {syncError && (
-                    <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-3">
-                        <div className="flex items-center gap-2 text-red-400 text-sm">
-                            <AlertTriangle size={16} />
-                            {syncError}
+            </header>
+
+            {syncError && (
+                <div className="bg-rose-500/10 border border-rose-500/25 rounded-lg p-2.5">
+                    <div className="flex items-center gap-2 text-rose-400 text-xs"><AlertTriangle size={14} />{syncError}</div>
+                </div>
+            )}
+
+            {/* ── RESUMEN SUPERIOR ── */}
+            <section className="space-y-2.5">
+                <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                    <StatCard icon={Wallet} label="Balance Total" value={fmtUSD(account.totalWalletBalance)} />
+                    <StatCard
+                        icon={totalPnl >= 0 ? TrendingUp : TrendingDown}
+                        label="PnL No Realizado"
+                        value={formatPnl(totalPnl)}
+                        valueClass={totalPnl >= 0 ? "text-emerald-400" : "text-rose-400"}
+                        accent={totalPnl >= 0 ? "green" : "red"}
+                    />
+                    <StatCard icon={ArrowUpRight} label="Transferible" value={fmtUSD(account.maxWithdrawAmount)} />
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1.5 sm:gap-2">
+                    <MiniStat icon={Gauge} label="Bal. de Margen" value={fmtUSD(account.totalMarginBalance)} />
+                    <MiniStat icon={Shield} label="Marg. Manto." value={fmtUSD(account.totalMaintMargin)} />
+                    <MiniStat icon={Layers} label="Marg. Inicial" value={fmtUSD(account.totalInitialMargin)} />
+                    <MiniStat icon={Shield} label="Seguro / Ratio" value={`${marginRatio.toFixed(2)}%`} valueClass={marginColor} />
+                    <MiniStat icon={Activity} label="Posiciones" value={`${livePositions.length}`} />
+                    <MiniStat icon={Gauge} label="Apal. Efectivo" value={`${effLeverageMetrics.effectiveLeverage.toFixed(1)}x`} />
+                    <MiniStat
+                        icon={effLeverageMetrics.netExposure >= 0 ? TrendingUp : TrendingDown}
+                        label="Exp. Neta"
+                        value={`${effLeverageMetrics.netExposure >= 0 ? "+" : ""}${fmtUSD(effLeverageMetrics.netExposure)}`}
+                        valueClass={effLeverageMetrics.netExposure >= 0 ? "text-emerald-400" : "text-rose-400"}
+                    />
+                </div>
+            </section>
+
+            {/* ── POSICIONES ABIERTAS ── */}
+            <section>
+                <div className="flex items-center justify-between mb-2.5">
+                    <h3 className="text-white font-semibold flex items-center gap-2 text-sm">
+                        <Activity className="text-violet-400" size={16} />
+                        POSICIONES ABIERTAS
+                        <span className="text-slate-500 text-xs font-normal">({livePositions.length})</span>
+                    </h3>
+                </div>
+
+                {livePositions.length === 0 ? (
+                    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-8 text-center">
+                        <div className="text-slate-500">No hay posiciones abiertas</div>
+                    </div>
+                ) : (
+                    <>
+                        {/* Desktop / Tablet: TABLE */}
+                        <div className="hidden sm:block rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full min-w-[900px]">
+                                    <thead>
+                                        <tr className="border-b border-white/[0.07] text-[9px] uppercase tracking-wider text-slate-500">
+                                            <th className="px-3 py-2 text-left font-medium">Símbolo</th>
+                                            <th className="px-2 py-2 text-center font-medium">Lado</th>
+                                            <th className="px-2 py-2 text-center font-medium">Ap</th>
+                                            <th className="px-3 py-2 text-right font-medium">PnL</th>
+                                            <th className="px-3 py-2 text-right font-medium">ROE</th>
+                                            <th className="px-3 py-2 text-right font-medium">Entrada</th>
+                                            <th className="px-3 py-2 text-right font-medium">Actual</th>
+                                            <th className="px-3 py-2 text-right font-medium">Break Even</th>
+                                            <th className="px-3 py-2 text-right font-medium">Liquidación</th>
+                                            <th className="px-3 py-2 text-right font-medium">Tamaño / Valor</th>
+                                            <th className="px-3 py-2 text-right font-medium">Margen</th>
+                                            <th className="px-3 py-2 text-center font-medium">Dist. Liq</th>
+                                            <th className="px-3 py-2 text-center font-medium">Alertas</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {sortedPositions.map((pos) => {
+                                            const isLong = pos.side === "LONG";
+                                            const pnlPositive = pos.unrealizedPnl >= 0;
+                                            const hasLiq = pos.liquidationPrice > 0;
+                                            const distColor = hasLiq ? getDistToLiqColor(pos.distToLiqPercent) : "text-slate-600";
+                                            const distBarColor = hasLiq ? getDistToLiqBarColor(pos.distToLiqPercent) : "bg-slate-700";
+                                            const liqDir = getDistToLiqDirection(pos.side);
+                                            const liqDirColor = getDistToLiqDirectionColor(pos.side);
+                                            const posAlerts = alerts.positionAlerts?.[pos.symbol] || [];
+                                            const posKey = `${pos.symbol}-${pos.side}`;
+                                            const tradesOpen = expandedPosition === posKey;
+                                            const alertsOpen = openAlertsKey === posKey;
+                                            const liqInfoOpen = openLiqInfoKey === posKey;
+                                            const base = pos.symbol.replace("USDT", "");
+
+                                            return (
+                                                <React.Fragment key={posKey}>
+                                                    <tr
+                                                        className={`border-b border-white/[0.04] hover:bg-white/[0.025] transition-colors cursor-pointer ${tradesOpen ? "bg-white/[0.02]" : ""}`}
+                                                        onClick={() => setExpandedPosition(tradesOpen ? null : posKey)}
+                                                    >
+                                                        <td className="px-3 py-2.5 text-left">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <ChevronRight size={12} className={`text-slate-600 transition-transform flex-shrink-0 ${tradesOpen ? "rotate-90" : ""}`} />
+                                                                <span className="font-semibold text-white text-xs">{pos.symbol}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-2 py-2.5 text-center">
+                                                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${isLong ? "bg-emerald-500/15 text-emerald-400" : "bg-rose-500/15 text-rose-400"}`}>{pos.side}</span>
+                                                        </td>
+                                                        <td className="px-2 py-2.5 text-center text-[10px] text-slate-400">{pos.leverage}x</td>
+                                                        <td className={`px-3 py-2.5 text-right font-mono text-xs tabular-nums font-bold ${pnlPositive ? "text-emerald-400" : "text-rose-400"}`}>{formatPnl(pos.unrealizedPnl)}</td>
+                                                        <td className={`px-3 py-2.5 text-right font-mono text-[11px] tabular-nums ${pnlPositive ? "text-emerald-400/80" : "text-rose-400/80"}`}>{formatRoe(pos.roe)}</td>
+                                                        <td className="px-3 py-2.5 text-right font-mono text-[11px] text-slate-300 tabular-nums">{fmtPrice(pos.entryPrice)}</td>
+                                                        <td className="px-3 py-2.5 text-right font-mono text-[11px] text-white tabular-nums">{fmtPrice(pos.markPrice)}</td>
+                                                        <td className="px-3 py-2.5 text-right font-mono text-[11px] text-slate-300 tabular-nums">{fmtPrice(pos.breakEvenPrice)}</td>
+                                                        <td className={`px-3 py-2.5 text-right font-mono text-[11px] tabular-nums ${hasLiq ? distColor : "text-slate-600"}`}>{hasLiq ? fmtPrice(pos.liquidationPrice) : "Sin dato"}</td>
+                                                        <td className="px-3 py-2.5 text-right">
+                                                            <div className="font-mono text-[11px] text-white tabular-nums">{fmtUSD(pos.notional)}</div>
+                                                            <div className="text-[9px] text-slate-500">{pos.size} {base}</div>
+                                                        </td>
+                                                        <td className="px-3 py-2.5 text-right font-mono text-[11px] text-slate-300 tabular-nums">{fmtUSD(pos.initialMargin)}</td>
+                                                        <td className="px-3 py-2.5 text-center">
+                                                            <div className="flex flex-col items-center gap-1 min-w-[70px]">
+                                                                <span className={`text-[10px] font-bold ${distColor}`}>{hasLiq ? `${pos.distToLiqPercent.toFixed(1)}%` : "Sin dato"}</span>
+                                                                {hasLiq && (
+                                                                    <div className="w-full bg-white/[0.06] rounded-full h-1.5 overflow-hidden">
+                                                                        <div className={`h-full rounded-full transition-all duration-500 ${distBarColor}`} style={{ width: `${Math.min(pos.distToLiqPercent, 100)}%` }} />
+                                                                    </div>
+                                                                )}
+                                                                <div className="flex items-center gap-0.5">
+                                                                    {hasLiq && (
+                                                                        <span className={`inline-flex items-center gap-0.5 text-[9px] font-medium ${liqDirColor}`}>
+                                                                            {isLong ? <ArrowDown size={8} /> : <ArrowUp size={8} />}
+                                                                            {liqDir}
+                                                                        </span>
+                                                                    )}
+                                                                    <button
+                                                                        onClick={(e) => { e.stopPropagation(); setOpenLiqInfoKey(liqInfoOpen ? null : posKey); }}
+                                                                        className={`text-slate-600 hover:text-amber-400 transition-colors ${liqInfoOpen ? "text-amber-400" : ""}`}
+                                                                        title="¿Cómo funciona?"
+                                                    >
+                                                                        <Info size={11} />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-3 py-2.5 text-center">
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); setOpenAlertsKey(alertsOpen ? null : posKey); }}
+                                                                className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-colors border ${
+                                                                    alertsOpen
+                                                                        ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
+                                                                        : posAlerts.length > 0
+                                                                          ? "bg-amber-500/10 text-amber-400 border-amber-500/25 hover:bg-amber-500/20"
+                                                                          : "bg-white/[0.03] text-slate-500 border-white/[0.06] hover:text-slate-300"
+                                                                }`}
+                                                            >
+                                                                <Bell size={10} />
+                                                                {posAlerts.length}
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                    {tradesOpen && (
+                                                        <tr className="bg-black/20">
+                                                            <td colSpan={TABLE_COLS}><PositionTradesDetail position={pos} /></td>
+                                                        </tr>
+                                                    )}
+                                                    {liqInfoOpen && (
+                                                        <tr className="bg-black/20">
+                                                            <td colSpan={TABLE_COLS}><LiqExplanation pos={pos} /></td>
+                                                        </tr>
+                                                    )}
+                                                    {alertsOpen && (
+                                                        <tr className="bg-black/20">
+                                                            <td colSpan={TABLE_COLS}>
+                                                                <div className="px-4 py-3 space-y-2">
+                                                                    {posAlerts.length === 0 ? (
+                                                                        <div className="text-xs text-slate-600">Sin alertas configuradas para esta posición.</div>
+                                                                    ) : (
+                                                                        <div className="space-y-1.5">
+                                                                            {posAlerts.map((alert, i) => (
+                                                                                <div key={i} className={`flex items-center gap-2 flex-wrap rounded-lg px-3 py-1.5 text-xs border ${alert.direction === "up" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-rose-500/10 text-rose-400 border-rose-500/20"}`}>
+                                                                                    <Bell size={10} className="flex-shrink-0" />
+                                                                                    <span className="font-medium">{alert.type === "roe" ? "ROE %" : "ROE USD"} {alert.direction === "up" ? ">=" : "<="} {alert.type === "roe" ? `${alert.targetValue}%` : `$${alert.targetValue}`}</span>
+                                                                                    <span className="text-slate-500">{alert.isPersistent ? "∞ siempre" : "1× una vez"}</span>
+                                                                                    {alert.note && <span className="text-slate-500 truncate">— {alert.note}</span>}
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+                                                                    <button
+                                                                        onClick={() => handleOpenAlertModal(pos)}
+                                                                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-500 text-black hover:bg-amber-400 transition-colors"
+                                                                    >
+                                                                        <Bell size={12} /> Configurar Alerta
+                                                                    </button>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </React.Fragment>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {/* Mobile: compact cards */}
+                        <div className="sm:hidden space-y-2.5">
+                            {sortedPositions.map((pos) => {
+                                const posAlerts = alerts.positionAlerts?.[pos.symbol] || [];
+                                const posKey = `${pos.symbol}-${pos.side}`;
+                                const tradesOpen = expandedPosition === posKey;
+                                const alertsOpen = openAlertsKey === posKey;
+                                const liqInfoOpen = openLiqInfoKey === posKey;
+                                return (
+                                    <div key={posKey} className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+                                        <MobilePositionCard
+                                            pos={pos}
+                                            onClick={() => setExpandedPosition(tradesOpen ? null : posKey)}
+                                        />
+                                        <div className="flex items-center gap-1.5 px-3 py-2 border-t border-white/[0.04]">
+                                            <button
+                                                onClick={() => setOpenAlertsKey(alertsOpen ? null : posKey)}
+                                                className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-colors border ${alertsOpen ? "bg-amber-500/15 text-amber-400 border-amber-500/30" : posAlerts.length > 0 ? "bg-amber-500/10 text-amber-400 border-amber-500/25" : "bg-white/[0.03] text-slate-500 border-white/[0.06]"}`}
+                                            >
+                                                <Bell size={10} />Alertas ({posAlerts.length})
+                                            </button>
+                                            <button
+                                                onClick={() => setOpenLiqInfoKey(liqInfoOpen ? null : posKey)}
+                                                className={`flex items-center justify-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-colors border ${liqInfoOpen ? "bg-indigo-500/15 text-indigo-300 border-indigo-500/30" : "bg-white/[0.03] text-slate-500 border-white/[0.06]"}`}
+                                            >
+                                                <Info size={10} />Liq
+                                            </button>
+                                        </div>
+                                        {tradesOpen && <PositionTradesDetail position={pos} />}
+                                        {liqInfoOpen && <LiqExplanation pos={pos} />}
+                                        {alertsOpen && (
+                                            <div className="px-3 pb-3 space-y-2 border-t border-white/[0.04] pt-2.5">
+                                                {posAlerts.length === 0 ? (
+                                                    <div className="text-[11px] text-slate-600">Sin alertas configuradas para esta posición.</div>
+                                                ) : (
+                                                    <div className="space-y-1.5">
+                                                        {posAlerts.map((alert, i) => (
+                                                            <div key={i} className={`flex items-center gap-2 flex-wrap rounded-lg px-2.5 py-1.5 text-[11px] border ${alert.direction === "up" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-rose-500/10 text-rose-400 border-rose-500/20"}`}>
+                                                                <Bell size={9} className="flex-shrink-0" />
+                                                                <span className="font-medium">{alert.type === "roe" ? "ROE %" : "ROE USD"} {alert.direction === "up" ? ">=" : "<="} {alert.type === "roe" ? `${alert.targetValue}%` : `$${alert.targetValue}`}</span>
+                                                                <span className="text-slate-500">{alert.isPersistent ? "∞" : "1×"}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                <button onClick={() => handleOpenAlertModal(pos)} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] font-medium bg-amber-500 text-black hover:bg-amber-400 transition-colors">
+                                                    <Bell size={11} /> Configurar Alerta
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </>
+                )}
+            </section>
+
+            {/* ── SALUD DE CUENTA (debajo de posiciones) ── */}
+            <section className="rounded-xl border border-white/[0.06] bg-white/[0.025] p-3.5 sm:p-4">
+                <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-white font-semibold flex items-center gap-2 text-sm">
+                        <Shield className="text-violet-400" size={16} />
+                        SALUD DE CUENTA
+                    </h3>
+                    <span className={`text-xs font-semibold ${marginLabelColor}`}>{marginLabel}</span>
+                </div>
+                <div className="space-y-3.5">
+                    <div>
+                        <div className="flex justify-between items-center mb-1.5">
+                            <span className="text-[11px] text-slate-500">Margen utilizado (mant. / balance)</span>
+                            <span className={`text-sm font-bold ${marginColor}`}>{marginRatio.toFixed(2)}%</span>
+                        </div>
+                        <div className="relative w-full bg-white/[0.06] rounded-full h-2.5 overflow-hidden">
+                            <div className={`h-full rounded-full transition-all duration-500 ${marginBarColor}`} style={{ width: `${Math.min(marginRatio, 100)}%` }} />
+                        </div>
+                        <div className="relative h-0">{[50, 80, 95].map((t) => <div key={t} className="absolute top-0 w-px h-2.5 bg-slate-600/70" style={{ left: `${t}%` }} />)}</div>
+                        <div className="flex justify-between text-[9px] text-slate-600 mt-1.5">
+                            <span>Seguro</span><span>Precaución</span><span>Peligro</span><span>Liquidación</span>
                         </div>
                     </div>
-                )}
-                
-                <div className="space-y-3">
-                    {livePositions.length === 0 ? (
-                        <div className="bg-[#181A20] rounded-xl border border-gray-800 p-8 text-center">
-                            <div className="text-gray-500">No hay posiciones abiertas</div>
+                    <div>
+                        <div className="flex justify-between items-center mb-1.5">
+                            <span className="text-[11px] text-slate-500">Distribución del Balance de Margen</span>
+                            <span className="text-[11px] text-slate-500 font-mono">{fmtUSD(account.totalMarginBalance)}</span>
                         </div>
+                        <div className="w-full bg-white/[0.06] rounded-full h-3 overflow-hidden flex">
+                            <div className="h-full bg-indigo-500/70 transition-all duration-500" style={{ width: `${healthDist.initialPct}%` }} />
+                            <div className="h-full bg-emerald-500/60 transition-all duration-500" style={{ width: `${healthDist.availPct}%` }} />
+                        </div>
+                        <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[11px]">
+                            <span className="flex items-center gap-1">
+                                <span className="inline-block w-2 h-2 rounded-sm bg-indigo-500/70" />
+                                <span className="text-slate-400">Inicial</span>
+                                <span className="text-white font-mono">{fmtUSD(account.totalInitialMargin)}</span>
+                                <span className="text-slate-600">({healthDist.initialPct.toFixed(1)}%)</span>
+                            </span>
+                            <span className="flex items-center gap-1">
+                                <span className="inline-block w-2 h-2 rounded-sm bg-emerald-500/60" />
+                                <span className="text-slate-400">Disponible</span>
+                                <span className="text-white font-mono">{fmtUSD(account.availableBalance)}</span>
+                                <span className="text-slate-600">({healthDist.availPct.toFixed(1)}%)</span>
+                            </span>
+                            <span className="flex items-center gap-1">
+                                <span className="inline-block w-2 h-2 rounded-sm bg-amber-500/60" />
+                                <span className="text-slate-400">Mantenimiento</span>
+                                <span className="text-white font-mono">{fmtUSD(account.totalMaintMargin)}</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* ── Stress Test de Cuenta ── */}
+            <StressTestSimulator positions={livePositions} account={account} />
+
+            {/* ── Alert Settings (configuración) ── */}
+            {showSettings && <AlertSettings alerts={alerts} onSave={saveAlerts} />}
+
+            {/* ── Last Sync stale warning ── */}
+            {lastSync > 0 && (isStale5 || isStale15) && (
+                <div className="flex items-center justify-center">
+                    {isStale15 ? (
+                        <span className="px-2.5 py-1 rounded-lg bg-rose-500/15 text-rose-400 border border-rose-500/25 font-medium text-[11px]">
+                            ⚠ Datos muy antiguos ({Math.round(ageMin)} min)
+                        </span>
                     ) : (
-                        [...livePositions].sort((a, b) => b.unrealizedPnl - a.unrealizedPnl).map((pos) => {
-                            const posAlerts = alerts.positionAlerts?.[pos.symbol] || [];
-                            return (
-                                <div key={`${pos.symbol}-${pos.side}`}>
-                                    <PositionCard
-                                        pos={pos}
-                                        priceDirections={priceDirections}
-                                        onClick={() => {
-                                            const key = `${pos.symbol}-${pos.side}`;
-                                            setExpandedPosition(expandedPosition === key ? null : key);
-                                        }}
-                                    />
-                                    {expandedPosition === `${pos.symbol}-${pos.side}` && (
-                                        <PositionTradesDetail position={pos} />
-                                    )}
-                                    {/* Alert button and existing alerts */}
-                                    <div className="bg-[#181A20] rounded-b-xl border border-t-0 border-gray-800 px-4 py-2 flex items-center justify-between">
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                            {posAlerts.length === 0 ? (
-                                                <span className="text-xs text-gray-600">Sin alertas</span>
-                                            ) : (
-                                                posAlerts.map((alert, i) => (
-                                                    <span
-                                                        key={i}
-                                                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
-                                                            alert.direction === "up"
-                                                                ? "bg-green-500/10 text-green-400 border border-green-500/20"
-                                                                : "bg-red-500/10 text-red-400 border border-red-500/20"
-                                                        }`}
-                                                    >
-                                                        <Bell size={10} />
-                                                        {alert.type === "roe" ? "ROE %" : "ROE USD"}{" "}
-                                                        {alert.direction === "up" ? ">=" : "<="}{" "}
-                                                        {alert.type === "roe" ? `${alert.targetValue}%` : `$${alert.targetValue}`}
-                                                        <span className="text-gray-600 ml-0.5">{alert.isPersistent ? "∞" : "1×"}</span>
-                                                    </span>
-                                                ))
-                                            )}
-                                        </div>
-                                        <button
-                                            onClick={() => handleOpenAlertModal(pos)}
-                                            className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/30 transition-colors"
-                                        >
-                                            <Bell size={12} />
-                                            Alerta
-                                        </button>
-                                    </div>
-                                </div>
-                            );
-                        })
+                        <span className="px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-400 border border-amber-500/25 font-medium text-[11px]">
+                            ⚠ Datos desactualizados ({Math.round(ageMin)} min)
+                        </span>
                     )}
                 </div>
-            </div>
-
-            {/* ── Cross-Margin Simulator ── */}
-            <CrossMarginSimulator positions={livePositions} account={account} />
-
-            {/* ── Alert Settings ── */}
-            <AlertSettings alerts={alerts} onSave={saveAlerts} />
-
-            {/* ── Last Sync ── */}
-            {lastSync > 0 && (() => {
-                const ageMin = (now - lastSync) / 60_000;
-                const isStale5 = ageMin > 5;
-                const isStale15 = ageMin > 15;
-                return (
-                    <div className="flex items-center justify-center gap-2 text-xs">
-                        <span className="text-gray-600 flex items-center gap-1">
-                            <Clock size={12} />
-                            Sync: {new Date(lastSync).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
-                        </span>
-                        {isStale15 && (
-                            <span className="px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30 font-medium">
-                                ⚠ Datos muy antiguos ({Math.round(ageMin)}min)
-                            </span>
-                        )}
-                        {isStale5 && !isStale15 && (
-                            <span className="px-2 py-0.5 rounded bg-orange-500/20 text-orange-400 border border-orange-500/30 font-medium">
-                                ⚠ Datos desactualizados ({Math.round(ageMin)}min)
-                            </span>
-                        )}
-                    </div>
-                );
-            })()}
+            )}
 
             {/* ── Position Alert Modal ── */}
             {isModalOpen && selectedPosition && (

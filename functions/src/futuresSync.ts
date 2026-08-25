@@ -12,6 +12,11 @@ function sign(queryString: string, secret: string): string {
     return crypto.createHmac("sha256", secret).update(queryString).digest("hex");
 }
 
+function safeNum(value: unknown, fallback: number = 0): number {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+}
+
 async function binanceGet(
     path: string,
     params: Record<string, string>,
@@ -93,7 +98,7 @@ interface FuturesData {
 }
 
 interface FuturesPositionAlert {
-    type: "roe" | "price";
+    type: "roe" | "roeUsd";
     targetValue: number;
     direction: "up" | "down";
     isPersistent: boolean;
@@ -126,28 +131,30 @@ async function runFuturesSync(): Promise<FuturesData | null> {
             binanceGet("/fapi/v2/positionRisk", {}, apiKey, apiSecret),
         ]);
 
-        // Build position risk map
+        // Build position risk map keyed by symbol+positionSide (handles hedge mode)
         const positionMap = new Map<string, any>();
         for (const p of positionRes) {
-            if (parseFloat(p.positionAmt) !== 0) {
-                positionMap.set(p.symbol, p);
+            if (safeNum(p.positionAmt) !== 0) {
+                const posSide = p.positionSide || "BOTH";
+                positionMap.set(`${p.symbol}-${posSide}`, p);
             }
         }
 
         // Enrich positions with risk data
         const positions: FuturesPosition[] = accountRes.positions
-            .filter((p: any) => parseFloat(p.positionAmt) !== 0)
+            .filter((p: any) => safeNum(p.positionAmt) !== 0)
             .map((p: any) => {
-                const risk = positionMap.get(p.symbol) || {};
-                const entryPrice = parseFloat(risk.entryPrice || "0");
-                const markPrice = parseFloat(risk.markPrice || "0");
-                const liqPrice = parseFloat(risk.liquidationPrice || "0");
-                const unrealizedPnl = parseFloat(p.unrealizedProfit);
+                const posSide = p.positionSide || "BOTH";
+                const risk = positionMap.get(`${p.symbol}-${posSide}`) || {};
+                const entryPrice = safeNum(risk.entryPrice);
+                const markPrice = safeNum(risk.markPrice);
+                const liqPrice = safeNum(risk.liquidationPrice);
+                const unrealizedPnl = safeNum(p.unrealizedProfit);
 
                 // Distance to liquidation % (absolute distance per side)
                 let distToLiqPercent = 0;
                 if (liqPrice > 0 && markPrice > 0) {
-                    if (parseFloat(p.positionAmt) > 0) {
+                    if (safeNum(p.positionAmt) > 0) {
                         // LONG: price must drop to hit liquidation
                         distToLiqPercent = ((markPrice - liqPrice) / markPrice) * 100;
                     } else {
@@ -157,37 +164,43 @@ async function runFuturesSync(): Promise<FuturesData | null> {
                 }
 
                 // ROE = PnL / initialMargin * 100
-                const initialMargin = parseFloat(p.initialMargin);
+                const initialMargin = safeNum(p.initialMargin);
                 const roe = initialMargin > 0 ? (unrealizedPnl / initialMargin) * 100 : 0;
+
+                // Derive side: use positionSide if hedge mode, else positionAmt sign
+                let side: "LONG" | "SHORT";
+                if (posSide === "LONG") side = "LONG";
+                else if (posSide === "SHORT") side = "SHORT";
+                else side = safeNum(p.positionAmt) > 0 ? "LONG" : "SHORT";
 
                 return {
                     symbol: p.symbol,
-                    side: parseFloat(p.positionAmt) > 0 ? "LONG" : "SHORT",
-                    size: Math.abs(parseFloat(p.positionAmt)),
-                    notional: Math.abs(parseFloat(p.notional)),
+                    side,
+                    size: Math.abs(safeNum(p.positionAmt)),
+                    notional: Math.abs(safeNum(p.notional)),
                     entryPrice,
                     markPrice,
                     liquidationPrice: liqPrice,
-                    leverage: parseInt(risk.leverage || "1"),
+                    leverage: Math.max(1, Math.round(safeNum(risk.leverage, 1))),
                     unrealizedPnl,
                     initialMargin,
-                    maintMargin: parseFloat(p.maintMargin),
+                    maintMargin: safeNum(p.maintMargin),
                     marginType: risk.marginType || "cross",
-                    breakEvenPrice: parseFloat(risk.breakEvenPrice || "0"),
-                    distToLiqPercent,
+                    breakEvenPrice: safeNum(risk.breakEvenPrice),
+                    distToLiqPercent: Math.max(0, distToLiqPercent),
                     roe,
-                    updateTime: p.updateTime,
-                    fundingRate: parseFloat(risk.lastFundingRate || "0"),
+                    updateTime: safeNum(p.updateTime),
+                    fundingRate: safeNum(risk.lastFundingRate),
                 };
             });
 
         // Account summary
-        const totalWalletBalance = parseFloat(accountRes.totalWalletBalance);
-        const totalUnrealizedProfit = parseFloat(accountRes.totalUnrealizedProfit);
-        const totalMarginBalance = parseFloat(accountRes.totalMarginBalance);
-        const totalInitialMargin = parseFloat(accountRes.totalInitialMargin);
-        const totalMaintMargin = parseFloat(accountRes.totalMaintMargin);
-        const availableBalance = parseFloat(accountRes.availableBalance);
+        const totalWalletBalance = safeNum(accountRes.totalWalletBalance);
+        const totalUnrealizedProfit = safeNum(accountRes.totalUnrealizedProfit);
+        const totalMarginBalance = safeNum(accountRes.totalMarginBalance);
+        const totalInitialMargin = safeNum(accountRes.totalInitialMargin);
+        const totalMaintMargin = safeNum(accountRes.totalMaintMargin);
+        const availableBalance = safeNum(accountRes.availableBalance);
 
         const marginRatio = totalMarginBalance > 0
             ? (totalMaintMargin / totalMarginBalance) * 100
@@ -200,7 +213,7 @@ async function runFuturesSync(): Promise<FuturesData | null> {
             totalInitialMargin,
             totalMaintMargin,
             availableBalance,
-            maxWithdrawAmount: parseFloat(accountRes.maxWithdrawAmount),
+            maxWithdrawAmount: safeNum(accountRes.maxWithdrawAmount),
             marginRatio,
         };
 
@@ -318,7 +331,7 @@ async function checkFuturesAlerts(data: FuturesData): Promise<void> {
                     : `${pos.roe >= 0 ? "+" : ""}${pos.roe.toFixed(2)}%`;
 
                 messages.push(
-                    `${emoji} *${pos.symbol}* — Alerta de ${alert.type === "roe" ? "ROE %" : "ROE USD"}\n` +
+                    `${emoji} *${pos.symbol}* — Futuros\n` +
                     `Valor actual: *${valueStr}*\n` +
                     `Meta: ${alertLabel}\n` +
                     `PnL: ${pnlStr}` +
