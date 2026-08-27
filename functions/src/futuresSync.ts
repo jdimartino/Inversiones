@@ -235,10 +235,13 @@ async function runFuturesSync(): Promise<FuturesData | null> {
 
 function normalizeFuturesGlobalAlerts(rawArray: any[]): FuturesGlobalAlertRule[] {
     if (!Array.isArray(rawArray)) return [];
-    return rawArray.map((alert: any) => ({
-        ...alert,
-        direction: alert.direction || (alert.targetAmount >= 0 ? "up" : "down"),
-    }));
+    return rawArray.map((alert: any) => {
+        const { _lastSide, ...rest } = alert;
+        return {
+            ...rest,
+            direction: rest.direction || (rest.targetAmount >= 0 ? "up" : "down"),
+        };
+    });
 }
 
 function formatSignedUsd(value: number): string {
@@ -368,22 +371,29 @@ async function checkFuturesAlerts(data: FuturesData): Promise<void> {
         }
     }
 
-    // Check global futures PNL alerts
-    const globalAlerts = normalizeFuturesGlobalAlerts(futuresAlerts.globalAlerts || []);
+    // Check global futures PNL alerts (aligned with Spot logic in index.ts)
+    const globalAlertsRaw = futuresAlerts.globalAlerts || [];
+    const hadLastSide = globalAlertsRaw.some((a: any) => a._lastSide !== undefined);
+    const globalAlerts = normalizeFuturesGlobalAlerts(globalAlertsRaw);
     const futuresGlobalPnl = data.account.totalUnrealizedProfit;
     let remainingGlobalAlerts: FuturesGlobalAlertRule[] = [];
-    let hasGlobalChanged = false;
+    let hasGlobalChanged = hadLastSide; // force save if _lastSide was stripped
 
     for (const rule of globalAlerts) {
         const target = rule.targetAmount;
         const direction = rule.direction || (target >= 0 ? "up" : "down");
-        const conditionMet = direction === "up" ? futuresGlobalPnl >= target : futuresGlobalPnl <= target;
-        const currentSide: "above" | "below" = conditionMet ? "above" : "below";
+        // For negative targets, invert direction semantics:
+        // "down" = recovery (loss decreasing), "up" = worsening (loss increasing)
+        const effectiveDirection = target < 0
+            ? (direction === "up" ? "down" : "up")
+            : direction;
+        const currentSide: "above" | "below" = futuresGlobalPnl >= target ? "above" : "below";
         const prevSide = rule._lastSide;
+        const conditionMet = effectiveDirection === "up" ? futuresGlobalPnl >= target : futuresGlobalPnl <= target;
         const isTriggered = conditionMet && (!rule.isPersistent || prevSide === undefined || prevSide !== currentSide);
 
         if (isTriggered) {
-            if (direction === "up") {
+            if (effectiveDirection === "up") {
                 messages.push(
                     `🚨 *PNL Futuros* alcanzó *${formatSignedUsd(futuresGlobalPnl)}* (Meta: 🔼 >= ${formatSignedUsd(target)})` +
                     (rule.note ? `\n_📝 ${rule.note}_` : "")
@@ -394,17 +404,16 @@ async function checkFuturesAlerts(data: FuturesData): Promise<void> {
                     (rule.note ? `\n_📝 ${rule.note}_` : "")
                 );
             }
-            console.log(`[FuturesSync] Global alert triggered: PNL $${futuresGlobalPnl.toFixed(2)} — Target: ${direction === "up" ? ">=" : "<="} $${target} — ${rule.isPersistent ? "PERSISTENT" : "ONE-SHOT"}`);
+            console.log(`[FuturesSync] Global alert triggered: PNL $${futuresGlobalPnl.toFixed(2)} — Target: ${effectiveDirection === "up" ? ">=" : "<="} $${target} — ${rule.isPersistent ? "PERSISTENT" : "ONE-SHOT"}`);
             if (rule.isPersistent) {
-                remainingGlobalAlerts.push({ ...rule, _lastSide: currentSide });
-                hasGlobalChanged = true;
-            } else {
+                remainingGlobalAlerts.push(hadLastSide ? rule : { ...rule, _lastSide: currentSide });
                 hasGlobalChanged = true;
             }
+            else { hasGlobalChanged = true; }
         } else {
             if (rule.isPersistent) {
                 if (prevSide !== currentSide) hasGlobalChanged = true;
-                remainingGlobalAlerts.push({ ...rule, _lastSide: currentSide });
+                remainingGlobalAlerts.push(hadLastSide ? rule : { ...rule, _lastSide: currentSide });
             } else {
                 remainingGlobalAlerts.push(rule);
             }

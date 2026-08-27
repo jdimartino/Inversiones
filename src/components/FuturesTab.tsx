@@ -350,9 +350,9 @@ function AlertSettings({
                         {(alerts.globalAlerts || []).map((alert, index) => {
                             const currentPnl = account.totalUnrealizedProfit;
                             const isOnHold = alert.isPersistent && (
-                                alert.direction === "up"
-                                    ? currentPnl >= alert.targetAmount
-                                    : currentPnl <= alert.targetAmount
+                                alert.targetAmount < 0
+                                    ? (alert.direction === "up" ? currentPnl <= alert.targetAmount : currentPnl >= alert.targetAmount)
+                                    : (alert.direction === "up" ? currentPnl >= alert.targetAmount : currentPnl <= alert.targetAmount)
                             );
                             return (
                                 <div key={`${alert.direction}-${alert.targetAmount}-${index}`} className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2">
@@ -390,6 +390,7 @@ function AlertSettings({
                     </div>
                     <FuturesGlobalAlertForm
                         existingAlerts={alerts.globalAlerts || []}
+                        currentPnl={account.totalUnrealizedProfit}
                         onSave={(globalAlerts) => onSave({ ...alerts, globalAlerts })}
                     />
                 </div>
@@ -400,9 +401,11 @@ function AlertSettings({
 
 function FuturesGlobalAlertForm({
     existingAlerts,
+    currentPnl,
     onSave,
 }: {
     existingAlerts: FuturesGlobalAlert[];
+    currentPnl: number;
     onSave: (alerts: FuturesGlobalAlert[]) => void;
 }) {
     const [targetAmount, setTargetAmount] = useState("");
@@ -413,7 +416,13 @@ function FuturesGlobalAlertForm({
     const handleTargetChange = (value: string) => {
         setTargetAmount(value);
         const amount = Number(value);
-        if (Number.isFinite(amount)) setDirection(amount >= 0 ? "up" : "down");
+        if (Number.isFinite(amount)) {
+            if (amount < 0) {
+                setDirection(amount >= currentPnl ? "down" : "up");
+            } else {
+                setDirection(amount >= currentPnl ? "up" : "down");
+            }
+        }
     };
 
     const addAlert = () => {
@@ -424,7 +433,7 @@ function FuturesGlobalAlertForm({
                 targetAmount: amount,
                 direction,
                 isPersistent,
-                note: note.trim() || undefined,
+                ...(note.trim() ? { note: note.trim() } : {}),
             }]);
         }
         setTargetAmount("");
@@ -462,6 +471,22 @@ function FuturesGlobalAlertForm({
                 />
                 <button onClick={addAlert} className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-medium text-black hover:bg-amber-400">+ Agregar</button>
             </div>
+            {Number.isFinite(Number(targetAmount)) && targetAmount.trim() !== "" ? (() => {
+                const target = Number(targetAmount);
+                const isNegative = target < 0;
+                const conditionAlreadyMet = isNegative
+                    ? (direction === "up" ? currentPnl <= target : currentPnl >= target)
+                    : (direction === "up" ? currentPnl >= target : currentPnl <= target);
+                return conditionAlreadyMet ? (
+                    <p className="text-center text-[10px] font-bold text-yellow-400">
+                        ⚠️ El PNL actual ya {direction === "up" ? "supera" : "está por debajo de"} {target >= 0 ? "+" : "-"}${Math.abs(target).toFixed(2)} — se disparará en el próximo ciclo
+                    </p>
+                ) : (
+                    <p className={`text-center text-[10px] font-bold ${direction === "up" ? "text-emerald-400" : "text-rose-400"}`}>
+                        Notificar cuando el PNL {direction === "up" ? "suba a" : "baje a"} {target >= 0 ? "+" : "-"}${Math.abs(target).toFixed(2)}
+                    </p>
+                );
+            })() : null}
         </div>
     );
 }

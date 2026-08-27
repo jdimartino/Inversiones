@@ -62,7 +62,9 @@ export function useFuturesAlerts() {
                                   direction: alert.direction || (alert.targetAmount >= 0 ? "up" : "down"),
                               }))
                             : [];
-                        setAlerts({ ...raw, globalAlerts });
+                        setAlerts({ ...DEFAULT_FUTURES_ALERTS, ...raw, globalAlerts });
+                    } else {
+                        setAlerts((prev) => ({ ...prev, globalAlerts: prev.globalAlerts ?? [] }));
                     }
                 }
                 setLoading(false);
@@ -79,16 +81,17 @@ export function useFuturesAlerts() {
         setAlerts(newAlerts);
         try {
             const docRef = doc(db, "config", "alerts");
-            // Preserve _lastAlertedMargin from current state if not in newAlerts
             const toSave: FuturesAlertConfig = {
                 ...newAlerts,
-                _lastAlertedMargin: newAlerts._lastAlertedMargin ?? alerts._lastAlertedMargin ?? null,
+                _lastAlertedMargin: newAlerts._lastAlertedMargin ?? null,
             };
-            await setDoc(docRef, { futuresAlerts: toSave }, { merge: true });
+            // Firestore no acepta `undefined` (ej. note vacío). Sanitizamos como en useAlerts.
+            const cleanToSave = JSON.parse(JSON.stringify(toSave));
+            await setDoc(docRef, { futuresAlerts: cleanToSave }, { merge: true });
         } catch (err) {
             console.error("Error saving futures alerts", err);
         }
-    }, [alerts._lastAlertedMargin]);
+    }, []);
 
     return { alerts, loading, saveAlerts };
 }

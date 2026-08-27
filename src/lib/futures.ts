@@ -68,7 +68,6 @@ export interface FuturesGlobalAlert {
     direction: "up" | "down";
     isPersistent: boolean;
     note?: string;
-    _lastSide?: "above" | "below";
 }
 
 export interface FuturesAlertConfig {
@@ -100,6 +99,7 @@ export const DEFAULT_FUTURES_ALERTS: FuturesAlertConfig = {
     enabled: true,
     marginThresholds: [70, 80, 90],
     positionAlerts: {},
+    globalAlerts: [],
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
