@@ -101,10 +101,19 @@ interface FuturesPositionAlert {
     _lastSide?: "above" | "below";
 }
 
+interface FuturesGlobalAlertRule {
+    targetAmount: number;
+    direction?: "up" | "down";
+    isPersistent?: boolean;
+    note?: string;
+    _lastSide?: "above" | "below";
+}
+
 interface FuturesAlertConfig {
     enabled: boolean;
     marginThresholds: number[];
     positionAlerts: Record<string, FuturesPositionAlert[]>;
+    globalAlerts?: FuturesGlobalAlertRule[];
     _lastAlertedMargin: number | null;
 }
 
@@ -222,6 +231,18 @@ async function runFuturesSync(): Promise<FuturesData | null> {
         console.error("[FuturesSync] Binance API error:", errData);
         return null;
     }
+}
+
+function normalizeFuturesGlobalAlerts(rawArray: any[]): FuturesGlobalAlertRule[] {
+    if (!Array.isArray(rawArray)) return [];
+    return rawArray.map((alert: any) => ({
+        ...alert,
+        direction: alert.direction || (alert.targetAmount >= 0 ? "up" : "down"),
+    }));
+}
+
+function formatSignedUsd(value: number): string {
+    return `${value >= 0 ? "+" : "-"}$${Math.abs(value).toFixed(2)}`;
 }
 
 // ─── Alert Logic ──────────────────────────────────────────────────────────────
@@ -347,13 +368,57 @@ async function checkFuturesAlerts(data: FuturesData): Promise<void> {
         }
     }
 
+    // Check global futures PNL alerts
+    const globalAlerts = normalizeFuturesGlobalAlerts(futuresAlerts.globalAlerts || []);
+    const futuresGlobalPnl = data.account.totalUnrealizedProfit;
+    let remainingGlobalAlerts: FuturesGlobalAlertRule[] = [];
+    let hasGlobalChanged = false;
+
+    for (const rule of globalAlerts) {
+        const target = rule.targetAmount;
+        const direction = rule.direction || (target >= 0 ? "up" : "down");
+        const conditionMet = direction === "up" ? futuresGlobalPnl >= target : futuresGlobalPnl <= target;
+        const currentSide: "above" | "below" = conditionMet ? "above" : "below";
+        const prevSide = rule._lastSide;
+        const isTriggered = conditionMet && (!rule.isPersistent || prevSide === undefined || prevSide !== currentSide);
+
+        if (isTriggered) {
+            if (direction === "up") {
+                messages.push(
+                    `🚨 *PNL Futuros* alcanzó *${formatSignedUsd(futuresGlobalPnl)}* (Meta: 🔼 >= ${formatSignedUsd(target)})` +
+                    (rule.note ? `\n_📝 ${rule.note}_` : "")
+                );
+            } else {
+                messages.push(
+                    `📉 *PNL Futuros* cayó a *${formatSignedUsd(futuresGlobalPnl)}* (Límite: 🔽 <= ${formatSignedUsd(target)})` +
+                    (rule.note ? `\n_📝 ${rule.note}_` : "")
+                );
+            }
+            console.log(`[FuturesSync] Global alert triggered: PNL $${futuresGlobalPnl.toFixed(2)} — Target: ${direction === "up" ? ">=" : "<="} $${target} — ${rule.isPersistent ? "PERSISTENT" : "ONE-SHOT"}`);
+            if (rule.isPersistent) {
+                remainingGlobalAlerts.push({ ...rule, _lastSide: currentSide });
+                hasGlobalChanged = true;
+            } else {
+                hasGlobalChanged = true;
+            }
+        } else {
+            if (rule.isPersistent) {
+                if (prevSide !== currentSide) hasGlobalChanged = true;
+                remainingGlobalAlerts.push({ ...rule, _lastSide: currentSide });
+            } else {
+                remainingGlobalAlerts.push(rule);
+            }
+        }
+    }
+    if (hasGlobalChanged) futuresAlerts.globalAlerts = remainingGlobalAlerts;
+
     // Send messages
     for (const msg of messages) {
         await sendTelegram(msg);
     }
 
     // Save updated alert state
-    await admin.firestore().collection("config").doc("alerts").update({ futuresAlerts });
+    await admin.firestore().collection("config").doc("alerts").set({ futuresAlerts }, { merge: true });
 }
 
 // ─── Cloud Function (scheduled every 3 minutes) ──────────────────────────────

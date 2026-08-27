@@ -1,6 +1,7 @@
 import React from "react";
 import { FuturesData } from "../../lib/futures";
 import { PriceDirection } from "../../hooks/usePrices";
+import { fmtPrice, fmtUSD } from "../../lib/format";
 
 interface FuturesSummaryCardProps {
     futuresData: FuturesData | null;
@@ -24,7 +25,7 @@ const FuturesSummaryCard: React.FC<FuturesSummaryCardProps> = ({
         );
     }
 
-    const { account, positions } = futuresData;
+    const { positions } = futuresData;
     const openPositions = positions.length;
 
     return (
@@ -74,7 +75,7 @@ const FuturesSummaryCard: React.FC<FuturesSummaryCardProps> = ({
                                     const baseAsset = pos.symbol.replace('USDT', '');
                                     const actualColor = priceDirections[baseAsset] === 'up' ? 'text-green-400' : priceDirections[baseAsset] === 'down' ? 'text-red-400' : 'text-white';
                                     return (
-                                    <tr key={pos.symbol} className="border-b border-gray-800/50">
+                                    <tr key={`${pos.symbol}-${pos.side}`} className="border-b border-gray-800/50">
                                         <td className={`py-1.5 text-[11px] md:text-xs font-bold text-center md:text-left ${pos.side === 'LONG' ? 'text-green-400' : 'text-red-400'}`}>
                                             {pos.side}
                                         </td>
@@ -82,18 +83,18 @@ const FuturesSummaryCard: React.FC<FuturesSummaryCardProps> = ({
                                             {pos.symbol} <span className="text-[9px] text-gray-500">{pos.leverage}x</span>
                                         </td>
                                         <td className="py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums">
-                                            ${pos.entryPrice.toLocaleString()}
+                                            {fmtPrice(pos.entryPrice)}
                                         </td>
                                         <td className={`py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums ${actualColor}`}>
-                                            ${pos.markPrice.toLocaleString()}
+                                            {fmtPrice(pos.markPrice)}
                                         </td>
                                         <td className="py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums text-red-400/70">
-                                            ${pos.liquidationPrice.toLocaleString()}
+                                            {pos.liquidationPrice > 0 ? fmtPrice(pos.liquidationPrice) : "—"}
                                         </td>
-                                        <td className="py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums">${pos.notional.toFixed(2)}</td>
-                                        <td className="py-1.5 text-right font-mono text-[11px] tabular-nums hidden md:table-cell">${pos.maintMargin.toFixed(2)}</td>
+                                        <td className="py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums">{fmtUSD(pos.notional)}</td>
+                                        <td className="py-1.5 text-right font-mono text-[11px] tabular-nums hidden md:table-cell">{fmtUSD(pos.initialMargin)}</td>
                                         <td className={`py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums font-bold ${pos.unrealizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                            <div>{pos.unrealizedPnl >= 0 ? '+' : ''}{pos.unrealizedPnl.toFixed(2)}</div>
+                                            <div>{pos.unrealizedPnl >= 0 ? '+' : ''}{fmtUSD(pos.unrealizedPnl)}</div>
                                             <div className="text-[10px] font-normal">({pos.roe >= 0 ? '+' : ''}{pos.roe.toFixed(2)}%)</div>
                                         </td>
                                     </tr>

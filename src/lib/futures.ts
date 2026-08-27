@@ -63,10 +63,20 @@ export interface FuturesPositionAlert {
     _lastSide?: "above" | "below";
 }
 
+export interface FuturesGlobalAlert {
+    targetAmount: number;
+    direction: "up" | "down";
+    isPersistent: boolean;
+    note?: string;
+    _lastSide?: "above" | "below";
+}
+
 export interface FuturesAlertConfig {
     enabled: boolean;
     marginThresholds: number[];
     positionAlerts: Record<string, FuturesPositionAlert[]>;
+    globalAlerts?: FuturesGlobalAlert[];
+    _lastAlertedMargin?: number | null;
 }
 
 // ─── Default values ───────────────────────────────────────────────────────────
@@ -94,14 +104,85 @@ export const DEFAULT_FUTURES_ALERTS: FuturesAlertConfig = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/** Safe number parser — returns fallback for NaN, Infinity, undefined */
+export function safeNum(value: unknown, fallback: number = 0): number {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+}
+
+/** Unique key for a position — handles hedge mode (LONG + SHORT on same symbol) */
+export function positionKey(symbol: string, side: string): string {
+    return `${symbol}-${side}`;
+}
+
 export function formatPnl(pnl: number): string {
+    if (!Number.isFinite(pnl)) return "+$0.00";
     const sign = pnl >= 0 ? "+" : "";
-    return `${sign}$${pnl.toFixed(2)}`;
+    return `${sign}$${Math.abs(pnl).toFixed(2)}`;
+}
+
+export function formatPnlSigned(pnl: number): string {
+    if (!Number.isFinite(pnl)) return "$0.00";
+    const sign = pnl >= 0 ? "+" : "";
+    return `${sign}$${Math.abs(pnl).toFixed(2)}`;
 }
 
 export function formatRoe(roe: number): string {
+    if (!Number.isFinite(roe)) return "+0.0%";
     const sign = roe >= 0 ? "+" : "";
     return `${sign}${roe.toFixed(1)}%`;
+}
+
+// ─── Live Price Recalculation ──────────────────────────────────────────────────
+
+/**
+ * Recompute price-dependent fields of open positions using live mark prices.
+ * Structural fields (entry, liquidation, size, margin, leverage, side, symbol)
+ * are left untouched — they still come from the REST/Firestore snapshot.
+ *
+ * For each position with a valid live price it updates: markPrice, unrealizedPnl,
+ * roe, notional and distToLiqPercent (which also drives the risk bar).
+ */
+export function applyLivePrices(
+    positions: FuturesPosition[],
+    markPrices: Record<string, number>,
+): FuturesPosition[] {
+    if (!markPrices || positions.length === 0) return positions;
+
+    return positions.map((pos) => {
+        const livePrice = markPrices[pos.symbol];
+        if (!Number.isFinite(livePrice) || livePrice <= 0) return pos;
+
+        const signedAmt = pos.side === "LONG" ? pos.size : -pos.size;
+        const unrealizedPnl = (livePrice - pos.entryPrice) * signedAmt;
+        const notional = livePrice * pos.size;
+        const roe = pos.initialMargin > 0
+            ? (unrealizedPnl / pos.initialMargin) * 100
+            : 0;
+
+        let distToLiqPercent = 0;
+        if (pos.liquidationPrice > 0) {
+            if (pos.side === "LONG") {
+                distToLiqPercent = ((livePrice - pos.liquidationPrice) / livePrice) * 100;
+            } else {
+                distToLiqPercent = ((pos.liquidationPrice - livePrice) / livePrice) * 100;
+            }
+        }
+
+        return {
+            ...pos,
+            markPrice: livePrice,
+            unrealizedPnl,
+            notional,
+            roe,
+            distToLiqPercent: Math.max(0, distToLiqPercent),
+        };
+    });
+}
+
+/** Sum of unrealized PnL across positions (used for the live summary PnL). */
+export function sumUnrealizedPnl(positions: FuturesPosition[]): number {
+    return positions.reduce((sum, pos) => sum + safeNum(pos.unrealizedPnl), 0);
 }
 
 // ─── Margin Ratio Helpers (lower = safer, 100% = liquidation) ────────────────
@@ -133,6 +214,8 @@ export function getMarginLabelColor(ratio: number): string {
     if (ratio >= 50) return "text-yellow-400";
     return "text-green-400";
 }
+
+// ─── Distance to Liquidation Helpers ──────────────────────────────────────────
 
 export function getDistToLiqColor(percent: number): string {
     if (percent <= 5) return "text-red-400";
@@ -182,7 +265,6 @@ export function simulateMarketMove(
         return sum + pnl;
     }, 0);
 
-    // Recalculate total maintMargin proportionally to price change per position
     const newMaintMargin = positions.reduce((sum, pos) => {
         if (pos.markPrice <= 0) return sum + pos.maintMargin;
         const scaleFactor = (pos.markPrice * (1 + movePercent / 100)) / pos.markPrice;
@@ -215,7 +297,7 @@ export function findLiquidationThreshold(
     const base = simulateMarketMove(positions, account, 0);
     if (base.isLiquidated) return 0;
 
-    const bound = direction === "down" ? -100 : 1000;
+    const bound = direction === "down" ? -100 : 100;
     const extreme = simulateMarketMove(positions, account, bound);
     if (!extreme.isLiquidated) return null;
 

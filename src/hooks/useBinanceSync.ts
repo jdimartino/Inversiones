@@ -22,8 +22,7 @@ interface BinanceCollateralRow {
 
 interface BinanceLoanableRow {
   loanCoin: string;
-  flexibleDailyInterestRate: string;
-  flexibleYearlyInterestRate: string;
+  flexibleInterestRate: string;
 }
 
 interface BinanceSyncResponse {
@@ -86,9 +85,9 @@ function mapBinanceToExchangeData(
   // ── Debts: mapear a formato app ──
   const debts = Object.values(debtMap).map((item) => {
     const loanData = loanableData.find((l) => l.loanCoin === item.loanCoin);
-    const yearlyRate = parseFloat(loanData?.flexibleYearlyInterestRate || "0") * 100;
-    const dailyRate = parseFloat(loanData?.flexibleDailyInterestRate || "0");
-    const hourlyRate = dailyRate / 24;
+    const interestRate = parseFloat(loanData?.flexibleInterestRate || "0");
+    const yearlyRate = interestRate * 100;
+    const hourlyRate = interestRate / 365 / 24;
     return {
       _id: generateId(),
       id: item.loanCoin,

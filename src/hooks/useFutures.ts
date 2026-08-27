@@ -3,6 +3,7 @@ import { db, doc, onSnapshot, setDoc } from "../lib/firebase";
 import {
     FuturesData,
     FuturesAlertConfig,
+    FuturesGlobalAlert,
     DEFAULT_FUTURES_DATA,
     DEFAULT_FUTURES_ALERTS,
 } from "../lib/futures";
@@ -54,7 +55,14 @@ export function useFuturesAlerts() {
                 if (snapshot.exists()) {
                     const data = snapshot.data();
                     if (data?.futuresAlerts) {
-                        setAlerts(data.futuresAlerts as FuturesAlertConfig);
+                        const raw = data.futuresAlerts as FuturesAlertConfig;
+                        const globalAlerts: FuturesGlobalAlert[] = Array.isArray(raw.globalAlerts)
+                            ? raw.globalAlerts.map((alert) => ({
+                                  ...alert,
+                                  direction: alert.direction || (alert.targetAmount >= 0 ? "up" : "down"),
+                              }))
+                            : [];
+                        setAlerts({ ...raw, globalAlerts });
                     }
                 }
                 setLoading(false);
@@ -71,11 +79,16 @@ export function useFuturesAlerts() {
         setAlerts(newAlerts);
         try {
             const docRef = doc(db, "config", "alerts");
-            await setDoc(docRef, { futuresAlerts: newAlerts }, { merge: true });
+            // Preserve _lastAlertedMargin from current state if not in newAlerts
+            const toSave: FuturesAlertConfig = {
+                ...newAlerts,
+                _lastAlertedMargin: newAlerts._lastAlertedMargin ?? alerts._lastAlertedMargin ?? null,
+            };
+            await setDoc(docRef, { futuresAlerts: toSave }, { merge: true });
         } catch (err) {
             console.error("Error saving futures alerts", err);
         }
-    }, []);
+    }, [alerts._lastAlertedMargin]);
 
     return { alerts, loading, saveAlerts };
 }

@@ -3,6 +3,9 @@ const fmtCurrency = new Intl.NumberFormat("en-US", { style: "currency", currency
 const fmtCurrency4 = new Intl.NumberFormat("en-US", {
     style: "currency", currency: "USD", minimumFractionDigits: 4, maximumFractionDigits: 4,
 });
+const fmtCurrencyCompact = new Intl.NumberFormat("en-US", {
+    style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2,
+});
 
 const fmtEur = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" });
 const fmtEur4 = new Intl.NumberFormat("es-ES", {
@@ -19,6 +22,11 @@ export const fmtUSD = (n: number, isEur?: boolean): string => (isEur ? fmtEur : 
 export const fmtPrice = (n: number, isEur?: boolean): string => {
     if (isEur) return Math.abs(n) < 1 ? fmtEur4.format(n) : fmtEur.format(n);
     return Math.abs(n) < 1 ? fmtCurrency4.format(n) : fmtCurrency.format(n);
+};
+
+/** Format a futures price: always 2 decimals, en-US locale */
+export const fmtFuturesPrice = (n: number): string => {
+    return `$${fmtCurrencyCompact.format(Math.abs(n)).replace('$', '')}`;
 };
 
 /** Format a signed percentage (e.g. "+15.2%" / "-23.1%") */
