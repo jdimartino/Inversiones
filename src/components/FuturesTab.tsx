@@ -359,6 +359,13 @@ function GlobalPnlAlerts({
                 <h3 className="text-white font-semibold flex items-center gap-2 text-sm">
                     <Zap className="text-amber-400" size={16} />
                     Alertas de PNL Global
+                    <span
+                        className={`font-mono font-bold ${
+                            account.totalUnrealizedProfit >= 0 ? "text-emerald-400" : "text-rose-400"
+                        }`}
+                    >
+                        {formatPnl(account.totalUnrealizedProfit)}
+                    </span>
                     {(alerts.globalAlerts || []).length > 0 && (
                         <span className="text-[9px] bg-amber-500/15 text-amber-400 border border-amber-500/30 rounded-full px-1.5 py-0.5 font-bold">
                             {(alerts.globalAlerts || []).length}
