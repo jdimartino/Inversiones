@@ -151,6 +151,18 @@ function normalizeFuturesGlobalAlerts(rawArray) {
         return [];
     return rawArray.map((alert) => (Object.assign(Object.assign({}, alert), { direction: alert.direction || (alert.targetAmount >= 0 ? "up" : "down") })));
 }
+function migrateGlobalAlertDirections(alerts, currentPnl) {
+    let changed = false;
+    const migrated = alerts.map((alert) => {
+        const correctDirection = alert.targetAmount >= currentPnl ? "up" : "down";
+        if (alert.direction !== correctDirection) {
+            changed = true;
+            return Object.assign(Object.assign({}, alert), { direction: correctDirection });
+        }
+        return alert;
+    });
+    return { migrated, changed };
+}
 function formatSignedUsd(value) {
     return `${value >= 0 ? "+" : "-"}$${Math.abs(value).toFixed(2)}`;
 }
@@ -258,8 +270,21 @@ async function checkFuturesAlerts(data) {
         }
     }
     // Check global futures PNL alerts — identical logic to Watchlist (index.ts:278-312)
-    const globalAlerts = normalizeFuturesGlobalAlerts(futuresAlerts.globalAlerts || []);
+    const globalAlertsRaw = normalizeFuturesGlobalAlerts(futuresAlerts.globalAlerts || []);
     const futuresGlobalPnl = data.account.totalUnrealizedProfit;
+    // One-time migration: fix alerts created with inverted direction for negative PNL
+    let globalAlerts = globalAlertsRaw;
+    if (!futuresAlerts._globalAlertsDirectionsMigrated) {
+        const { migrated, changed } = migrateGlobalAlertDirections(globalAlertsRaw, futuresGlobalPnl);
+        if (changed) {
+            globalAlerts = migrated;
+            futuresAlerts._globalAlertsDirectionsMigrated = true;
+            console.log(`[FuturesSync] Migrated ${migrated.length} global alert directions`);
+        }
+        else {
+            futuresAlerts._globalAlertsDirectionsMigrated = true;
+        }
+    }
     let remainingGlobalAlerts = [];
     let hasGlobalChanged = false;
     for (const rule of globalAlerts) {
