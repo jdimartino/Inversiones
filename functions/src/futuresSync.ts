@@ -115,6 +115,7 @@ interface FuturesAlertConfig {
     positionAlerts: Record<string, FuturesPositionAlert[]>;
     globalAlerts?: FuturesGlobalAlertRule[];
     _lastAlertedMargin: number | null;
+    _globalAlertsDirectionsMigrated?: boolean;
 }
 
 // ─── Core Logic ───────────────────────────────────────────────────────────────
@@ -235,13 +236,23 @@ async function runFuturesSync(): Promise<FuturesData | null> {
 
 function normalizeFuturesGlobalAlerts(rawArray: any[]): FuturesGlobalAlertRule[] {
     if (!Array.isArray(rawArray)) return [];
-    return rawArray.map((alert: any) => {
-        const { _lastSide, ...rest } = alert;
-        return {
-            ...rest,
-            direction: rest.direction || (rest.targetAmount >= 0 ? "up" : "down"),
-        };
+    return rawArray.map((alert: any) => ({
+        ...alert,
+        direction: alert.direction || (alert.targetAmount >= 0 ? "up" : "down"),
+    }));
+}
+
+function migrateGlobalAlertDirections(alerts: FuturesGlobalAlertRule[], currentPnl: number): { migrated: FuturesGlobalAlertRule[]; changed: boolean } {
+    let changed = false;
+    const migrated = alerts.map((alert) => {
+        const correctDirection: "up" | "down" = alert.targetAmount >= currentPnl ? "up" : "down";
+        if (alert.direction !== correctDirection) {
+            changed = true;
+            return { ...alert, direction: correctDirection };
+        }
+        return alert;
     });
+    return { migrated, changed };
 }
 
 function formatSignedUsd(value: number): string {
@@ -371,29 +382,36 @@ async function checkFuturesAlerts(data: FuturesData): Promise<void> {
         }
     }
 
-    // Check global futures PNL alerts (aligned with Spot logic in index.ts)
-    const globalAlertsRaw = futuresAlerts.globalAlerts || [];
-    const hadLastSide = globalAlertsRaw.some((a: any) => a._lastSide !== undefined);
-    const globalAlerts = normalizeFuturesGlobalAlerts(globalAlertsRaw);
+    // Check global futures PNL alerts — identical logic to Watchlist (index.ts:278-312)
+    const globalAlertsRaw = normalizeFuturesGlobalAlerts(futuresAlerts.globalAlerts || []);
     const futuresGlobalPnl = data.account.totalUnrealizedProfit;
+
+    // One-time migration: fix alerts created with inverted direction for negative PNL
+    let globalAlerts = globalAlertsRaw;
+    if (!futuresAlerts._globalAlertsDirectionsMigrated) {
+        const { migrated, changed } = migrateGlobalAlertDirections(globalAlertsRaw, futuresGlobalPnl);
+        if (changed) {
+            globalAlerts = migrated;
+            futuresAlerts._globalAlertsDirectionsMigrated = true;
+            console.log(`[FuturesSync] Migrated ${migrated.length} global alert directions`);
+        } else {
+            futuresAlerts._globalAlertsDirectionsMigrated = true;
+        }
+    }
+
     let remainingGlobalAlerts: FuturesGlobalAlertRule[] = [];
-    let hasGlobalChanged = hadLastSide; // force save if _lastSide was stripped
+    let hasGlobalChanged = false;
 
     for (const rule of globalAlerts) {
         const target = rule.targetAmount;
         const direction = rule.direction || (target >= 0 ? "up" : "down");
-        // For negative targets, invert direction semantics:
-        // "down" = recovery (loss decreasing), "up" = worsening (loss increasing)
-        const effectiveDirection = target < 0
-            ? (direction === "up" ? "down" : "up")
-            : direction;
         const currentSide: "above" | "below" = futuresGlobalPnl >= target ? "above" : "below";
         const prevSide = rule._lastSide;
-        const conditionMet = effectiveDirection === "up" ? futuresGlobalPnl >= target : futuresGlobalPnl <= target;
+        const conditionMet = direction === "up" ? futuresGlobalPnl >= target : futuresGlobalPnl <= target;
         const isTriggered = conditionMet && (!rule.isPersistent || prevSide === undefined || prevSide !== currentSide);
 
         if (isTriggered) {
-            if (effectiveDirection === "up") {
+            if (direction === "up") {
                 messages.push(
                     `🚨 *PNL Futuros* alcanzó *${formatSignedUsd(futuresGlobalPnl)}* (Meta: 🔼 >= ${formatSignedUsd(target)})` +
                     (rule.note ? `\n_📝 ${rule.note}_` : "")
@@ -404,16 +422,13 @@ async function checkFuturesAlerts(data: FuturesData): Promise<void> {
                     (rule.note ? `\n_📝 ${rule.note}_` : "")
                 );
             }
-            console.log(`[FuturesSync] Global alert triggered: PNL $${futuresGlobalPnl.toFixed(2)} — Target: ${effectiveDirection === "up" ? ">=" : "<="} $${target} — ${rule.isPersistent ? "PERSISTENT" : "ONE-SHOT"}`);
-            if (rule.isPersistent) {
-                remainingGlobalAlerts.push(hadLastSide ? rule : { ...rule, _lastSide: currentSide });
-                hasGlobalChanged = true;
-            }
+            console.log(`[FuturesSync] Global alert triggered: PNL $${futuresGlobalPnl.toFixed(2)} — Target: ${direction === "up" ? ">=" : "<="} $${target} — ${rule.isPersistent ? "PERSISTENT" : "ONE-SHOT"}`);
+            if (rule.isPersistent) { remainingGlobalAlerts.push({ ...rule, _lastSide: currentSide }); hasGlobalChanged = true; }
             else { hasGlobalChanged = true; }
         } else {
             if (rule.isPersistent) {
                 if (prevSide !== currentSide) hasGlobalChanged = true;
-                remainingGlobalAlerts.push(hadLastSide ? rule : { ...rule, _lastSide: currentSide });
+                remainingGlobalAlerts.push({ ...rule, _lastSide: currentSide });
             } else {
                 remainingGlobalAlerts.push(rule);
             }

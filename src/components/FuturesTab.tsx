@@ -50,6 +50,7 @@ import {
 import { fmtPrice, fmtUSD, fmtPercent } from "../lib/format";
 import { PriceDirection } from "../hooks/usePrices";
 import FuturesPositionAlertModal from "./FuturesPositionAlertModal";
+import FuturesGlobalAlertModal from "./FuturesGlobalAlertModal";
 import PositionTradesDetail from "./PositionTradesDetail";
 
 type IconType = LucideIcon;
@@ -262,11 +263,9 @@ function MobilePositionCard({ pos, onClick }: { pos: FuturesPosition; onClick?: 
 function AlertSettings({
     alerts,
     onSave,
-    account,
 }: {
     alerts: FuturesAlertConfig;
     onSave: (a: FuturesAlertConfig) => void;
-    account: FuturesAccount;
 }) {
     const [newThreshold, setNewThreshold] = React.useState("");
 
@@ -340,154 +339,83 @@ function AlertSettings({
                         </button>
                     </div>
                 </div>
-
-                <div className="border-t border-white/[0.06] pt-3">
-                    <div className="text-xs text-slate-400 mb-2">Alertas de PNL global:</div>
-                    <div className="space-y-1.5 mb-3">
-                        {(alerts.globalAlerts || []).length === 0 && (
-                            <span className="text-slate-600 text-xs">Sin alertas globales configuradas</span>
-                        )}
-                        {(alerts.globalAlerts || []).map((alert, index) => {
-                            const currentPnl = account.totalUnrealizedProfit;
-                            const isOnHold = alert.isPersistent && (
-                                alert.targetAmount < 0
-                                    ? (alert.direction === "up" ? currentPnl <= alert.targetAmount : currentPnl >= alert.targetAmount)
-                                    : (alert.direction === "up" ? currentPnl >= alert.targetAmount : currentPnl <= alert.targetAmount)
-                            );
-                            return (
-                                <div key={`${alert.direction}-${alert.targetAmount}-${index}`} className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2">
-                                    <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                                        <div className="flex flex-col">
-                                            <span className={`text-xs font-bold ${alert.direction === "up" ? "text-emerald-400" : "text-rose-400"}`}>
-                                                {alert.direction === "up" ? "🔼" : "🔽"} {alert.targetAmount >= 0 ? "+" : "-"}${Math.abs(alert.targetAmount).toFixed(2)}
-                                            </span>
-                                            {alert.note && <span className="text-[10px] text-slate-500 italic">{alert.note}</span>}
-                                        </div>
-                                        <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-bold ${
-                                            isOnHold
-                                                ? "border-orange-500/30 bg-orange-500/15 text-orange-400"
-                                                : alert.isPersistent
-                                                  ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-400"
-                                                  : "border-white/[0.08] bg-white/[0.04] text-slate-400"
-                                        }`}>
-                                            {alert.isPersistent ? <Repeat size={10} /> : <Clock size={10} />}
-                                            {isOnHold ? "En pausa" : alert.isPersistent ? "Armada" : "Una vez"}
-                                        </span>
-                                    </div>
-                                    <button
-                                        onClick={() => onSave({
-                                            ...alerts,
-                                            globalAlerts: (alerts.globalAlerts || []).filter((_, i) => i !== index),
-                                        })}
-                                        className="p-1 text-slate-600 transition-colors hover:text-rose-400"
-                                        title="Eliminar alerta"
-                                    >
-                                        ✕
-                                    </button>
-                                </div>
-                            );
-                        })}
-                    </div>
-                    <FuturesGlobalAlertForm
-                        existingAlerts={alerts.globalAlerts || []}
-                        currentPnl={account.totalUnrealizedProfit}
-                        onSave={(globalAlerts) => onSave({ ...alerts, globalAlerts })}
-                    />
-                </div>
             </div>
         </div>
     );
 }
 
-function FuturesGlobalAlertForm({
-    existingAlerts,
-    currentPnl,
-    onSave,
+function GlobalPnlAlerts({
+    alerts,
+    account,
+    onOpenGlobalAlertModal,
 }: {
-    existingAlerts: FuturesGlobalAlert[];
-    currentPnl: number;
-    onSave: (alerts: FuturesGlobalAlert[]) => void;
+    alerts: FuturesAlertConfig;
+    account: FuturesAccount;
+    onOpenGlobalAlertModal: () => void;
 }) {
-    const [targetAmount, setTargetAmount] = useState("");
-    const [direction, setDirection] = useState<"up" | "down">("up");
-    const [isPersistent, setIsPersistent] = useState(true);
-    const [note, setNote] = useState("");
-
-    const handleTargetChange = (value: string) => {
-        setTargetAmount(value);
-        const amount = Number(value);
-        if (Number.isFinite(amount)) {
-            if (amount < 0) {
-                setDirection(amount >= currentPnl ? "down" : "up");
-            } else {
-                setDirection(amount >= currentPnl ? "up" : "down");
-            }
-        }
-    };
-
-    const addAlert = () => {
-        const amount = Number(targetAmount);
-        if (!Number.isFinite(amount) || targetAmount.trim() === "") return;
-        if (!existingAlerts.some((alert) => alert.targetAmount === amount && alert.direction === direction)) {
-            onSave([...existingAlerts, {
-                targetAmount: amount,
-                direction,
-                isPersistent,
-                ...(note.trim() ? { note: note.trim() } : {}),
-            }]);
-        }
-        setTargetAmount("");
-        setNote("");
-    };
-
     return (
-        <div className="space-y-2">
-            <div className="flex gap-2">
-                <input
-                    type="number"
-                    step="0.01"
-                    value={targetAmount}
-                    onChange={(event) => handleTargetChange(event.target.value)}
-                    onKeyDown={(event) => event.key === "Enter" && addAlert()}
-                    placeholder="$ PNL"
-                    className="min-w-0 flex-1 rounded-lg border border-white/[0.08] bg-black/30 px-2.5 py-1.5 text-sm text-white outline-none focus:border-amber-500"
-                />
-                <div className="flex overflow-hidden rounded-lg border border-white/[0.08]">
-                    <button onClick={() => setDirection("up")} className={`px-2 py-1.5 text-xs ${direction === "up" ? "bg-emerald-500/15 text-emerald-400" : "text-slate-500"}`}>🔼</button>
-                    <button onClick={() => setDirection("down")} className={`px-2 py-1.5 text-xs ${direction === "down" ? "bg-rose-500/15 text-rose-400" : "text-slate-500"}`}>🔽</button>
-                </div>
+        <section className="rounded-xl border border-white/[0.06] bg-white/[0.025] p-4">
+            <div className="flex items-center justify-between mb-3">
+                <h3 className="text-white font-semibold flex items-center gap-2 text-sm">
+                    <Zap className="text-amber-400" size={16} />
+                    Alertas de PNL Global
+                    {(alerts.globalAlerts || []).length > 0 && (
+                        <span className="text-[9px] bg-amber-500/15 text-amber-400 border border-amber-500/30 rounded-full px-1.5 py-0.5 font-bold">
+                            {(alerts.globalAlerts || []).length}
+                        </span>
+                    )}
+                </h3>
+                <button
+                    onClick={onOpenGlobalAlertModal}
+                    className="text-[10px] font-bold text-amber-400 hover:text-amber-300 transition-colors"
+                >
+                    {alerts.globalAlerts?.length ? "Editar" : "+ Nueva"}
+                </button>
             </div>
-            <div className="flex gap-2">
-                <div className="flex overflow-hidden rounded-lg border border-white/[0.08]">
-                    <button onClick={() => setIsPersistent(true)} className={`px-2 py-1 text-xs ${isPersistent ? "bg-amber-500/15 text-amber-400" : "text-slate-500"}`}>Siempre</button>
-                    <button onClick={() => setIsPersistent(false)} className={`px-2 py-1 text-xs ${!isPersistent ? "bg-blue-500/15 text-blue-400" : "text-slate-500"}`}>Una vez</button>
+            {(!alerts.globalAlerts || alerts.globalAlerts.length === 0) ? (
+                <p className="text-[11px] text-slate-600 italic text-center py-2 bg-slate-800/30 rounded-lg border border-slate-800">
+                    Sin alertas globales configuradas
+                </p>
+            ) : (
+                <div className="space-y-1">
+                    {alerts.globalAlerts.map((alert, index) => {
+                        const currentPnlVal = account.totalUnrealizedProfit;
+                        const isOnHold = alert.isPersistent && (
+                            alert.direction === "up"
+                                ? currentPnlVal >= alert.targetAmount
+                                : currentPnlVal <= alert.targetAmount
+                        );
+                        return (
+                            <div key={`${alert.direction}-${alert.targetAmount}-${index}`} className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2">
+                                <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                                    <span className={`text-xs font-bold ${alert.direction === "up" ? "text-emerald-400" : "text-rose-400"}`}>
+                                        {alert.direction === "up" ? "🔼" : "🔽"} {alert.targetAmount >= 0 ? "+" : "-"}${Math.abs(alert.targetAmount).toFixed(2)}
+                                    </span>
+                                    <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-bold ${
+                                        isOnHold
+                                            ? "border-orange-500/30 bg-orange-500/15 text-orange-400"
+                                            : alert.isPersistent
+                                              ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-400"
+                                              : "border-white/[0.08] bg-white/[0.04] text-slate-400"
+                                    }`}>
+                                        {alert.isPersistent ? <Repeat size={10} /> : <Clock size={10} />}
+                                        {isOnHold ? "En pausa" : alert.isPersistent ? "Armada" : "Una vez"}
+                                    </span>
+                                    {alert.note && <span className="text-[10px] text-slate-500 italic">{alert.note}</span>}
+                                </div>
+                                <button
+                                    onClick={onOpenGlobalAlertModal}
+                                    className="p-1 text-slate-600 transition-colors hover:text-amber-400"
+                                    title="Editar alertas"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                                </button>
+                            </div>
+                        );
+                    })}
                 </div>
-                <input
-                    type="text"
-                    value={note}
-                    onChange={(event) => setNote(event.target.value)}
-                    placeholder="Nota"
-                    className="min-w-0 flex-1 rounded-lg border border-white/[0.08] bg-black/30 px-2.5 py-1 text-xs text-white outline-none focus:border-amber-500"
-                />
-                <button onClick={addAlert} className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-medium text-black hover:bg-amber-400">+ Agregar</button>
-            </div>
-            {Number.isFinite(Number(targetAmount)) && targetAmount.trim() !== "" ? (() => {
-                const target = Number(targetAmount);
-                const isNegative = target < 0;
-                const conditionAlreadyMet = isNegative
-                    ? (direction === "up" ? currentPnl <= target : currentPnl >= target)
-                    : (direction === "up" ? currentPnl >= target : currentPnl <= target);
-                return conditionAlreadyMet ? (
-                    <p className="text-center text-[10px] font-bold text-yellow-400">
-                        ⚠️ El PNL actual ya {direction === "up" ? "supera" : "está por debajo de"} {target >= 0 ? "+" : "-"}${Math.abs(target).toFixed(2)} — se disparará en el próximo ciclo
-                    </p>
-                ) : (
-                    <p className={`text-center text-[10px] font-bold ${direction === "up" ? "text-emerald-400" : "text-rose-400"}`}>
-                        Notificar cuando el PNL {direction === "up" ? "suba a" : "baje a"} {target >= 0 ? "+" : "-"}${Math.abs(target).toFixed(2)}
-                    </p>
-                );
-            })() : null}
-        </div>
+            )}
+        </section>
     );
 }
 
@@ -643,6 +571,7 @@ export default function FuturesTab({ priceDirections }: FuturesTabProps) {
     const [syncError, setSyncError] = useState<string | null>(null);
     const [syncSuccess, setSyncSuccess] = useState(false);
     const [showSettings, setShowSettings] = useState(true);
+    const [showGlobalAlertModal, setShowGlobalAlertModal] = useState(false);
 
     const [now, setNow] = useState(Date.now());
     useEffect(() => {
@@ -719,6 +648,11 @@ export default function FuturesTab({ priceDirections }: FuturesTabProps) {
         () => applyLivePrices(positions, liveMarkPrices),
         [positions, liveMarkPrices],
     );
+
+    const migratedAlerts = useMemo(() => ({
+        ...alerts,
+        globalAlerts: alerts.globalAlerts || [],
+    }), [alerts]);
 
     const hasLivePrices = liveMarkPrices && Object.keys(liveMarkPrices).length > 0;
     const totalPnl =
@@ -1068,7 +1002,14 @@ export default function FuturesTab({ priceDirections }: FuturesTabProps) {
                 )}
             </section>
 
-            {/* ── SALUD DE CUENTA (debajo de posiciones) ── */}
+            {/* ── Alertas de PNL Global (debajo de posiciones, siempre visibles) ── */}
+            <GlobalPnlAlerts
+                alerts={migratedAlerts}
+                account={account}
+                onOpenGlobalAlertModal={() => setShowGlobalAlertModal(true)}
+            />
+
+            {/* ── SALUD DE CUENTA ── */}
             <section className="rounded-xl border border-white/[0.06] bg-white/[0.025] p-3.5 sm:p-4">
                 <div className="flex items-center justify-between mb-3">
                     <h3 className="text-white font-semibold flex items-center gap-2 text-sm">
@@ -1126,9 +1067,6 @@ export default function FuturesTab({ priceDirections }: FuturesTabProps) {
             {/* ── Stress Test de Cuenta ── */}
             <StressTestSimulator positions={livePositions} account={account} />
 
-            {/* ── Alert Settings (configuración) ── */}
-            {showSettings && <AlertSettings alerts={alerts} onSave={saveAlerts} account={account} />}
-
             {/* ── Last Sync stale warning ── */}
             {lastSync > 0 && (isStale5 || isStale15) && (
                 <div className="flex items-center justify-center">
@@ -1142,6 +1080,21 @@ export default function FuturesTab({ priceDirections }: FuturesTabProps) {
                         </span>
                     )}
                 </div>
+            )}
+
+            {/* ── Configuración de alertas de futuros (final de página) ── */}
+            {showSettings && (
+                <AlertSettings alerts={migratedAlerts} onSave={saveAlerts} />
+            )}
+
+            {/* ── Global PNL Alert Modal ── */}
+            {showGlobalAlertModal && (
+                <FuturesGlobalAlertModal
+                    currentAlerts={migratedAlerts.globalAlerts || []}
+                    currentPnl={account.totalUnrealizedProfit}
+                    onSaveAlerts={(globalAlerts) => saveAlerts({ ...migratedAlerts, globalAlerts })}
+                    onClose={() => setShowGlobalAlertModal(false)}
+                />
             )}
 
             {/* ── Position Alert Modal ── */}

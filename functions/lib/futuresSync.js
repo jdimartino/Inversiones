@@ -1,15 +1,4 @@
 "use strict";
-var __rest = (this && this.__rest) || function (s, e) {
-    var t = {};
-    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
-        t[p] = s[p];
-    if (s != null && typeof Object.getOwnPropertySymbols === "function")
-        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
-            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
-                t[p[i]] = s[p[i]];
-        }
-    return t;
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.futuresSync = void 0;
 const functions = require("firebase-functions/v1");
@@ -160,10 +149,7 @@ async function runFuturesSync() {
 function normalizeFuturesGlobalAlerts(rawArray) {
     if (!Array.isArray(rawArray))
         return [];
-    return rawArray.map((alert) => {
-        const { _lastSide } = alert, rest = __rest(alert, ["_lastSide"]);
-        return Object.assign(Object.assign({}, rest), { direction: rest.direction || (rest.targetAmount >= 0 ? "up" : "down") });
-    });
+    return rawArray.map((alert) => (Object.assign(Object.assign({}, alert), { direction: alert.direction || (alert.targetAmount >= 0 ? "up" : "down") })));
 }
 function formatSignedUsd(value) {
     return `${value >= 0 ? "+" : "-"}$${Math.abs(value).toFixed(2)}`;
@@ -271,27 +257,20 @@ async function checkFuturesAlerts(data) {
             positionAlerts[pos.symbol] = remaining;
         }
     }
-    // Check global futures PNL alerts (aligned with Spot logic in index.ts)
-    const globalAlertsRaw = futuresAlerts.globalAlerts || [];
-    const hadLastSide = globalAlertsRaw.some((a) => a._lastSide !== undefined);
-    const globalAlerts = normalizeFuturesGlobalAlerts(globalAlertsRaw);
+    // Check global futures PNL alerts — identical logic to Watchlist (index.ts:278-312)
+    const globalAlerts = normalizeFuturesGlobalAlerts(futuresAlerts.globalAlerts || []);
     const futuresGlobalPnl = data.account.totalUnrealizedProfit;
     let remainingGlobalAlerts = [];
-    let hasGlobalChanged = hadLastSide; // force save if _lastSide was stripped
+    let hasGlobalChanged = false;
     for (const rule of globalAlerts) {
         const target = rule.targetAmount;
         const direction = rule.direction || (target >= 0 ? "up" : "down");
-        // For negative targets, invert direction semantics:
-        // "down" = recovery (loss decreasing), "up" = worsening (loss increasing)
-        const effectiveDirection = target < 0
-            ? (direction === "up" ? "down" : "up")
-            : direction;
         const currentSide = futuresGlobalPnl >= target ? "above" : "below";
         const prevSide = rule._lastSide;
-        const conditionMet = effectiveDirection === "up" ? futuresGlobalPnl >= target : futuresGlobalPnl <= target;
+        const conditionMet = direction === "up" ? futuresGlobalPnl >= target : futuresGlobalPnl <= target;
         const isTriggered = conditionMet && (!rule.isPersistent || prevSide === undefined || prevSide !== currentSide);
         if (isTriggered) {
-            if (effectiveDirection === "up") {
+            if (direction === "up") {
                 messages.push(`🚨 *PNL Futuros* alcanzó *${formatSignedUsd(futuresGlobalPnl)}* (Meta: 🔼 >= ${formatSignedUsd(target)})` +
                     (rule.note ? `\n_📝 ${rule.note}_` : ""));
             }
@@ -299,9 +278,9 @@ async function checkFuturesAlerts(data) {
                 messages.push(`📉 *PNL Futuros* cayó a *${formatSignedUsd(futuresGlobalPnl)}* (Límite: 🔽 <= ${formatSignedUsd(target)})` +
                     (rule.note ? `\n_📝 ${rule.note}_` : ""));
             }
-            console.log(`[FuturesSync] Global alert triggered: PNL $${futuresGlobalPnl.toFixed(2)} — Target: ${effectiveDirection === "up" ? ">=" : "<="} $${target} — ${rule.isPersistent ? "PERSISTENT" : "ONE-SHOT"}`);
+            console.log(`[FuturesSync] Global alert triggered: PNL $${futuresGlobalPnl.toFixed(2)} — Target: ${direction === "up" ? ">=" : "<="} $${target} — ${rule.isPersistent ? "PERSISTENT" : "ONE-SHOT"}`);
             if (rule.isPersistent) {
-                remainingGlobalAlerts.push(hadLastSide ? rule : Object.assign(Object.assign({}, rule), { _lastSide: currentSide }));
+                remainingGlobalAlerts.push(Object.assign(Object.assign({}, rule), { _lastSide: currentSide }));
                 hasGlobalChanged = true;
             }
             else {
@@ -312,7 +291,7 @@ async function checkFuturesAlerts(data) {
             if (rule.isPersistent) {
                 if (prevSide !== currentSide)
                     hasGlobalChanged = true;
-                remainingGlobalAlerts.push(hadLastSide ? rule : Object.assign(Object.assign({}, rule), { _lastSide: currentSide }));
+                remainingGlobalAlerts.push(Object.assign(Object.assign({}, rule), { _lastSide: currentSide }));
             }
             else {
                 remainingGlobalAlerts.push(rule);

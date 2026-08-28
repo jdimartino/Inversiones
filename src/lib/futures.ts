@@ -102,6 +102,16 @@ export const DEFAULT_FUTURES_ALERTS: FuturesAlertConfig = {
     globalAlerts: [],
 };
 
+export function migrateGlobalAlertDirections(alerts: FuturesGlobalAlert[], currentPnl: number): FuturesGlobalAlert[] {
+    return alerts.map((alert) => {
+        const correctDirection: "up" | "down" = alert.targetAmount >= currentPnl ? "up" : "down";
+        if (alert.direction !== correctDirection) {
+            return { ...alert, direction: correctDirection };
+        }
+        return alert;
+    });
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Safe number parser — returns fallback for NaN, Infinity, undefined */
