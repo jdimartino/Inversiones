@@ -72,7 +72,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     const futuresTransferable = futuresData?.account?.maxWithdrawAmount ?? 0;
 
     return (
-        <div className="space-y-2">
+        <div className="max-w-[1600px] mx-auto space-y-2">
             <PortfolioHeader
                 totalInvested={totalInvested}
                 totalValue={totalValue}
@@ -94,7 +94,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             />
 
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-                <div className="xl:col-span-3 h-full">
+                <div className="xl:col-span-3">
                     <MarketWatchCard
                         prices={prices}
                         priceDirections={priceDirections}
@@ -105,7 +105,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     />
                 </div>
 
-                <div className="xl:col-span-4 h-full">
+                <div className="xl:col-span-4">
                     <SpotSummaryCard
                         sortedPortfolio={sortedPortfolio}
                         onNavigate={onNavigateSpot}
@@ -113,7 +113,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     />
                 </div>
 
-                <div className="xl:col-span-5 h-full">
+                <div className="xl:col-span-5">
                     <FuturesSummaryCard
                         futuresData={futuresData}
                         onNavigate={onNavigateFutures}

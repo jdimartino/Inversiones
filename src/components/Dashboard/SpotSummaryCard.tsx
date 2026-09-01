@@ -21,7 +21,7 @@ const SpotSummaryCard: React.FC<SpotSummaryCardProps> = ({
     return (
         <button
             onClick={onNavigate}
-            className="w-full h-full text-left bg-[#181A20] rounded-xl border border-slate-700/50 shadow-sm shadow-black/10 p-3 hover:border-yellow-500/30 hover:shadow-yellow-500/5 transition-all group flex flex-col justify-start"
+            className="w-full text-left bg-[#181A20] rounded-xl border border-slate-700/50 shadow-sm shadow-black/10 p-3 hover:border-yellow-500/30 hover:shadow-yellow-500/5 transition-all group flex flex-col justify-start"
         >
             <div className="flex items-center justify-center mb-2">
                 <h3 className="text-white font-semibold text-sm flex items-center gap-2">
@@ -39,11 +39,11 @@ const SpotSummaryCard: React.FC<SpotSummaryCardProps> = ({
                     <div className="overflow-x-auto flex justify-center md:block">
                         <table className="w-auto md:w-full">
                             <colgroup>
-                                <col className="w-[12%] md:w-[12%]" />
-                                <col className="w-[20%] md:w-[20%]" />
-                                <col className="w-[20%] md:w-[22%]" />
-                                <col className="w-[20%] md:w-[22%]" />
-                                <col className="w-[28%] md:w-[24%]" />
+                                <col className="w-[14%] md:w-[14%]" />
+                                <col className="w-[19%] md:w-[19%]" />
+                                <col className="w-[19%] md:w-[19%]" />
+                                <col className="w-[19%] md:w-[19%]" />
+                                <col className="w-[29%] md:w-[29%]" />
                             </colgroup>
                             <thead>
                                 <tr className="text-[10px] uppercase tracking-wider text-gray-500 border-b border-gray-800">
@@ -60,16 +60,16 @@ const SpotSummaryCard: React.FC<SpotSummaryCardProps> = ({
                                         <td className={`py-1.5 text-xs font-bold text-center md:text-left ${getCoinTextColor(item.coin)}`}>
                                             {item.coin}
                                         </td>
-                                        <td className="py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums">
+                                        <td className="py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums whitespace-nowrap">
                                             {fmtUSD(item.currentValue, item.coin.endsWith("EUR"))}
                                         </td>
-                                        <td className="py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums text-blue-400">
+                                        <td className="py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums text-blue-400 whitespace-nowrap">
                                             {fmtPrice(item.buyPrice, item.coin.endsWith("EUR"))}
                                         </td>
-                                        <td className={`py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums ${priceDirections[item.coin] === 'up' ? 'text-green-400' : priceDirections[item.coin] === 'down' ? 'text-red-400' : 'text-yellow-400'}`}>
+                                        <td className={`py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums whitespace-nowrap ${priceDirections[item.coin] === 'up' ? 'text-green-400' : priceDirections[item.coin] === 'down' ? 'text-red-400' : 'text-yellow-400'}`}>
                                             {fmtPrice(item.currentPrice, item.coin.endsWith("EUR"))}
                                         </td>
-                                        <td className={`py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums font-bold ${item.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                        <td className={`py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums font-bold whitespace-nowrap ${item.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                             <div>{item.profit >= 0 ? '+' : ''}{fmtUSD(item.profit, item.coin.endsWith("EUR"))}</div>
                                             <div className="text-[10px] font-normal">({item.roi >= 0 ? '+' : ''}{item.roi.toFixed(2)}%)</div>
                                         </td>

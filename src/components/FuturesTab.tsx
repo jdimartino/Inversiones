@@ -384,7 +384,7 @@ function GlobalPnlAlerts({
                     Sin alertas globales configuradas
                 </p>
             ) : (
-                <div className="space-y-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5">
                     {alerts.globalAlerts.map((alert, index) => {
                         const currentPnlVal = account.totalUnrealizedProfit;
                         const isOnHold = alert.isPersistent && (
@@ -393,29 +393,29 @@ function GlobalPnlAlerts({
                                 : currentPnlVal <= alert.targetAmount
                         );
                         return (
-                            <div key={`${alert.direction}-${alert.targetAmount}-${index}`} className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2">
-                                <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                                    <span className={`text-xs font-bold ${alert.direction === "up" ? "text-emerald-400" : "text-rose-400"}`}>
-                                        {alert.direction === "up" ? "🔼" : "🔽"} {alert.targetAmount >= 0 ? "+" : "-"}${Math.abs(alert.targetAmount).toFixed(2)}
+                            <div key={`${alert.direction}-${alert.targetAmount}-${index}`} className="group relative flex items-center justify-between rounded-lg border border-white/[0.06] bg-black/20 px-2 py-1.5">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                    <span className={`text-[11px] font-bold whitespace-nowrap ${alert.direction === "up" ? "text-emerald-400" : "text-rose-400"}`}>
+                                        {alert.direction === "up" ? "▲" : "▼"} {alert.targetAmount >= 0 ? "+" : "-"}${Math.abs(alert.targetAmount).toFixed(2)}
                                     </span>
-                                    <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-bold ${
+                                    <span className={`inline-flex items-center gap-0.5 rounded-full border px-1 py-0.5 text-[9px] font-bold whitespace-nowrap ${
                                         isOnHold
                                             ? "border-orange-500/30 bg-orange-500/15 text-orange-400"
                                             : alert.isPersistent
                                               ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-400"
                                               : "border-white/[0.08] bg-white/[0.04] text-slate-400"
                                     }`}>
-                                        {alert.isPersistent ? <Repeat size={10} /> : <Clock size={10} />}
-                                        {isOnHold ? "En pausa" : alert.isPersistent ? "Armada" : "Una vez"}
+                                        {alert.isPersistent ? <Repeat size={8} /> : <Clock size={8} />}
+                                        {isOnHold ? "Pausa" : alert.isPersistent ? "Armada" : "1x"}
                                     </span>
-                                    {alert.note && <span className="text-[10px] text-slate-500 italic">{alert.note}</span>}
+                                    {alert.note && <span className="text-[9px] text-slate-500 italic truncate hidden sm:inline">{alert.note}</span>}
                                 </div>
                                 <button
                                     onClick={onOpenGlobalAlertModal}
-                                    className="p-1 text-slate-600 transition-colors hover:text-amber-400"
+                                    className="p-0.5 text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity hover:text-amber-400"
                                     title="Editar alertas"
                                 >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
                                 </button>
                             </div>
                         );

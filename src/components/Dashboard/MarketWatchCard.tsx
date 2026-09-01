@@ -79,7 +79,7 @@ const MarketWatchRow: React.FC<{
                     onClick();
                 }
             }}
-            className={`w-auto mx-auto md:w-full md:mx-0 flex items-center justify-center md:justify-start gap-0.5 px-1 py-[5px] rounded hover:bg-gray-800/40 transition-colors text-left group cursor-grab active:cursor-grabbing ${isDragging ? "opacity-30" : ""} ${flashClass}`}
+            className={`w-auto mx-auto md:w-full md:mx-0 flex items-center justify-center md:justify-start gap-0.5 px-1 py-1 rounded hover:bg-gray-800/40 transition-colors text-left group cursor-grab active:cursor-grabbing ${isDragging ? "opacity-30" : ""} ${flashClass}`}
         >
             <span className="text-gray-700 group-hover:text-gray-500 transition-colors flex-shrink-0 hidden md:block">
                 <GripVertical size={10} />
@@ -93,14 +93,14 @@ const MarketWatchRow: React.FC<{
                 }}
             />
             <span className="text-[11px] md:text-xs text-gray-300 font-semibold w-[48px] md:w-[56px] flex-shrink-0 truncate text-center md:text-left">{coin}</span>
-            <div className="flex items-center gap-0.5 md:gap-1 -ml-4">
-                <span className={`text-[11px] md:text-xs font-mono tabular-nums text-center md:text-right w-[82px] md:w-28 ${changeColor}`}>
+            <div className="grid grid-cols-[1fr_60px_44px] md:grid-cols-[1fr_72px_56px] items-center gap-x-1">
+                <span className={`text-[11px] md:text-xs font-mono tabular-nums text-right whitespace-nowrap ${changeColor}`}>
                     {fmtUSD(price, coin.endsWith("EUR"))}
                 </span>
-                <span className={`text-[11px] md:text-xs font-mono tabular-nums text-center md:text-right w-[60px] md:w-20 flex-shrink-0 ${changeColor}`}>
+                <span className={`text-[11px] md:text-xs font-mono tabular-nums text-right whitespace-nowrap ${changeColor}`}>
                     {fmtChange(change, price)}
                 </span>
-                <span className={`text-[11px] md:text-xs font-mono tabular-nums text-center md:text-right w-[44px] md:w-14 flex-shrink-0 ${changeColor}`}>
+                <span className={`text-[11px] md:text-xs font-mono tabular-nums text-right whitespace-nowrap ${changeColor}`}>
                     {fmtChangePct(changePct)}
                 </span>
             </div>
@@ -155,10 +155,10 @@ const MarketWatchCard: React.FC<MarketWatchCardProps> = ({
                 <span className="text-[11px] text-gray-600 font-medium w-3 hidden md:block" />
                 <span className="text-[11px] text-gray-600 font-medium w-5 hidden md:block" />
                 <span className="text-[11px] text-gray-600 font-medium w-[48px] md:w-[56px] flex-shrink-0 truncate text-center md:text-left">Símbolo</span>
-                <div className="flex items-center gap-0.5 md:gap-1 -ml-4">
-                    <span className="text-[11px] text-gray-600 text-center md:text-right w-[82px] md:w-28">Última</span>
-                    <span className="text-[11px] text-gray-600 text-center md:text-right w-[60px] md:w-20">Cbo</span>
-                    <span className="text-[11px] text-gray-600 text-center md:text-right w-[44px] md:w-14">Camb%</span>
+                <div className="grid grid-cols-[1fr_60px_44px] md:grid-cols-[1fr_72px_56px] items-center gap-x-1">
+                    <span className="text-[11px] text-gray-600 text-right">Última</span>
+                    <span className="text-[11px] text-gray-600 text-right">Cbo</span>
+                    <span className="text-[11px] text-gray-600 text-right">Camb%</span>
                 </div>
             </div>
             <div className="flex flex-col items-center space-y-0 w-full">
@@ -188,8 +188,8 @@ const MarketWatchCard: React.FC<MarketWatchCardProps> = ({
 
     return (
         <>
-            <div className="w-full h-full bg-[#181A20] rounded-xl border border-slate-700/50 shadow-sm shadow-black/10 p-1.5">
-                <div className="relative flex items-center justify-center mb-1">
+            <div className="w-full bg-[#181A20] rounded-xl border border-slate-700/50 shadow-sm shadow-black/10 p-2">
+                <div className="relative flex items-center justify-center mb-1.5">
                     <h3 className="text-white font-semibold text-sm">
                         Market Watch
                     </h3>

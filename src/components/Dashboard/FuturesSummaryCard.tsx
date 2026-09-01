@@ -31,7 +31,7 @@ const FuturesSummaryCard: React.FC<FuturesSummaryCardProps> = ({
     return (
         <button
             onClick={onNavigate}
-            className="w-full h-full text-left bg-[#181A20] rounded-xl border border-slate-700/50 shadow-sm shadow-black/10 p-3 hover:border-yellow-500/30 hover:shadow-yellow-500/5 transition-all group flex flex-col justify-start"
+            className="w-full text-left bg-[#181A20] rounded-xl border border-slate-700/50 shadow-sm shadow-black/10 p-3 hover:border-yellow-500/30 hover:shadow-yellow-500/5 transition-all group flex flex-col justify-start"
         >
             <div className="flex items-center justify-center mb-2">
                 <h3 className="text-white font-semibold text-sm flex items-center gap-2">
@@ -43,29 +43,29 @@ const FuturesSummaryCard: React.FC<FuturesSummaryCardProps> = ({
             </div>
 
             {positions.length > 0 && (
-                <div className="mt-3 border-t border-gray-800 pt-2">
-                    <div className="overflow-x-auto flex justify-center md:block">
-                        <table className="w-auto md:w-full">
+                <div className="mt-2 border-t border-gray-800 pt-2 -mx-0.5">
+                    <div className="overflow-x-hidden">
+                        <table className="w-full text-[11px] md:text-xs">
                             <colgroup>
-                                <col className="w-[8%] md:w-[7%]" />
-                                <col className="w-[14%] md:w-[14%]" />
-                                <col className="w-[14%] md:w-[16%]" />
-                                <col className="w-[14%] md:w-[16%]" />
-                                <col className="w-[14%] md:w-[16%]" />
-                                <col className="w-[13%] md:w-[13%]" />
-                                <col className="w-0 md:w-[8%]" />
-                                <col className="w-[23%] md:w-[10%]" />
+                                <col className="w-[10%]" />
+                                <col className="w-[22%]" />
+                                <col className="w-[18%]" />
+                                <col className="w-[18%]" />
+                                <col className="hidden md:table-column w-[13%]" />
+                                <col className="hidden md:table-column w-[11%]" />
+                                <col className="hidden lg:table-column w-[0%]" />
+                                <col className="w-[8%]" />
                             </colgroup>
                             <thead>
                                 <tr className="text-[10px] uppercase tracking-wider text-gray-500 border-b border-gray-800">
-                                    <th className="text-center md:text-left pb-2 font-medium">Tipo</th>
-                                    <th className="text-center md:text-left pb-2 font-medium">Activo</th>
-                                    <th className="text-center md:text-right pb-2 font-medium">Entrada</th>
-                                    <th className="text-center md:text-right pb-2 font-medium">Actual</th>
-                                    <th className="text-center md:text-right pb-2 font-medium">Liq</th>
-                                    <th className="text-center md:text-right pb-2 font-medium">Valor</th>
-                                    <th className="text-right pb-2 font-medium hidden md:table-cell">Margen</th>
-                                    <th className="text-center md:text-right pb-2 font-medium">PnL</th>
+                                    <th className="text-center md:text-left pb-2 font-medium whitespace-nowrap">Tipo</th>
+                                    <th className="text-center md:text-left pb-2 font-medium whitespace-nowrap">Activo</th>
+                                    <th className="text-center md:text-right pb-2 font-medium whitespace-nowrap">Entrada</th>
+                                    <th className="text-center md:text-right pb-2 font-medium whitespace-nowrap">Actual</th>
+                                    <th className="text-center md:text-right pb-2 font-medium whitespace-nowrap hidden md:table-cell">Liq</th>
+                                    <th className="text-center md:text-right pb-2 font-medium whitespace-nowrap hidden md:table-cell">Valor</th>
+                                    <th className="text-right pb-2 font-medium whitespace-nowrap hidden lg:table-cell">Margen</th>
+                                    <th className="text-center md:text-right pb-2 font-medium whitespace-nowrap pr-2">PnL</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -76,26 +76,26 @@ const FuturesSummaryCard: React.FC<FuturesSummaryCardProps> = ({
                                     const actualColor = priceDirections[baseAsset] === 'up' ? 'text-green-400' : priceDirections[baseAsset] === 'down' ? 'text-red-400' : 'text-white';
                                     return (
                                     <tr key={`${pos.symbol}-${pos.side}`} className="border-b border-gray-800/50">
-                                        <td className={`py-1.5 text-[11px] md:text-xs font-bold text-center md:text-left ${pos.side === 'LONG' ? 'text-green-400' : 'text-red-400'}`}>
+                                        <td className={`py-1.5 font-bold text-center md:text-left whitespace-nowrap ${pos.side === 'LONG' ? 'text-green-400' : 'text-red-400'}`}>
                                             {pos.side}
                                         </td>
-                                        <td className="py-1.5 text-[11px] md:text-xs font-semibold text-center md:text-left">
+                                        <td className="py-1.5 font-semibold text-center md:text-left whitespace-nowrap overflow-hidden truncate">
                                             {pos.symbol} <span className="text-[9px] text-gray-500">{pos.leverage}x</span>
                                         </td>
-                                        <td className="py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums">
+                                        <td className="py-1.5 text-center md:text-right font-mono tabular-nums whitespace-nowrap">
                                             {fmtPrice(pos.entryPrice)}
                                         </td>
-                                        <td className={`py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums ${actualColor}`}>
+                                        <td className={`py-1.5 text-center md:text-right font-mono tabular-nums whitespace-nowrap ${actualColor}`}>
                                             {fmtPrice(pos.markPrice)}
                                         </td>
-                                        <td className="py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums text-red-400/70">
+                                        <td className="py-1.5 text-center md:text-right font-mono tabular-nums text-red-400/70 whitespace-nowrap hidden md:table-cell overflow-hidden truncate">
                                             {pos.liquidationPrice > 0 ? fmtPrice(pos.liquidationPrice) : "—"}
                                         </td>
-                                        <td className="py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums">{fmtUSD(pos.notional)}</td>
-                                        <td className="py-1.5 text-right font-mono text-[11px] tabular-nums hidden md:table-cell">{fmtUSD(pos.initialMargin)}</td>
-                                        <td className={`py-1.5 text-center md:text-right font-mono text-[11px] tabular-nums font-bold ${pos.unrealizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                            <div>{pos.unrealizedPnl >= 0 ? '+' : ''}{fmtUSD(pos.unrealizedPnl)}</div>
-                                            <div className="text-[10px] font-normal">({pos.roe >= 0 ? '+' : ''}{pos.roe.toFixed(2)}%)</div>
+                                        <td className="py-1.5 text-center md:text-right font-mono tabular-nums whitespace-nowrap hidden md:table-cell overflow-hidden truncate">{fmtUSD(pos.notional)}</td>
+                                        <td className="py-1.5 text-right font-mono tabular-nums whitespace-nowrap hidden lg:table-cell overflow-hidden truncate">{fmtUSD(pos.initialMargin)}</td>
+                                        <td className={`py-1.5 text-center md:text-right font-mono tabular-nums font-bold whitespace-nowrap pr-2 overflow-hidden ${pos.unrealizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                            <div className="truncate">{pos.unrealizedPnl >= 0 ? '+' : ''}{fmtUSD(pos.unrealizedPnl)}</div>
+                                            <div className="text-[10px] font-normal truncate">({pos.roe >= 0 ? '+' : ''}{pos.roe.toFixed(2)}%)</div>
                                         </td>
                                     </tr>
                                     );
