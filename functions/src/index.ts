@@ -7,6 +7,8 @@ import { binanceRequest, bybitRequest } from "./apiClients";
 import { analyzeMarket } from "./analyzeMarket";
 import { signBinanceRequest } from "./signBinanceRequest";
 import { futuresSync } from "./futuresSync";
+import { dailyTelemetryReport, testTelemetry } from "./telemetry";
+import { dailyTelemetryReportKz, testTelemetryKz } from "./telemetryKz";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -783,3 +785,9 @@ export const debugLogs = functions.region('europe-west1').runWith({ memory: "128
     const snap = await db.collection("notificationLogs").orderBy("sentAt", "desc").limit(10).get();
     res.json(snap.docs.map(d => d.data()));
 });
+
+// ─── JDM POS Telemetry ────────────────────────────────────────────────────────
+export { dailyTelemetryReport, testTelemetry };
+
+// ─── KZ POS Telemetry ─────────────────────────────────────────────────────────
+export { dailyTelemetryReportKz, testTelemetryKz };
