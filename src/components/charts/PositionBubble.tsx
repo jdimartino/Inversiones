@@ -40,8 +40,6 @@ const PositionBubble: React.FC<PositionBubbleProps> = ({ aggregated, signals = [
 
     if (data.length < 2) return null;
 
-    const maxValue = Math.max(...data.map((d) => d.value));
-
     return (
         <ChartCard
             title="Posición vs Riesgo"

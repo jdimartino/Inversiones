@@ -8,7 +8,6 @@ import {
     Tooltip,
     Legend,
     ResponsiveContainer,
-    ReferenceLine,
 } from "recharts";
 import { ProcessedInvestment } from "../../lib/constants";
 import { fmtUSD } from "../../lib/format";

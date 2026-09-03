@@ -103,7 +103,7 @@ export function useMeasureTool({
         setMeasureStats({ priceChange, pctChange, barCount, totalVolume, startPrice, endPrice,
             startTimeSec: startSec !== null ? (startSec as number) : null,
             endTimeSec: endSec !== null ? (endSec as number) : null });
-    }, [measureDragging, measureStart, getCurrentKlines]);
+    }, [measureDragging, measureStart, getCurrentKlines, candleSeriesRef, mainChartRef]);
 
     const finalizeMeasure = useCallback((x: number, y: number) => {
         if (!mainChartRef.current || !candleSeriesRef.current || !measureStart) return;
@@ -131,7 +131,7 @@ export function useMeasureTool({
             startTimeSec: startSec !== null ? (startSec as number) : null,
             endTimeSec: endSec !== null ? (endSec as number) : null });
         setMeasureDragging(false);
-    }, [measureStart, getCurrentKlines]);
+    }, [measureStart, getCurrentKlines, candleSeriesRef, mainChartRef]);
 
     const handleMeasureMouseUp = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
         if (!measureDragging || !overlayRef.current) return;
@@ -185,7 +185,7 @@ export function useMeasureTool({
         setMeasureStats({ priceChange, pctChange, barCount, totalVolume, startPrice, endPrice,
             startTimeSec: startSec !== null ? (startSec as number) : null,
             endTimeSec: endSec !== null ? (endSec as number) : null });
-    }, [measureDragging, measureStart, getCurrentKlines]);
+    }, [measureDragging, measureStart, getCurrentKlines, candleSeriesRef, mainChartRef]);
 
     const handleMeasureTouchEnd = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
         if (!measureDragging || !overlayRef.current) return;

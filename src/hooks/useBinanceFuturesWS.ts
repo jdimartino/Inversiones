@@ -7,13 +7,6 @@ const MARK_PRICE_STREAM = "@markPrice@1s";
 const MAX_RECONNECT_DELAY = 30_000;
 const BASE_RECONNECT_DELAY = 1_000;
 
-interface MarkPriceEvent {
-    e: string;
-    s: string;
-    p: string;
-    E: number;
-}
-
 /**
  * Subscribes to live Binance USDⓈ-M Futures mark prices for the given symbols.
  * Uses a single combined-stream WebSocket (`@markPrice@1s` = ~1s updates).

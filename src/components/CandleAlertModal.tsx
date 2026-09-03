@@ -21,9 +21,8 @@ export default function CandleAlertModal({ currentAlerts, onSaveAlerts, onClose,
         JSON.parse(JSON.stringify(currentAlerts))
     );
     const [selectedCoin, setSelectedCoin] = useState<string>("");
-    const [selectedPrice, setSelectedPrice] = useState<number>(0);
     const [targetPercent, setTargetPercent] = useState<number>(5);
-    const [interval, setInterval] = useState<'4h' | '1d'>('4h');
+    const [timeframe, setTimeframe] = useState<'4h' | '1d'>('4h');
     const [direction, setDirection] = useState<'up' | 'down'>('up');
     const [isPersistent, setIsPersistent] = useState(false);
     const [note, setNote] = useState<string>("");
@@ -52,11 +51,9 @@ export default function CandleAlertModal({ currentAlerts, onSaveAlerts, onClose,
                 if (initialEditCoin !== undefined && initialEditIndex !== undefined) {
                     const alertData = currentAlerts[initialEditCoin]?.[initialEditIndex];
                     if (alertData) {
-                        const coinData = usdtCoins.find((c) => c.symbol === initialEditCoin);
                         setSelectedCoin(initialEditCoin);
-                        setSelectedPrice(coinData?.price ?? 0);
                         setTargetPercent(alertData.targetPercent);
-                        setInterval(alertData.interval);
+                        setTimeframe(alertData.interval);
                         setDirection(alertData.direction);
                         setIsPersistent(alertData.isPersistent ?? false);
                         setNote(alertData.note ?? "");
@@ -75,7 +72,6 @@ export default function CandleAlertModal({ currentAlerts, onSaveAlerts, onClose,
                 const btc = usdtCoins.find((c) => c.symbol === "BTC");
                 if (btc) {
                     setSelectedCoin(btc.symbol);
-                    setSelectedPrice(btc.price);
                     setSearch(btc.symbol);
                 }
             } catch (e) {
@@ -85,7 +81,7 @@ export default function CandleAlertModal({ currentAlerts, onSaveAlerts, onClose,
             }
         };
         load();
-    }, []);
+    }, [currentAlerts, initialEditCoin, initialEditIndex]);
 
     useEffect(() => {
         const handleClick = (e: MouseEvent) => {
@@ -109,7 +105,6 @@ export default function CandleAlertModal({ currentAlerts, onSaveAlerts, onClose,
 
     const handleSelectCoin = (coin: BinanceCoin) => {
         setSelectedCoin(coin.symbol);
-        setSelectedPrice(coin.price);
         setSearch(coin.symbol);
         setDirection('up');
         setShowDropdown(false);
@@ -122,7 +117,7 @@ export default function CandleAlertModal({ currentAlerts, onSaveAlerts, onClose,
             ...draftAlerts,
             [selectedCoin]: [...existing, {
                 type: 'candle_change',
-                interval,
+                interval: timeframe,
                 targetPercent,
                 direction,
                 isPersistent,
@@ -130,7 +125,7 @@ export default function CandleAlertModal({ currentAlerts, onSaveAlerts, onClose,
             }],
         });
         setTargetPercent(5);
-        setInterval('4h');
+        setTimeframe('4h');
         setIsPersistent(false);
         setNote("");
     };
@@ -145,11 +140,9 @@ export default function CandleAlertModal({ currentAlerts, onSaveAlerts, onClose,
 
     const handleEdit = (coin: string, index: number) => {
         const alert = draftAlerts[coin][index];
-        const coinData = binanceCoins.find((c) => c.symbol === coin);
         setSelectedCoin(coin);
-        setSelectedPrice(coinData?.price ?? 0);
         setTargetPercent(alert.targetPercent);
-        setInterval(alert.interval);
+        setTimeframe(alert.interval);
         setDirection(alert.direction);
         setIsPersistent(alert.isPersistent ?? false);
         setNote(alert.note ?? "");
@@ -284,14 +277,14 @@ export default function CandleAlertModal({ currentAlerts, onSaveAlerts, onClose,
                                 <label className="block text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-1">Timeframe</label>
                                 <div className="grid grid-cols-2 gap-1">
                                     <button
-                                        onClick={() => setInterval('4h')}
-                                        className={`py-1.5 rounded-lg text-[10px] font-bold border transition-all ${interval === '4h' ? "bg-purple-500/20 text-purple-400 border-purple-500/50" : "bg-slate-900 text-slate-500 border-slate-700 hover:border-slate-600"}`}
+                                        onClick={() => setTimeframe('4h')}
+                                        className={`py-1.5 rounded-lg text-[10px] font-bold border transition-all ${timeframe === '4h' ? "bg-purple-500/20 text-purple-400 border-purple-500/50" : "bg-slate-900 text-slate-500 border-slate-700 hover:border-slate-600"}`}
                                     >
                                         4H
                                     </button>
                                     <button
-                                        onClick={() => setInterval('1d')}
-                                        className={`py-1.5 rounded-lg text-[10px] font-bold border transition-all ${interval === '1d' ? "bg-purple-500/20 text-purple-400 border-purple-500/50" : "bg-slate-900 text-slate-500 border-slate-700 hover:border-slate-600"}`}
+                                        onClick={() => setTimeframe('1d')}
+                                        className={`py-1.5 rounded-lg text-[10px] font-bold border transition-all ${timeframe === '1d' ? "bg-purple-500/20 text-purple-400 border-purple-500/50" : "bg-slate-900 text-slate-500 border-slate-700 hover:border-slate-600"}`}
                                     >
                                         1D
                                     </button>
@@ -362,7 +355,7 @@ export default function CandleAlertModal({ currentAlerts, onSaveAlerts, onClose,
 
                         <p className={`text-center text-[10px] font-bold mb-2 ${direction === 'up' ? "text-green-400" : "text-red-400"}`}>
                             {selectedCoin
-                                ? `Notificar cuando vela ${interval} de ${selectedCoin} ${direction === 'up' ? "suba" : "baje"} >= ${targetPercent}%`
+                                ? `Notificar cuando vela ${timeframe} de ${selectedCoin} ${direction === 'up' ? "suba" : "baje"} >= ${targetPercent}%`
                                 : "Seleccioná una moneda para continuar"}
                         </p>
 

@@ -84,6 +84,8 @@ function SortableCoinChip({ coin, onRemove }: { coin: string, onRemove: (c: stri
     );
 }
 
+const FIAT_COINS = ["EUR"];
+
 function AlertSettings({ config, saveConfig, onRefresh, refreshing, onEditGlobal, onEditInvestment, onOpenWatchlist, onEditWatchlistAlert, onOpenCandleAlert, onEditCandleAlert, sales, totalPnl = 0, selectedCoins = [], onSelectedCoinsChange, tickerSpeed = 35, onTickerSpeedChange, prices }: AlertSettingsProps) {
     const { portfolio } = usePortfolio();
     const { logs, loading: logsLoading } = useNotificationLogs(15);
@@ -121,8 +123,6 @@ function AlertSettings({ config, saveConfig, onRefresh, refreshing, onEditGlobal
     const individualCount = config.investmentAlerts
         ? Object.values(config.investmentAlerts).reduce((sum, a) => sum + (Array.isArray(a) ? a.length : 0), 0)
         : 0;
-
-    const FIAT_COINS = ["EUR"];
 
     const filteredSymbols = useMemo(() => {
         const q = coinSearch.trim().toUpperCase();

@@ -696,7 +696,7 @@ exports.syncBinanceLoans = functions
 });
 exports.syncBybitLoans = functions
     .region("europe-west1")
-    .runWith({ secrets: ["FUNCTIONS_CONFIG_EXPORT"], memory: "128MB" })
+    .runWith({ secrets: [BINANCE_SECRET], memory: "128MB" })
     .https.onRequest(async (req, res) => {
     setCorsHeaders(res);
     if (req.method === "OPTIONS") {

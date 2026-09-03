@@ -91,7 +91,7 @@ export function useChartSignals({
         }));
 
         candleSeriesRef.current.setMarkers(markers);
-    }, [klines, ema20Points, sma50Points, rsiPoints, macdLinePoints, macdSignalPoints, volumeRatio, enabled]);
+    }, [klines, ema20Points, sma50Points, rsiPoints, macdLinePoints, macdSignalPoints, volumeRatio, enabled, candleSeriesRef]);
 
     // Clear markers when no data
     useEffect(() => {
@@ -99,5 +99,5 @@ export function useChartSignals({
             candleSeriesRef.current.setMarkers([]);
             lastSigRef.current = "";
         }
-    }, [klines]);
+    }, [klines, candleSeriesRef]);
 }

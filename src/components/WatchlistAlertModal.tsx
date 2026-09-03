@@ -88,7 +88,7 @@ export default function WatchlistAlertModal({ currentAlerts, onSaveAlerts, onClo
             }
         };
         load();
-    }, []);
+    }, [currentAlerts, initialEditCoin, initialEditIndex]);
 
     // Close dropdown on outside click
     useEffect(() => {

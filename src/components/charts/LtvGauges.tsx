@@ -16,8 +16,6 @@ const LtvGauges: React.FC<{ loans: ProcessedLoan[] }> = ({ loans }) => {
                     const ltv = Math.min(loan.ltv, 100);
                     const color =
                         ltv >= 85 ? "#ef4444" : ltv >= 75 ? "#f59e0b" : "#4ade80";
-                    const bgColor =
-                        ltv >= 85 ? "#7f1d1d" : ltv >= 75 ? "#78350f" : "#14532d";
 
                     return (
                         <div key={loan.id}>

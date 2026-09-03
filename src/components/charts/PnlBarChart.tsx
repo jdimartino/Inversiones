@@ -11,7 +11,6 @@ import {
     ReferenceLine,
 } from "recharts";
 import { AggregatedAsset } from "../../lib/constants";
-import { fmtUSD } from "../../lib/format";
 import ChartCard from "./ChartCard";
 import DarkTooltip from "./DarkTooltip";
 

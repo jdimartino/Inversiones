@@ -29,7 +29,6 @@ import { useBinanceFuturesMarkPrices, FuturesWSStatus } from "../hooks/useBinanc
 import {
     FuturesPosition,
     FuturesPositionAlert,
-    FuturesGlobalAlert,
     FuturesAccount,
     FuturesAlertConfig,
     formatPnl,

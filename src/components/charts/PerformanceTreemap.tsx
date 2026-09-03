@@ -3,7 +3,6 @@ import { Treemap, ResponsiveContainer, Tooltip } from "recharts";
 import { AggregatedAsset } from "../../lib/constants";
 import { fmtUSD } from "../../lib/format";
 import ChartCard from "./ChartCard";
-import { coinColor } from "./chartColors";
 
 function roiColor(pct: number): string {
     if (pct >= 50) return "#16a34a";

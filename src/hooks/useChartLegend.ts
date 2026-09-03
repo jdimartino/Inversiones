@@ -31,7 +31,7 @@ export function useChartLegend({ mainChartRef, candleSeriesRef, volumeSeriesRef 
         };
         chart.subscribeCrosshairMove(handler);
         return () => { chart.unsubscribeCrosshairMove(handler); };
-    }, []);
+    }, [candleSeriesRef, mainChartRef, volumeSeriesRef]);
 
     return { legend };
 }

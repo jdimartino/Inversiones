@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import type { RefObject } from "react";
 import type { IChartApi, MouseEventParams } from "lightweight-charts";
 
@@ -45,7 +45,7 @@ export function useChartIndicatorValues({
         setValues(getLatestIndicatorValues());
 
         return () => { chart.unsubscribeCrosshairMove(handler); };
-    }, []);
+    }, [mainChartRef, getIndicatorValuesAtTime, getLatestIndicatorValues]);
 
     return values;
 }
