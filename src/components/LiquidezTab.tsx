@@ -166,7 +166,7 @@ export default function LiquidezTab({ prices }: { prices: Record<string, number>
   const futuresBalance = futuresData?.account?.totalWalletBalance ?? 0;
   const futuresTransferible = futuresData?.account?.maxWithdrawAmount ?? 0;
   const btcPrice = prices["BTC"] || 0;
-  const totalFlujo = liquidez.saldoBancos + liquidez.efectivo + liquidez.inversionesSpot + liquidez.aporteFondoVitalicio + usdtSpot + futuresBalance;
+  const totalFlujo = liquidez.saldoBancos + liquidez.efectivo + liquidez.inversionesSpot + liquidez.aporteFondoVitalicio + usdtFunding + futuresBalance;
   const totalBtc = liquidez.btcDisponible * btcPrice;
 
   const btcMensual = liquidez.btcDisponible / 240;
@@ -257,7 +257,7 @@ export default function LiquidezTab({ prices }: { prices: Record<string, number>
                 ) : walletError ? (
                   <span className="text-red-400 text-xs">Err</span>
                 ) : (
-                  <span className="text-green-400 text-xs font-medium">{formatNumber(usdtSpot)}</span>
+                  <span className="text-green-400 text-xs font-medium">{formatNumber(usdtFunding)}</span>
                 )}
               </div>
 
@@ -269,7 +269,7 @@ export default function LiquidezTab({ prices }: { prices: Record<string, number>
                 ) : walletError ? (
                   <span className="text-red-400/60 text-xs">Err</span>
                 ) : (
-                  <span className="text-slate-400 text-xs">{formatNumber(usdtFunding)}</span>
+                  <span className="text-slate-400 text-xs">{formatNumber(usdtSpot)}</span>
                 )}
               </div>
 

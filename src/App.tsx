@@ -1,10 +1,7 @@
 import React, { useState, useMemo, useCallback, useRef, Suspense } from "react";
 import { RefreshCw } from "lucide-react";
 import {
-  RISK_PARAMS,
   ProcessedInvestment,
-  ProcessedLoan,
-  Loan,
   AggregatedAsset,
   SaleRecord,
   ClosedTrade,
@@ -12,7 +9,6 @@ import {
 import { usePortfolio } from "./hooks/usePortfolio";
 import { useClosedTrades } from "./hooks/useClosedTrades";
 import { useSales } from "./hooks/useSales";
-import { useLoans } from "./hooks/useLoans";
 import { useFutures } from "./hooks/useFutures";
 import { useLiquidationData } from "./hooks/useLiquidationData";
 import { usePrices } from "./hooks/usePrices";
@@ -30,7 +26,6 @@ import AnalyticsSection from "./components/AnalyticsSection";
 import InvestmentForm from "./components/InvestmentForm";
 import SaleForm from "./components/SaleForm";
 import SalesHistoryTable from "./components/SalesHistoryTable";
-import EditLoanModal from "./components/EditLoanModal";
 import ClosePositionModal from "./components/ClosePositionModal";
 import CloseVentaModal from "./components/CloseVentaModal";
 import ClosedTradesTable from "./components/ClosedTradesTable";
@@ -54,7 +49,6 @@ const App: React.FC = () => {
   const { portfolio, addInvestment, removeInvestment, updateInvestment } = usePortfolio();
   const { closedTrades, addClosedTrade, loading: closedTradesLoading } = useClosedTrades();
   const { sales, addSale, deleteSale, updateSale, loading: salesLoading } = useSales();
-  const { loans, updateLoan } = useLoans();
   const { config, saveConfig } = useAlerts();
   const [selectedCoins, setSelectedCoins] = useState<string[]>(getSelectedCoins);
   const [tickerSpeed, setTickerSpeed] = useState<number>(() => {
@@ -73,7 +67,6 @@ const App: React.FC = () => {
   const { watchlistCoins, setWatchlistCoins } = useWatchlistCoins();
   const [activeTab, setActiveTab] = useState<TabId>("inicio");
   const [graficoCoin, setGraficoCoin] = useState<string | undefined>(undefined);
-  const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
   const [editingInvestment, setEditingInvestment] = useState<ProcessedInvestment | null>(null);
   const [alertingInvestment, setAlertingInvestment] = useState<ProcessedInvestment | null>(null);
   const [alertingSale, setAlertingSale] = useState<SaleRecord | null>(null);
@@ -195,22 +188,7 @@ const App: React.FC = () => {
       .sort((a, b) => b.pnl - a.pnl);
   }, [portfolio, prices]);
 
-  // ── Computed: loans with live LTV ────────────────────────────────
-  const processedLoans = useMemo<ProcessedLoan[]>(() => {
-    return loans.map((loan) => {
-      const colVal = loan.collateralQty * (prices[loan.collateralCoin] || 0);
-      const ltv = colVal > 0 ? (loan.borrowedUSDT / colVal) * 100 : 0;
-      const params = RISK_PARAMS[loan.exchange] || RISK_PARAMS["Binance"];
-      const liquidationPrice =
-        loan.collateralQty > 0
-          ? (loan.borrowedUSDT * 100) / (params.liquidation * loan.collateralQty)
-          : 0;
-      return { ...loan, collateralValue: colVal, ltv, liquidationPrice };
-    });
-  }, [loans, prices]);
-
   // ── Callbacks ────────────────────────────────────────────────────
-  const handleCloseModal = useCallback(() => setEditingLoan(null), []);
   const handleEditInvestment = useCallback((item: ProcessedInvestment) => setEditingInvestment(item), []);
   const handleCloseInvestmentModal = useCallback(() => setEditingInvestment(null), []);
   const handleAlertInvestment = useCallback((item: ProcessedInvestment) => setAlertingInvestment(item), []);
@@ -486,7 +464,6 @@ const App: React.FC = () => {
               <AnalyticsSection
                 aggregated={aggregatedList}
                 items={sortedPortfolio}
-                loans={processedLoans}
                 totalValue={totalValue}
                 totalInvested={totalInvested}
                 fearGreed={fearGreed}
@@ -648,9 +625,6 @@ const App: React.FC = () => {
           }}
           onClose={() => setClosingInvestment(null)}
         />
-      )}
-      {editingLoan && (
-        <EditLoanModal loan={editingLoan} onSave={updateLoan} onClose={handleCloseModal} />
       )}
       {editingInvestment && (
         <EditInvestmentModal investment={editingInvestment} onSave={updateInvestment} onClose={handleCloseInvestmentModal} />

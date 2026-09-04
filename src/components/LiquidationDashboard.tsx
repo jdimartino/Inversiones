@@ -1,16 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldAlert, TrendingDown, AlertTriangle, Trash2, Plus, RefreshCw, CheckCircle, XCircle, FlaskConical } from 'lucide-react';
-import { useLiquidationData, DebtItem, CollateralItem } from '../hooks/useLiquidationData';
+import { ShieldAlert, TrendingDown, AlertTriangle, RefreshCw, CheckCircle, XCircle, FlaskConical } from 'lucide-react';
+import { useLiquidationData, CollateralItem } from '../hooks/useLiquidationData';
 import { useBybitSync } from '../hooks/useBybitSync';
 import { useBinanceSync } from '../hooks/useBinanceSync';
 import InterestHistoryModal from './InterestHistoryModal';
-
-const generateId = () => {
-  const _crypto = typeof window !== 'undefined' ? (window.crypto as any) : null;
-  return _crypto && _crypto.randomUUID 
-    ? _crypto.randomUUID() 
-    : Math.random().toString(36).substring(2, 15);
-};
 
 const THEMES = {
   bybit: {
@@ -148,83 +141,23 @@ export default function LiquidationDashboard() {
   const currentData = liveExchangeData[activeTab];
   const theme = THEMES[currentData.themeKey];
 
-  const handleLTVChange = (value: string) => {
-    saveExchangeData(prev => ({
-      ...prev,
-      [activeTab]: { ...prev[activeTab], liquidationLTV: Number(value) }
-    }));
-  };
-
-  const handleDebtChange = (index: number, field: keyof DebtItem, value: string) => {
-    saveExchangeData(prev => ({
-      ...prev,
-      [activeTab]: {
-        ...prev[activeTab],
-        debts: prev[activeTab].debts.map((item, i) => 
-          i === index ? { ...item, [field]: field === 'id' ? value : parseFloat(value.replace(/,/g, '')) || 0 } : item
-        )
-      }
-    }));
-  };
-
-  const addDebt = () => {
-    saveExchangeData(prev => ({
-      ...prev,
-      [activeTab]: {
-        ...prev[activeTab],
-        debts: [...prev[activeTab].debts, { _id: generateId(), id: 'NUEVA', amount: 0, price: 1.0, rate: 0 }]
-      }
-    }));
-  };
-
-  const removeDebt = (index: number) => {
-    saveExchangeData(prev => ({
-      ...prev,
-      [activeTab]: {
-        ...prev[activeTab],
-        debts: prev[activeTab].debts.filter((_, i) => i !== index)
-      }
-    }));
-  };
-
-  const handleCollateralChange = (index: number, field: keyof CollateralItem, value: string) => {
-    saveExchangeData(prev => ({
-      ...prev,
-      [activeTab]: {
-        ...prev[activeTab],
-        collateral: prev[activeTab].collateral.map((item, i) => 
-          i === index ? { ...item, [field]: field === 'id' ? value : parseFloat(value.replace(/,/g, '')) || 0 } : item
-        )
-      }
-    }));
-  };
-
-  const addCollateral = () => {
-    saveExchangeData(prev => ({
-      ...prev,
-      [activeTab]: {
-        ...prev[activeTab],
-        collateral: [...prev[activeTab].collateral, { _id: generateId(), id: 'NUEVO', amount: 0, price: 0 }]
-      }
-    }));
-  };
-
-  const removeCollateral = (index: number) => {
-    saveExchangeData(prev => ({
-      ...prev,
-      [activeTab]: {
-        ...prev[activeTab],
-        collateral: prev[activeTab].collateral.filter((_, i) => i !== index)
-      }
-    }));
-  };
-
-  // Usar agregados del exchange si están (Bybit los calcula exacto), si no, calcular localmente
-  const totalDebt = currentData.totalDebt ?? currentData.debts.reduce((sum, item) => sum + (item.amount * item.price), 0);
-  const totalCollateralValue = currentData.totalCollateral ?? currentData.collateral.reduce((sum, item) => sum + (item.amount * item.price), 0);
+  // Usar agregados del exchange si están (datos oficiales del API)
+  const totalDebt = currentData.totalDebt ?? currentData.debts.reduce((sum, item) => sum + (item.amountUSD ?? item.amount * item.price), 0);
+  // Para Bybit, totalCollateral del API es el valor ajustado (denominador de LTV)
+  // Para Binance, es el valor de mercado
+  const totalCollateralValue = currentData.totalCollateral ?? currentData.collateral.reduce((sum, item) => sum + (item.adjustedValueUSD ?? item.marketValueUSD ?? item.amount * item.price), 0);
   const currentLTV = currentData.ltvFromExchange ?? (totalCollateralValue > 0 ? (totalDebt / totalCollateralValue) * 100 : 0);
 
-  // Intereses del mes actual (MTD + estimado fin de mes)
+  // Valor de mercado del colateral (sin ajuste de haircut)
+  const totalCollateralMarketValue = currentData.collateral.reduce((sum, item) => sum + (item.marketValueUSD ?? item.amount * (item.marketPrice ?? item.price)), 0);
+
+  // Usar blendedLiqLTV (estimación ponderada) en lugar del valor hardcodeado
+  const effectiveLiqLTV = currentData.blendedLiqLTV ?? currentData.liquidationLTV ?? 92;
+  const effectiveMCLTV = currentData.blendedMarginCallLTV ?? currentData.marginCallLTV ?? 87;
+
+  // Intereses del mes actual
+  // NOTA: Estos son ESTIMADOS basados en la tasa actual y el balance actual.
+  // No son intereses reales cobrados (esos vienen de snapshots que aún no existen).
   const now = new Date();
   const monthLabel = now.toLocaleString('es-ES', { month: 'long', year: 'numeric' });
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -232,23 +165,32 @@ export default function LiquidationDashboard() {
   const hoursIntoMonth = (now.getTime() - startOfMonth.getTime()) / (1000 * 60 * 60);
   const hoursInMonth = (endOfMonth.getTime() - startOfMonth.getTime()) / (1000 * 60 * 60);
 
-  const interestMTD = currentData.debts.reduce((sum, item) => {
+  // Interés pendiente actual (dato de la API)
+  const accruedInterestTotal = currentData.debts.reduce((sum, item) => sum + (item.accruedInterest || 0), 0);
+
+  // Interés diario estimado (cálculo propio, ESTIMADO)
+  const estimatedDailyInterest = currentData.debts.reduce((sum, item) => {
     const hourlyRate = item.hourlyRate || (item.rate ? item.rate / 100 / 365 / 24 : 0);
     if (!hourlyRate) return sum;
-    const principal = item.amount - (item.accruedInterest || 0);
+    const principal = item.amountUSD ?? item.amount;
+    return sum + principal * hourlyRate * 24;
+  }, 0);
+
+  // Interés estimado del mes (MTD): proyección basada en balance actual y tasa vigente
+  const estimatedInterestMTD = currentData.debts.reduce((sum, item) => {
+    const hourlyRate = item.hourlyRate || (item.rate ? item.rate / 100 / 365 / 24 : 0);
+    if (!hourlyRate) return sum;
+    const principal = item.amountUSD ?? item.amount;
     return sum + principal * (Math.pow(1 + hourlyRate, hoursIntoMonth) - 1);
   }, 0);
 
-  const interestFullMonth = currentData.debts.reduce((sum, item) => {
-    const hourlyRate = item.hourlyRate || (item.rate ? item.rate / 100 / 365 / 24 : 0);
-    if (!hourlyRate) return sum;
-    const principal = item.amount - (item.accruedInterest || 0);
-    return sum + principal * (Math.pow(1 + hourlyRate, hoursInMonth) - 1);
-  }, 0);
+  // Interés estimado fin de mes: MTD + proyección de días restantes
+  const remainingDays = Math.max(0, (hoursInMonth - hoursIntoMonth) / 24);
+  const estimatedEndOfMonthInterest = estimatedInterestMTD + estimatedDailyInterest * remainingDays;
 
-  const liquidationThresholdValue = totalDebt / (currentData.liquidationLTV / 100);
+  const liquidationThresholdValue = totalDebt / (effectiveLiqLTV / 100);
   const globalDropNeeded = totalCollateralValue > 0 ? ((totalCollateralValue - liquidationThresholdValue) / totalCollateralValue) * 100 : 0;
-  const isLiquidated = currentLTV >= currentData.liquidationLTV;
+  const isLiquidated = currentLTV >= effectiveLiqLTV;
 
   const calculateIndividualLiqPrice = (asset: CollateralItem) => {
     if (!asset.amount || asset.amount <= 0) return 0;
@@ -259,14 +201,13 @@ export default function LiquidationDashboard() {
   };
 
   // --- Simulador de caída (estado local, sin Firebase) ---
+  // ESCENARIO SIMULADO: caída uniforme proporcional de todos los activos
   const simFactor = 1 - simulationDrop / 100;
-  const simCollateralValue = currentData.collateral.reduce((sum, item) => sum + item.amount * item.price * simFactor, 0);
+  const simCollateralValue = currentData.collateral.reduce((sum, item) => sum + item.amount * (item.marketPrice ?? item.price) * simFactor, 0);
   const simLTV = simCollateralValue > 0 ? (totalDebt / simCollateralValue) * 100 : 0;
-  const simIsLiquidated = simLTV >= currentData.liquidationLTV;
-  const simBuffer = simIsLiquidated ? 0 : currentData.liquidationLTV - simLTV;
-  const simThresholdValue = totalDebt / (currentData.liquidationLTV / 100);
-
-  const getInputClass = (val: number) => `w-full bg-transparent text-white outline-none rounded px-1.5 py-1.5 transition-all ${val <= 0 ? 'ring-1 ring-red-500 bg-red-500/10' : ''}`;
+  const simIsLiquidated = simLTV >= effectiveLiqLTV;
+  const simBuffer = simIsLiquidated ? 0 : effectiveLiqLTV - simLTV;
+  const simThresholdValue = totalDebt / (effectiveLiqLTV / 100);
 
   const fmtNum = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 });
   const fmtNumShort = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -285,7 +226,7 @@ export default function LiquidationDashboard() {
           <div>
             <h1 className="text-xl font-bold text-white hidden sm:flex items-center gap-2">
               <ShieldAlert className={theme.title} />
-              Simulador LTV Multiexchange
+              Centro de Riesgo — {currentData.name}
             </h1>
           </div>
 
@@ -303,7 +244,7 @@ export default function LiquidationDashboard() {
             </button>
             {activeLastSynced && (
               <span className="text-[10px] text-slate-500 self-center hidden md:inline">
-                Último sync: {new Date(activeLastSynced).toLocaleTimeString()}
+                ● Sincronizado · {new Date(activeLastSynced).toLocaleTimeString()}
               </span>
             )}
             <button
@@ -339,14 +280,14 @@ export default function LiquidationDashboard() {
             <div className="flex items-center justify-between">
               <h2 className="text-purple-300 font-semibold flex items-center gap-2 text-sm uppercase tracking-widest">
                 <FlaskConical size={16} className="text-purple-400" />
-                Simulador de Caída — {currentData.name}
+                ESCENARIO SIMULADO — {currentData.name}
               </h2>
               <span className="text-xs text-gray-500">Solo lectura · no afecta datos reales</span>
             </div>
 
             <div>
               <label className="flex items-center justify-between text-sm text-gray-400 mb-2">
-                <span>Caída del mercado (todos los activos)</span>
+                <span>Caída uniforme del colateral (todos los activos)</span>
                 <span className="text-purple-300 font-bold text-lg">-{simulationDrop}%</span>
               </label>
               <input
@@ -369,15 +310,15 @@ export default function LiquidationDashboard() {
               </div>
               <div className="bg-[#0E1014] rounded-xl p-3 border border-gray-800">
                 <div className="text-xs text-gray-500 mb-1">LTV Proyectado</div>
-                <div className={`font-bold text-lg ${simIsLiquidated ? 'text-red-400' : simLTV > currentData.liquidationLTV - 10 ? 'text-yellow-400' : 'text-green-400'}`}>
+                <div className={`font-bold text-lg ${simIsLiquidated ? 'text-red-400' : simLTV > effectiveLiqLTV - 10 ? 'text-yellow-400' : 'text-green-400'}`}>
                   {simLTV.toFixed(2)}%
                 </div>
-                <div className="text-xs text-gray-600 mt-0.5">Límite: {currentData.liquidationLTV}%</div>
+                <div className="text-xs text-gray-600 mt-0.5">Límite estimado: {effectiveLiqLTV.toFixed(1)}%</div>
               </div>
               <div className="bg-[#0E1014] rounded-xl p-3 border border-gray-800">
                 <div className="text-xs text-gray-500 mb-1">Buffer restante</div>
                 {simIsLiquidated ? (
-                  <div className="text-red-400 font-bold">Liquidado</div>
+                  <div className="text-red-400 font-bold">LIQUIDACIÓN ESTIMADA</div>
                 ) : (
                   <div className="text-green-400 font-bold">{simBuffer.toFixed(2)}%</div>
                 )}
@@ -402,7 +343,7 @@ export default function LiquidationDashboard() {
 
             {!simIsLiquidated && (
               <div className="text-xs text-gray-500 border-t border-gray-800 pt-3">
-                Umbral de liquidación: colateral debe bajar a <strong className="text-gray-300">${simThresholdValue.toLocaleString(undefined, {maximumFractionDigits: 0})}</strong> · actualmente proyectado en <strong className="text-gray-300">${simCollateralValue.toLocaleString(undefined, {maximumFractionDigits: 0})}</strong>
+                Umbral de liquidación estimado: colateral debe bajar a <strong className="text-gray-300">${simThresholdValue.toLocaleString(undefined, {maximumFractionDigits: 0})}</strong> · actualmente proyectado en <strong className="text-gray-300">${simCollateralValue.toLocaleString(undefined, {maximumFractionDigits: 0})}</strong>
               </div>
             )}
           </div>
@@ -414,35 +355,39 @@ export default function LiquidationDashboard() {
             <div className="text-xl font-bold text-white">${totalDebt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
           </div>
           <div className="bg-[#181A20] p-3 rounded-xl border border-gray-800 text-center flex flex-col items-center justify-center min-h-[110px]">
-            <div className="text-gray-400 text-sm mb-1">Valor del Colateral</div>
+            <div className="text-gray-400 text-sm mb-1">Colateral Total</div>
             <div className="text-xl font-bold text-white">${totalCollateralValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+            {totalCollateralMarketValue > 0 && totalCollateralMarketValue !== totalCollateralValue && (
+              <div className="text-[10px] text-gray-500 mt-0.5">Mercado: ${totalCollateralMarketValue.toLocaleString(undefined, {maximumFractionDigits: 0})}</div>
+            )}
           </div>
           <div className="bg-[#181A20] p-3 rounded-xl border border-gray-800 text-center flex flex-col items-center justify-center min-h-[110px] col-span-2 md:col-span-1 cursor-pointer hover:border-orange-500/50 transition-colors" onClick={() => setShowInterestHistory(true)}>
             <div className="text-gray-400 text-sm mb-1 capitalize">Intereses {monthLabel}</div>
-            <div className="text-sm font-bold text-orange-400">+${interestMTD.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-            <div className="text-[10px] text-orange-400/60">acumulado</div>
-            <div className="text-sm font-bold text-orange-300 mt-1">~${interestFullMonth.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-            <div className="text-[10px] text-orange-300/60">estimado fin de mes</div>
+            <div className="text-xs text-orange-400/70 mb-0.5">Pendiente</div>
+            <div className="text-sm font-bold text-orange-400">${accruedInterestTotal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+            <div className="text-xs text-orange-400/60 mt-0.5">Estimado MTD</div>
+            <div className="text-sm font-bold text-orange-300">~${estimatedInterestMTD.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+            <div className="text-xs text-orange-300/60">Est. fin de mes: ~${estimatedEndOfMonthInterest.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
           </div>
           <div className="bg-[#181A20] p-3 rounded-xl border border-gray-800 relative overflow-hidden flex flex-col justify-center min-h-[110px] col-span-2 md:col-span-1">
             <div className="text-gray-400 text-sm mb-1 text-center">LTV Actual</div>
-            <div className={`text-xl font-bold ${isLiquidated ? 'text-red-500' : currentLTV > (currentData.liquidationLTV - 10) ? 'text-yellow-500' : 'text-green-500'}`}>
+            <div className={`text-xl font-bold ${isLiquidated ? 'text-red-500' : currentLTV > (effectiveLiqLTV - 10) ? 'text-yellow-500' : 'text-green-500'}`}>
               {currentLTV.toFixed(2)}%
             </div>
             <div className="w-full bg-gray-700 h-1.5 mt-2 rounded-full overflow-hidden relative">
               <div 
-                className={`h-full transition-all duration-500 ${isLiquidated ? 'bg-red-500' : currentLTV > (currentData.liquidationLTV - 10) ? 'bg-yellow-500' : 'bg-green-500'}`} 
+                className={`h-full transition-all duration-500 ${isLiquidated ? 'bg-red-500' : currentLTV > (effectiveLiqLTV - 10) ? 'bg-yellow-500' : 'bg-green-500'}`} 
                 style={{ width: `${Math.min(currentLTV, 100)}%` }}
               ></div>
               <div 
                 className="absolute top-0 bottom-0 w-1 bg-red-600 z-10 shadow-[0_0_5px_rgba(220,38,38,0.8)]" 
-                style={{ left: `${currentData.liquidationLTV}%`, transform: 'translateX(-50%)' }}
-                title={`Límite de liquidación: ${currentData.liquidationLTV}%`}
+                style={{ left: `${effectiveLiqLTV}%`, transform: 'translateX(-50%)' }}
+                title={`Límite de liquidación estimado: ${effectiveLiqLTV.toFixed(1)}%`}
               ></div>
             </div>
             <div className="text-xs text-gray-500 mt-1 flex justify-between">
               <span>0%</span>
-              <span>Liq: {currentData.liquidationLTV}%</span>
+              <span>Liq est.: {effectiveLiqLTV.toFixed(1)}%</span>
             </div>
           </div>
         </div>
@@ -452,41 +397,37 @@ export default function LiquidationDashboard() {
             <div className="bg-[#181A20] p-4 rounded-xl border border-gray-800 space-y-3 shadow-lg">
               <div className="flex justify-between items-center mb-2 border-b border-gray-700 pb-2">
                 <h2 className="text-base font-semibold text-white">Préstamos ({currentData.name})</h2>
-                <button onClick={addDebt} className="text-sm bg-blue-600 hover:bg-blue-500 transition-colors text-white px-3 py-1.5 rounded flex items-center gap-1">
-                  <Plus size={16}/> Agregar
-                </button>
+                <span className="text-[9px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded">API · SOLO LECTURA</span>
               </div>
               
               <div className="overflow-x-auto">
                 <div className="grid grid-cols-12 gap-2 text-xs font-medium text-gray-400 px-1 uppercase tracking-wider">
                   <div className="col-span-4 sm:col-span-3">Activo</div>
-                  <div className="col-span-4 sm:col-span-2 text-right">Cantidad</div>
-                  <div className="col-span-4 sm:col-span-3 text-right" title="Tasa de interés Anual">Tasa (%)</div>
-                  <div className="col-span-3 text-right hidden sm:block">Precio ($)</div>
-                  <div className="col-span-1 hidden sm:block"></div>
+                  <div className="col-span-4 sm:col-span-2 text-right">Deuda</div>
+                  <div className="col-span-4 sm:col-span-2 text-right">Valor USD</div>
+                  <div className="col-span-4 sm:col-span-3 text-right" title="Tasa de interés Anual">Tasa</div>
+                  <div className="col-span-3 text-right hidden sm:block">Pendiente</div>
                 </div>
 
-                {currentData.debts.map((item, index) => (
-                  <div key={item._id} className="grid grid-cols-12 gap-2 items-center bg-[#0E1014] p-2 rounded-lg border border-gray-800 focus-within:border-blue-500 transition-colors">
+                {currentData.debts.map((item) => (
+                  <div key={item._id} className="grid grid-cols-12 gap-2 items-center bg-[#0E1014] p-2 rounded-lg border border-gray-800">
                   <div className="col-span-4 sm:col-span-3 flex items-center gap-1">
-                    <input type="text" value={item.id} onChange={(e) => handleDebtChange(index, 'id', e.target.value)} className="w-full bg-transparent text-white font-bold outline-none uppercase px-1.5 py-1.5" placeholder="USDT" />
+                    <span className="w-full bg-transparent text-white font-bold uppercase px-1.5 py-1.5">{item.id || '---'}</span>
                     {item.synced && (
                       <span className="text-[9px] bg-green-500/20 text-green-400 px-1 rounded whitespace-nowrap flex-shrink-0">{activeTab.toUpperCase()}</span>
                     )}
                   </div>
-                  <div className="col-span-4 sm:col-span-2">
-                    <input type="text" value={fmtNum(item.amount)} onChange={(e) => handleDebtChange(index, 'amount', e.target.value)} className={`${getInputClass(item.amount)} text-right`} />
+                  <div className="col-span-4 sm:col-span-2 text-right text-white px-1.5 py-1.5">
+                    {fmtNum(item.amount)}
                   </div>
-                  <div className="col-span-4 sm:col-span-3 flex items-center justify-end">
-                    <input type="text" value={fmtNum(item.rate || 0)} onChange={(e) => handleDebtChange(index, 'rate', e.target.value)} className="w-full bg-transparent text-white outline-none px-1.5 py-1.5 text-right" />
-                    <span className="text-gray-500 ml-0.5">%</span>
+                  <div className="col-span-4 sm:col-span-2 text-right text-white px-1.5 py-1.5">
+                    ${fmtNum(item.amountUSD ?? item.amount)}
                   </div>
-                  <div className="col-span-3 flex items-center justify-end hidden sm:flex">
-                    <span className="text-gray-500 mr-1">$</span>
-                    <input type="text" value={fmtNum(item.price)} onChange={(e) => handleDebtChange(index, 'price', e.target.value)} className={`${getInputClass(item.price)} text-right w-20`} />
+                  <div className="col-span-4 sm:col-span-3 text-right text-white px-1.5 py-1.5">
+                    {fmtNum(item.rate || 0)}%
                   </div>
-                  <div className="col-span-1 text-right flex justify-end hidden sm:flex">
-                    <button onClick={() => removeDebt(index)} className="text-gray-500 hover:text-red-400 transition-colors p-1"><Trash2 size={16}/></button>
+                  <div className="col-span-3 text-right hidden sm:block px-1.5 py-1.5 text-orange-400">
+                    ${fmtNum(item.accruedInterest || 0)}
                   </div>
                 </div>
               ))}
@@ -496,50 +437,65 @@ export default function LiquidationDashboard() {
             <div className="bg-[#181A20] p-4 rounded-xl border border-gray-800 space-y-3 shadow-lg">
               <div className="flex justify-between items-center mb-2 border-b border-gray-700 pb-2">
                 <h2 className="text-base font-semibold text-white">Colateral ({currentData.name})</h2>
-                <button onClick={addCollateral} className={`text-sm ${theme.bgBtn} ${theme.textBtn} hover:opacity-80 transition-opacity font-medium px-3 py-1.5 rounded flex items-center gap-1`}>
-                  <Plus size={16}/> Agregar
-                </button>
+                <span className="text-[9px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded">API · SOLO LECTURA</span>
               </div>
 
               <div className="overflow-x-auto">
                 <div className="grid grid-cols-12 gap-2 text-xs font-medium text-gray-400 px-1 uppercase tracking-wider">
-                  <div className="col-span-4 sm:col-span-3">Activo</div>
-                  <div className="col-span-4 text-right">Cantidad</div>
-                  <div className="col-span-4 text-right">Precio ($)</div>
-                  <div className="col-span-1 hidden sm:block"></div>
+                  <div className="col-span-3">Activo</div>
+                  <div className="col-span-2 text-right">Cantidad</div>
+                  <div className="col-span-2 text-right">P. Mercado</div>
+                  <div className="col-span-2 text-right">Valor USD</div>
+                  <div className="col-span-1 text-right hidden sm:block">Peso</div>
+                  <div className="col-span-2 text-right hidden sm:block">MC / Liq</div>
                 </div>
                 
-                {currentData.collateral.map((asset, index) => (
-                  <div key={asset._id} className={`grid grid-cols-12 gap-2 items-center bg-[#0E1014] p-2 rounded-lg border border-gray-800 ${theme.borderHover} transition-colors focus-within:border-gray-600`}>
-                  <div className="col-span-4 sm:col-span-3 flex items-center gap-1">
-                    <input type="text" value={asset.id} onChange={(e) => handleCollateralChange(index, 'id', e.target.value)} className="w-full bg-transparent text-white font-bold outline-none uppercase px-1.5 py-1.5" placeholder="BTC" />
-                    {asset.synced && (
-                      <span className="text-[8px] sm:text-[9px] bg-green-500/20 text-green-400 px-1 rounded whitespace-nowrap flex-shrink-0">{activeTab.toUpperCase()}</span>
-                    )}
+                {currentData.collateral.map((asset) => {
+                  const marketVal = asset.marketValueUSD ?? asset.amount * (asset.marketPrice ?? asset.price);
+                  const adjustedVal = asset.adjustedValueUSD ?? asset.amount * asset.price;
+                  const weight = totalCollateralValue > 0 ? (adjustedVal / totalCollateralValue) * 100 : 0;
+                  const mcLTV = currentData.perCoinMarginCallLTV?.[asset.id] ?? effectiveMCLTV;
+                  const liqLTV = currentData.perCoinLiqLTV?.[asset.id] ?? effectiveLiqLTV;
+
+                  return (
+                    <div key={asset._id} className={`grid grid-cols-12 gap-2 items-center bg-[#0E1014] p-2 rounded-lg border border-gray-800 ${theme.borderHover} transition-colors`}>
+                    <div className="col-span-3 flex items-center gap-1">
+                      <span className="font-bold text-white uppercase px-1.5 py-1.5">{asset.id || '---'}</span>
+                      {asset.synced && (
+                        <span className="text-[8px] sm:text-[9px] bg-green-500/20 text-green-400 px-1 rounded whitespace-nowrap flex-shrink-0">{activeTab.toUpperCase()}</span>
+                      )}
+                    </div>
+                    <div className="col-span-2 text-right text-white text-[11px] sm:text-xs px-1.5 py-1.5">
+                      {fmtNumShort(asset.amount)}
+                    </div>
+                    <div className="col-span-2 text-right text-white text-[11px] sm:text-xs px-1.5 py-1.5">
+                      ${fmtNumShort(asset.marketPrice ?? asset.price)}
+                    </div>
+                    <div className="col-span-2 text-right text-white text-[11px] sm:text-xs px-1.5 py-1.5">
+                      ${fmtNumShort(marketVal)}
+                    </div>
+                    <div className="col-span-1 text-right text-gray-400 text-[11px] hidden sm:block px-1.5 py-1.5">
+                      {weight.toFixed(1)}%
+                    </div>
+                    <div className="col-span-2 text-right hidden sm:block px-1.5 py-1.5">
+                      <span className="text-yellow-400 text-[10px]">{mcLTV.toFixed(0)}%</span>
+                      <span className="text-gray-600 mx-0.5">/</span>
+                      <span className="text-red-400 text-[10px]">{liqLTV.toFixed(0)}%</span>
+                    </div>
                   </div>
-                  <div className="col-span-4">
-                    <input type="text" value={fmtNumShort(asset.amount)} onChange={(e) => handleCollateralChange(index, 'amount', e.target.value)} className={`${getInputClass(asset.amount)} text-right text-[11px] sm:text-xs`} />
-                  </div>
-                  <div className="col-span-4 flex items-center justify-end">
-                    <span className="text-gray-500 mr-1 text-[11px] sm:text-xs">$</span>
-                    <span className="text-white px-1 sm:px-1.5 py-1.5 text-right text-[11px] sm:text-xs" title="Precio automático desde el mercado global">{fmtNumShort(asset.price)}</span>
-                  </div>
-                  <div className="col-span-1 text-right flex justify-end hidden sm:flex">
-                    <button onClick={() => removeCollateral(index)} className="text-gray-500 hover:text-red-400 transition-colors p-1"><Trash2 size={16}/></button>
-                  </div>
-                </div>
-              ))}
+                  );
+                })}
               </div>
 
               <div className="pt-3 mt-1 border-t border-gray-800">
                 <div className="grid grid-cols-2 gap-2">
                   <div className="bg-[#0E1014] p-2 rounded-lg border border-gray-800 text-center">
-                    <div className="text-[10px] text-yellow-400/70 mb-0.5">Margin Call</div>
-                    <div className="text-yellow-400 font-bold">{currentData.marginCallLTV ?? '—'}%</div>
+                    <div className="text-[10px] text-yellow-400/70 mb-0.5">Margin Call (estimado)</div>
+                    <div className="text-yellow-400 font-bold">{effectiveMCLTV.toFixed(1)}%</div>
                   </div>
                   <div className="bg-[#0E1014] p-2 rounded-lg border border-gray-800 text-center">
-                    <div className="text-[10px] text-red-400/70 mb-0.5">Liquidación (API)</div>
-                    <div className="text-red-400 font-bold">{currentData.liquidationLTV}%</div>
+                    <div className="text-[10px] text-red-400/70 mb-0.5">Liquidación (estimado)</div>
+                    <div className="text-red-400 font-bold">{effectiveLiqLTV.toFixed(1)}%</div>
                   </div>
                 </div>
               </div>
@@ -550,7 +506,7 @@ export default function LiquidationDashboard() {
             <div className="bg-[#181A20] p-4 rounded-xl border border-gray-800 shadow-lg">
               <h2 className="text-base font-semibold text-white mb-2 flex items-center gap-2">
                 <TrendingDown className="text-red-400" size={18} />
-                Caída Global - {currentData.name}
+                ESCENARIO: Caída Global — {currentData.name}
               </h2>
 
               {isLiquidated ? (
@@ -559,7 +515,7 @@ export default function LiquidationDashboard() {
                   <div>
                     <strong className="text-red-400 block mb-1">⚠️ En Zona de Liquidación</strong>
                     <p className="text-sm text-gray-300">
-                      Tu LTV actual ({currentLTV.toFixed(2)}%) supera el límite de {currentData.liquidationLTV}%. Tienes un déficit de colateral crítico.
+                      Tu LTV actual ({currentLTV.toFixed(2)}%) supera el límite estimado de {effectiveLiqLTV.toFixed(1)}%. Tienes un déficit de colateral crítico.
                     </p>
                   </div>
                 </div>
@@ -569,13 +525,13 @@ export default function LiquidationDashboard() {
                     Si todos tus activos cayeran simultáneamente, serías liquidado cuando el valor total del colateral llegue a <strong className="text-white">${liquidationThresholdValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong>.
                   </p>
                   <div className="bg-[#2A1C1C] border border-red-900/50 text-red-300 p-3 rounded-lg flex items-center justify-between">
-                    <span>Caída requerida:</span>
+                    <span>Caída requerida para liquidación:</span>
                     <span className="text-2xl font-bold">-{globalDropNeeded.toFixed(2)}%</span>
                   </div>
-                  {currentData.marginCallLTV && (
+                  {effectiveMCLTV && (
                     <div className="mt-2 flex items-center gap-2 text-xs text-yellow-400">
                       <AlertTriangle size={14} />
-                      <span>Alerta {currentData.name} a LTV {currentData.marginCallLTV}%</span>
+                      <span>Alerta {currentData.name} a LTV {effectiveMCLTV.toFixed(1)}% (estimado)</span>
                     </div>
                   )}
                 </>
@@ -583,50 +539,28 @@ export default function LiquidationDashboard() {
             </div>
 
             <div className="bg-[#181A20] p-4 rounded-xl border border-gray-800 shadow-lg">
-              <div className="flex justify-between items-center mb-3 border-b border-gray-700 pb-2">
-                <h2 className="text-base font-semibold text-white flex items-center gap-2">
-                  <AlertTriangle className="text-orange-400" size={18} />
-                  Ajuste LTV de Liquidación
-                </h2>
-                <span className="text-white font-bold bg-gray-800 px-2 py-1 rounded text-sm">{currentData.liquidationLTV}%</span>
-              </div>
-              <p className="text-xs text-gray-400 mb-3">
-                Weighted average API: {currentData.weightedAvgLiqLTV ?? '—'}% · 
-                Margin call: {currentData.marginCallLTV ?? '—'}%
-              </p>
-              <input 
-                type="range" 
-                min="70" max="98" step="1" 
-                value={currentData.liquidationLTV} 
-                onChange={(e) => handleLTVChange(e.target.value)}
-                className={`w-full cursor-pointer ${theme.accent}`}
-              />
-              <div className="flex justify-between text-[10px] text-gray-500 mt-1">
-                <span>70%</span><span>85%</span><span>98%</span>
-              </div>
-            </div>
-
-            <div className="bg-[#181A20] p-4 rounded-xl border border-gray-800 shadow-lg">
               <h2 className="text-base font-semibold text-white mb-2 flex items-center gap-2">
                 <AlertTriangle className="text-orange-400" size={18} />
-                Liquidación Individual - {currentData.name}
+                Liquidación Individual — {currentData.name}
               </h2>
               <p className="text-sm text-gray-400 mb-2">
-                Precio exacto al que debe caer <strong>una sola moneda</strong> para liquidarte, asumiendo que el resto mantienen su valor.
+                Precio hipotético de estrés: si <strong>solo este activo cae</strong> y el resto permanece constante. NO es necesariamente el precio oficial de liquidación del exchange.
               </p>
 
               <div className="space-y-2">
                 {currentData.collateral.map((asset) => {
                   const liqPrice = calculateIndividualLiqPrice(asset);
-                  const isSafe = liqPrice <= 0 || !asset.amount || !asset.price;
-                  const priceDrop = isSafe ? 100 : ((asset.price - liqPrice) / asset.price) * 100;
+                  const isSafe = liqPrice <= 0 || !asset.amount || !(asset.marketPrice ?? asset.price);
+                  const currentPrice = asset.marketPrice ?? asset.price;
+                  const priceDrop = isSafe ? 100 : ((currentPrice - liqPrice) / currentPrice) * 100;
+                  const coinLiqLTV = currentData.perCoinLiqLTV?.[asset.id] ?? effectiveLiqLTV;
 
                   return (
                     <div key={`liq-${asset._id}`} className={`bg-[#0E1014] p-2 rounded-lg border border-gray-800 flex justify-between items-center border-l-2 border-l-transparent ${theme.borderHover} transition-all`}>
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-white uppercase">{asset.id || '---'}</span>
                         <span className="text-[9px] bg-gray-800 text-gray-400 px-1 rounded">
-                          LiqLTV: {currentData.perCoinLiqLTV?.[asset.id] ?? '92'}%
+                          Liq: {coinLiqLTV.toFixed(0)}%
                         </span>
                       </div>
                       <div className="text-right">
@@ -651,6 +585,46 @@ export default function LiquidationDashboard() {
 
           </div>
         </div>
+
+        {/* ── Riesgo por Activo ─────────────────────────────────── */}
+        <div className="bg-[#181A20] p-4 rounded-xl border border-gray-800 shadow-lg">
+          <h2 className="text-base font-semibold text-white mb-3 flex items-center gap-2">
+            <ShieldAlert className="text-blue-400" size={18} />
+            Riesgo por Activo — {currentData.name}
+          </h2>
+          <p className="text-xs text-gray-500 mb-3">Peso de cada activo en el colateral total y su impacto potencial sobre el riesgo de liquidación.</p>
+
+          <div className="space-y-2">
+            {currentData.collateral.map((asset) => {
+              const adjustedVal = asset.adjustedValueUSD ?? asset.amount * asset.price;
+              const weight = totalCollateralValue > 0 ? (adjustedVal / totalCollateralValue) * 100 : 0;
+              const impact = weight >= 50 ? 'ALTO' : weight >= 20 ? 'MEDIO' : weight >= 5 ? 'BAJO' : 'MÍNIMO';
+              const impactColor = weight >= 50 ? 'text-red-400 bg-red-500/10' : weight >= 20 ? 'text-yellow-400 bg-yellow-500/10' : weight >= 5 ? 'text-blue-400 bg-blue-500/10' : 'text-gray-500 bg-gray-500/10';
+
+              return (
+                <div key={`risk-${asset._id}`} className="bg-[#0E1014] p-2 rounded-lg border border-gray-800 flex items-center gap-3">
+                  <div className="w-16">
+                    <span className="font-bold text-white uppercase text-sm">{asset.id}</span>
+                  </div>
+                  <div className="flex-1">
+                    <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${weight >= 50 ? 'bg-red-500' : weight >= 20 ? 'bg-yellow-500' : weight >= 5 ? 'bg-blue-500' : 'bg-gray-500'}`}
+                        style={{ width: `${Math.min(weight, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                  <div className="text-right w-20">
+                    <span className="text-white font-bold text-sm">{weight.toFixed(1)}%</span>
+                  </div>
+                  <div className="w-20 text-right">
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${impactColor}`}>{impact}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {showInterestHistory && (
@@ -659,8 +633,8 @@ export default function LiquidationDashboard() {
           onClose={() => setShowInterestHistory(false)}
           exchange={activeTab}
           exchangeName={currentData.name}
-          currentMonthInterest={interestMTD}
-          currentMonthEstimate={interestFullMonth}
+          currentMonthInterest={estimatedInterestMTD}
+          currentMonthEstimate={estimatedEndOfMonthInterest}
         />
       )}
     </div>

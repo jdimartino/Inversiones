@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.testTelemetryKz = exports.dailyTelemetryReportKz = exports.testTelemetry = exports.dailyTelemetryReport = exports.debugLogs = exports.debugInversiones = exports.debugAlerts = exports.syncBybitLoans = exports.syncBinanceLoans = exports.corsTest = exports.getBinanceWallet = exports.futuresSync = exports.signBinanceRequest = exports.analyzeMarket = exports.testDailyReport = exports.dailyPortfolioReport = exports.checkIntervalTasks = void 0;
+exports.testTelemetryKz = exports.dailyTelemetryReportKz = exports.testTelemetry = exports.dailyTelemetryReport = exports.debugLogs = exports.debugInversiones = exports.debugAlerts = exports.testLoanSnapshot = exports.dailyLoanSnapshot = exports.syncBybitLoans = exports.syncBinanceLoans = exports.corsTest = exports.getBinanceWallet = exports.futuresSync = exports.signBinanceRequest = exports.analyzeMarket = exports.testDailyReport = exports.dailyPortfolioReport = exports.checkIntervalTasks = void 0;
 const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 const axios_1 = require("axios");
@@ -598,7 +598,7 @@ function setCorsHeaders(res) {
 }
 // ─── Helper: Binance Signed Request ─────────────────────────────────────────
 const BINANCE_SECRET = (0, params_1.defineSecret)("FUNCTIONS_CONFIG_EXPORT");
-async function binanceSignedRequest(path, params = {}) {
+async function binanceSignedRequest(path, params = {}, method = "GET") {
     const bConfig = JSON.parse(BINANCE_SECRET.value()).binance;
     if (!(bConfig === null || bConfig === void 0 ? void 0 : bConfig.api_key) || !(bConfig === null || bConfig === void 0 ? void 0 : bConfig.api_secret)) {
         throw new Error("Binance API keys not configured");
@@ -611,10 +611,16 @@ async function binanceSignedRequest(path, params = {}) {
     const isFapi = path.startsWith("/fapi");
     const baseUrl = isFapi ? "https://fapi.binance.com" : "https://api.binance.com";
     const url = `${baseUrl}${path}?${qs}&signature=${signature}`;
-    const { data } = await axios_1.default.get(url, {
+    const config = {
         headers: { "X-MBX-APIKEY": apiKey },
         timeout: 10000,
-    });
+    };
+    if (method === "POST") {
+        config.headers["Content-Type"] = "application/json";
+    }
+    const { data } = method === "POST"
+        ? await axios_1.default.post(url, null, config)
+        : await axios_1.default.get(url, config);
     return data;
 }
 exports.getBinanceWallet = functions
@@ -627,7 +633,11 @@ exports.getBinanceWallet = functions
         return;
     }
     try {
-        const spotData = await binanceSignedRequest("/api/v3/account", { omitZeroBalances: "true" });
+        const [spotData, futuresData, fundingWalletData] = await Promise.all([
+            binanceSignedRequest("/api/v3/account", { omitZeroBalances: "true" }),
+            binanceSignedRequest("/fapi/v2/balance"),
+            binanceSignedRequest("/sapi/v1/asset/get-funding-asset", {}, "POST"),
+        ]);
         const spot = {};
         if ((spotData === null || spotData === void 0 ? void 0 : spotData.balances) && Array.isArray(spotData.balances)) {
             for (const asset of spotData.balances) {
@@ -636,20 +646,27 @@ exports.getBinanceWallet = functions
                     spot[asset.asset] = total;
             }
         }
-        const futuresData = await binanceSignedRequest("/fapi/v2/balance");
-        const funding = {};
+        const futures = {};
         if (Array.isArray(futuresData)) {
             for (const b of futuresData) {
                 const bal = parseFloat(b.balance || "0");
                 if (bal > 0)
-                    funding[b.asset] = bal;
+                    futures[b.asset] = bal;
             }
         }
-        res.status(200).json({ funding, spot });
+        const fundingWallet = {};
+        if (Array.isArray(fundingWalletData)) {
+            for (const a of fundingWalletData) {
+                const total = parseFloat(a.free || "0") + parseFloat(a.locked || "0");
+                if (total > 0)
+                    fundingWallet[a.asset] = total;
+            }
+        }
+        res.status(200).json({ fundingWallet, spot, futures });
     }
     catch (error) {
         console.error("[getBinanceWallet] Error:", error.message);
-        res.status(200).json({ funding: { USDT: 0 }, spot: { USDT: 0 }, error: error.message });
+        res.status(200).json({ fundingWallet: { USDT: 0 }, spot: { USDT: 0 }, error: error.message });
     }
 });
 exports.corsTest = functions
@@ -720,6 +737,7 @@ exports.syncBybitLoans = functions
         const borrowList = (posResult.borrowList || []).map((b) => ({
             flexibleHourlyInterestRate: b.flexibleHourlyInterestRate || "0",
             flexibleTotalDebt: b.flexibleTotalDebt || "0",
+            flexibleTotalDebtUSD: b.flexibleTotalDebtUSD || "0",
             loanCurrency: b.loanCurrency || "",
         }));
         const collateralList = (posResult.collateralList || []).map((c) => ({
@@ -732,7 +750,6 @@ exports.syncBybitLoans = functions
         const ltv = posResult.ltv || "0";
         const position = {
             borrowList, collateralList,
-            loans: posResult.borrowList || [],
             ltv, totalCollateral: String(totalCollateral), totalDebt: String(totalDebt),
         };
         const ongoingList = ongoingResult.list || [];
@@ -745,17 +762,211 @@ exports.syncBybitLoans = functions
                 unpaidInterest: (ongoing === null || ongoing === void 0 ? void 0 : ongoing.unpaidInterest) || "0",
             };
         });
+        // Fetch real per-coin LTV thresholds from legacy endpoint
         const collateralData = {};
+        const currencySet = new Map();
         for (const c of collateralList) {
-            collateralData[c.currency] = [{
-                    currency: c.currency, initialLTV: "0.80", marginCallLTV: "0.87", liquidationLTV: "0.92",
-                }];
+            currencySet.set(String(c.currency), true);
+        }
+        for (const currency of currencySet.keys()) {
+            try {
+                const coinData = await (0, apiClients_1.bybitRequest)("/v5/crypto-loan/collateral-data", { currency: String(currency) }, apiKey, apiSecret);
+                const list = (coinData === null || coinData === void 0 ? void 0 : coinData.collateralInfo) || (coinData === null || coinData === void 0 ? void 0 : coinData.list) || [];
+                collateralData[currency] = list.map((item) => ({
+                    currency: item.currency || currency,
+                    initialLTV: item.initialLTV || "0.80",
+                    marginCallLTV: item.marginCallLTV || "0.87",
+                    liquidationLTV: item.liquidationLTV || "0.92",
+                }));
+                if (collateralData[currency].length === 0) {
+                    collateralData[currency] = [{
+                            currency, initialLTV: "0.80", marginCallLTV: "0.87", liquidationLTV: "0.92",
+                        }];
+                }
+            }
+            catch (_a) {
+                // Fallback if legacy endpoint unavailable
+                collateralData[currency] = [{
+                        currency, initialLTV: "0.80", marginCallLTV: "0.87", liquidationLTV: "0.92",
+                    }];
+            }
         }
         res.status(200).json({ position, flexibleLoans, collateralData });
     }
     catch (error) {
         console.error("[syncBybitLoans] Error:", error.message);
         res.status(500).json({ position: null, flexibleLoans: [], collateralData: {}, error: error.message });
+    }
+});
+// ─── Loan Snapshots (daily cron) ────────────────────────────────────────────
+async function fetchBybitLoanData(apiKey, apiSecret) {
+    const [positionRes, ongoingRes] = await Promise.all([
+        (0, apiClients_1.bybitRequest)("/v5/crypto-loan-common/position", {}, apiKey, apiSecret),
+        (0, apiClients_1.bybitRequest)("/v5/crypto-loan-flexible/ongoing-coin", {}, apiKey, apiSecret),
+    ]);
+    const posResult = positionRes || {};
+    const ongoingResult = ongoingRes || {};
+    const borrowList = posResult.borrowList || [];
+    const collateralList = posResult.collateralList || [];
+    const ongoingList = ongoingResult.list || [];
+    const debts = borrowList.map((b) => {
+        const ongoing = ongoingList.find((o) => o.loanCurrency === b.loanCurrency);
+        return {
+            id: b.loanCurrency || "",
+            amount: parseFloat(b.flexibleTotalDebt) || 0,
+            hourlyRate: parseFloat(b.flexibleHourlyInterestRate) || 0,
+            rate: (parseFloat(b.flexibleHourlyInterestRate) || 0) * 24 * 365 * 100,
+            accruedInterest: parseFloat((ongoing === null || ongoing === void 0 ? void 0 : ongoing.unpaidInterest) || "0"),
+        };
+    });
+    const collateral = collateralList.map((c) => {
+        const amount = parseFloat(c.amount) || 0;
+        const amountUSD = parseFloat(c.amountUSD) || 0;
+        return {
+            id: c.currency || "",
+            amount,
+            price: amount > 0 ? amountUSD / amount : 0,
+            valueUSD: amountUSD,
+        };
+    });
+    return {
+        debts,
+        collateral,
+        totalDebt: parseFloat(posResult.totalDebt || "0"),
+        totalCollateral: parseFloat(posResult.totalCollateral || "0"),
+        ltvFromExchange: parseFloat(posResult.ltv || "0") * 100,
+    };
+}
+async function fetchBinanceLoanData(apiKey, apiSecret) {
+    const [ongoingRes, _collateralRes, loanableRes] = await Promise.all([
+        (0, apiClients_1.binanceRequest)("/sapi/v2/loan/flexible/ongoing/orders", "GET", {}, apiKey, apiSecret),
+        (0, apiClients_1.binanceRequest)("/sapi/v2/loan/flexible/collateral/data", "GET", {}, apiKey, apiSecret),
+        (0, apiClients_1.binanceRequest)("/sapi/v2/loan/flexible/loanable/data", "GET", {}, apiKey, apiSecret),
+    ]);
+    const ongoing = (ongoingRes === null || ongoingRes === void 0 ? void 0 : ongoingRes.rows) || ongoingRes || [];
+    const loanableData = (loanableRes === null || loanableRes === void 0 ? void 0 : loanableRes.rows) || loanableRes || [];
+    // Group debts by loanCoin
+    const debtMap = {};
+    const collateralMap = {};
+    for (const row of ongoing) {
+        const loanCoin = row.loanCoin;
+        const amount = parseFloat(row.totalDebt) || 0;
+        const accrued = parseFloat(row.accruedInterest) || 0;
+        if (amount > 0) {
+            if (!debtMap[loanCoin])
+                debtMap[loanCoin] = { amount: 0, accrued: 0, loanCoin };
+            debtMap[loanCoin].amount += amount;
+            debtMap[loanCoin].accrued += accrued;
+        }
+        const collCoin = row.collateralCoin;
+        const collAmount = parseFloat(row.collateralAmount) || 0;
+        if (collAmount > 0) {
+            if (!collateralMap[collCoin])
+                collateralMap[collCoin] = { amount: 0, collateralCoin: collCoin };
+            collateralMap[collCoin].amount += collAmount;
+        }
+    }
+    const debts = Object.values(debtMap).map((item) => {
+        const loanData = loanableData.find((l) => l.loanCoin === item.loanCoin);
+        const interestRate = parseFloat((loanData === null || loanData === void 0 ? void 0 : loanData.flexibleInterestRate) || "0");
+        return {
+            id: item.loanCoin,
+            amount: item.amount,
+            hourlyRate: interestRate / 365 / 24,
+            rate: interestRate * 100,
+            accruedInterest: item.accrued,
+        };
+    });
+    // Fetch prices for collateral valuation
+    const collateralCoins = Object.keys(collateralMap);
+    let prices = { USDT: 1.0, USDC: 1.0 };
+    if (collateralCoins.length > 0) {
+        try {
+            const symbols = collateralCoins.map(c => `${c}USDT`);
+            const { data: tickerData } = await axios_1.default.get(`https://api.binance.com/api/v3/ticker/price?symbols=${encodeURIComponent(JSON.stringify(symbols))}`);
+            for (const t of tickerData) {
+                const coin = t.symbol.replace(/USDT$/, "");
+                prices[coin] = parseFloat(t.price);
+            }
+        }
+        catch (_a) { }
+    }
+    const collateral = Object.values(collateralMap).map((item) => {
+        const price = prices[item.collateralCoin] || 0;
+        return {
+            id: item.collateralCoin,
+            amount: item.amount,
+            price,
+            valueUSD: item.amount * price,
+        };
+    });
+    const totalDebt = debts.reduce((sum, d) => sum + d.amount, 0);
+    const totalCollateral = collateral.reduce((sum, c) => sum + c.valueUSD, 0);
+    return {
+        debts,
+        collateral,
+        totalDebt,
+        totalCollateral,
+        ltvFromExchange: totalCollateral > 0 ? (totalDebt / totalCollateral) * 100 : 0,
+    };
+}
+async function writeLoanSnapshot() {
+    const config = JSON.parse(BINANCE_SECRET.value());
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    let bybitData = { debts: [], collateral: [], totalDebt: 0, totalCollateral: 0, ltvFromExchange: 0 };
+    let binanceData = { debts: [], collateral: [], totalDebt: 0, totalCollateral: 0, ltvFromExchange: 0 };
+    // Fetch Bybit data
+    const bybitConfig = config.bybit;
+    if ((bybitConfig === null || bybitConfig === void 0 ? void 0 : bybitConfig.api_key) && (bybitConfig === null || bybitConfig === void 0 ? void 0 : bybitConfig.api_secret)) {
+        try {
+            bybitData = await fetchBybitLoanData(bybitConfig.api_key, bybitConfig.api_secret);
+        }
+        catch (e) {
+            console.error("[Snapshot] Bybit fetch failed:", e.message);
+        }
+    }
+    // Fetch Binance data
+    const binanceConfig = config.binance;
+    if ((binanceConfig === null || binanceConfig === void 0 ? void 0 : binanceConfig.api_key) && (binanceConfig === null || binanceConfig === void 0 ? void 0 : binanceConfig.api_secret)) {
+        try {
+            binanceData = await fetchBinanceLoanData(binanceConfig.api_key, binanceConfig.api_secret);
+        }
+        catch (e) {
+            console.error("[Snapshot] Binance fetch failed:", e.message);
+        }
+    }
+    const snapshot = {
+        date: today,
+        timestamp: Date.now(),
+        bybit: bybitData,
+        binance: binanceData,
+    };
+    await db.collection("loanSnapshots").doc(today).set(snapshot);
+    console.log(`[Snapshot] Written for ${today}`);
+}
+exports.dailyLoanSnapshot = functions
+    .region('europe-west1')
+    .runWith({ secrets: [BINANCE_SECRET], memory: "256MB" })
+    .pubsub.schedule("0 2 * * *") // 2:00 AM UTC daily
+    .timeZone("UTC")
+    .onRun(async () => {
+    try {
+        await writeLoanSnapshot();
+    }
+    catch (e) {
+        console.error("[dailyLoanSnapshot] Error:", e);
+    }
+});
+exports.testLoanSnapshot = functions
+    .region('europe-west1')
+    .runWith({ secrets: [BINANCE_SECRET], memory: "256MB" })
+    .https.onRequest(async (_req, res) => {
+    try {
+        await writeLoanSnapshot();
+        res.json({ ok: true, message: "Snapshot written" });
+    }
+    catch (e) {
+        res.status(500).send(e.message);
     }
 });
 exports.debugAlerts = functions.region('europe-west1').runWith({ memory: "128MB" }).https.onRequest(async (req, res) => {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, memo } from "react";
 import { BarChart2, TrendingUp } from "lucide-react";
-import { AggregatedAsset, ProcessedInvestment, ProcessedLoan, SaleRecord } from "../lib/constants";
+import { AggregatedAsset, ProcessedInvestment, SaleRecord } from "../lib/constants";
 import type { FearGreedData } from "../lib/types/signals";
 import type { FuturesData } from "../lib/futures";
 
@@ -13,7 +13,6 @@ import InvestmentTimeline from "./charts/InvestmentTimeline";
 import CandlestickChart from "./charts/CandlestickChart";
 import FearGreedGauge from "./charts/FearGreedGauge";
 import PositionBubble from "./charts/PositionBubble";
-import LtvGauges from "./charts/LtvGauges";
 import AITraderAnalysis from "./AITraderAnalysis";
 
 
@@ -29,7 +28,6 @@ const SUB_TABS: { id: SubTab; label: string; icon: React.ReactNode }[] = [
 interface AnalyticsSectionProps {
     aggregated: AggregatedAsset[];
     items: ProcessedInvestment[];
-    loans: ProcessedLoan[];
     totalValue: number;
     totalInvested: number;
     fearGreed?: FearGreedData | null;
@@ -43,7 +41,6 @@ interface AnalyticsSectionProps {
 const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
     aggregated,
     items,
-    loans,
     totalValue,
     fearGreed = null,
     fearGreedLoading = false,
@@ -180,9 +177,6 @@ const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
                         <>
                             <div className="md:col-span-2">
                                 <InvestmentTimeline items={items} />
-                            </div>
-                            <div className="md:col-span-2">
-                                <LtvGauges loans={loans} />
                             </div>
                         </>
                     )}

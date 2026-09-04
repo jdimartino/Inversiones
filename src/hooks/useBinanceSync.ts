@@ -49,9 +49,9 @@ function mapBinanceToExchangeData(
   const collateralData = data.collateral || [];
   const loanableData = data.loanable || [];
 
-  // ── Debts: agrupar por loanCoin (puede haber varios préstamos con misma moneda) ──
+  // ── Debts: agrupar por loanCoin ────────────────────────────────
   const debtMap: Record<string, { amount: number; accrued: number; loanCoin: string }> = {};
-  const collateralMap: Record<string, { amount: number; valueUSD: number; collateralCoin: string }> = {};
+  const collateralMap: Record<string, { amount: number; collateralCoin: string }> = {};
 
   for (const row of ongoing) {
     const loanCoin = row.loanCoin;
@@ -71,102 +71,101 @@ function mapBinanceToExchangeData(
     if (collAmount <= 0) continue;
 
     if (!collateralMap[collCoin]) {
-      collateralMap[collCoin] = { amount: 0, valueUSD: 0, collateralCoin: collCoin };
+      collateralMap[collCoin] = { amount: 0, collateralCoin: collCoin };
     }
     collateralMap[collCoin].amount += collAmount;
   }
 
-  // Calcular valor USD del colateral usando precios actuales
-  for (const coin of Object.keys(collateralMap)) {
-    const price = prices[coin] || 0;
-    collateralMap[coin].valueUSD = collateralMap[coin].amount * price;
-  }
-
-  // ── Debts: mapear a formato app ──
+  // ── Debts: mapear a formato app ────────────────────────────────
   const debts = Object.values(debtMap).map((item) => {
     const loanData = loanableData.find((l) => l.loanCoin === item.loanCoin);
     const interestRate = parseFloat(loanData?.flexibleInterestRate || "0");
     const yearlyRate = interestRate * 100;
     const hourlyRate = interestRate / 365 / 24;
+    const price = item.loanCoin === "USDT" || item.loanCoin === "USDC" ? 1.0 : (prices[item.loanCoin] || 0);
     return {
       _id: generateId(),
       id: item.loanCoin,
       amount: item.amount,
-      price: item.loanCoin === "USDT" || item.loanCoin === "USDC" ? 1.0 : (prices[item.loanCoin] || 0),
+      price,
       rate: parseFloat(yearlyRate.toFixed(2)),
       hourlyRate,
       synced: true,
       lastSyncAt: now,
       accruedInterest: item.accrued,
+      amountUSD: item.amount * price,
     };
   });
 
-  // ── Collateral: mapear a formato app ──
+  // ── Collateral: mapear a formato app ───────────────────────────
   const collateral = Object.values(collateralMap).map((item) => {
-    const price = item.amount > 0 ? item.valueUSD / item.amount : 0;
+    const marketPrice = prices[item.collateralCoin] || 0;
+    const marketValueUSD = item.amount * marketPrice;
     return {
       _id: generateId(),
       id: item.collateralCoin,
       amount: item.amount,
-      price,
+      price: marketPrice,
       synced: true,
       lastSyncAt: now,
+      marketPrice,
+      marketValueUSD,
+      adjustedValueUSD: marketValueUSD, // Binance no aplica haircut
     };
   });
 
-  // ── Agregados ──
-  const totalDebt = debts.reduce((sum, d) => sum + d.amount * d.price, 0);
-  const totalCollateral = collateral.reduce((sum, c) => sum + c.amount * c.price, 0);
+  // ── Agregados ──────────────────────────────────────────────────
+  // LTV agregado = deuda total / valor total del colateral
+  const totalDebt = debts.reduce((sum, d) => sum + (d.amountUSD ?? d.amount * d.price), 0);
+  const totalCollateral = collateral.reduce((sum, c) => sum + (c.marketValueUSD ?? c.amount * c.price), 0);
 
-  // LTV del exchange: promedio ponderado de los préstamos activos
-  let ltvFromExchange = 0;
-  if (ongoing.length > 0) {
-    const weightedSum = ongoing.reduce((sum, row) => {
-      const ltv = parseFloat(row.currentLTV) || 0;
-      const debt = parseFloat(row.totalDebt) || 0;
-      return sum + ltv * debt;
-    }, 0);
-    const totalDebtRaw = ongoing.reduce((sum, row) => sum + (parseFloat(row.totalDebt) || 0), 0);
-    ltvFromExchange = totalDebtRaw > 0 ? (weightedSum / totalDebtRaw) * 100 : 0;
+  // LTV agregado correcto (Σdebt/Σcollateral)
+  const ltvFromExchange = totalCollateral > 0 ? (totalDebt / totalCollateral) * 100 : 0;
+
+  // ── Per-coin thresholds (del endpoint collateral/data) ─────────
+  const perCoinLiqLTV: Record<string, number> = {};
+  const perCoinMarginCallLTV: Record<string, number> = {};
+
+  for (const coinData of collateralData) {
+    const liq = (parseFloat(coinData.liquidationLTV) || 0) * 100;
+    const mc = (parseFloat(coinData.marginCallLTV) || 0) * 100;
+    if (liq > 0) perCoinLiqLTV[coinData.collateralCoin] = liq;
+    if (mc > 0) perCoinMarginCallLTV[coinData.collateralCoin] = mc;
   }
 
-  // ── LTV thresholds por moneda (del endpoint collateral/data) ──
-  const perCoinLiqLTV: Record<string, number> = {};
+  // ── Blended liquidation LTV (estimación ponderada) ─────────────
+  // IMPORTANTE: esto NO es un dato oficial del exchange
   const DEFAULT_LIQ = 91;
   let weightedSumLiq = 0;
+  let weightedSumMC = 0;
+  let totalWeight = 0;
 
   for (const item of collateral) {
-    const coinData = collateralData.find((c) => c.collateralCoin === item.id);
-    const liqLTV = coinData ? (parseFloat(coinData.liquidationLTV) || 0) * 100 : DEFAULT_LIQ;
-    perCoinLiqLTV[item.id] = liqLTV;
-    weightedSumLiq += item.amount * item.price * liqLTV;
+    const liqLTV = perCoinLiqLTV[item.id] ?? DEFAULT_LIQ;
+    const mcLTV = perCoinMarginCallLTV[item.id] ?? 85;
+    const weight = item.marketValueUSD ?? (item.amount * item.price);
+    weightedSumLiq += weight * liqLTV;
+    weightedSumMC += weight * mcLTV;
+    totalWeight += weight;
   }
 
-  // Weighted average liquidation LTV
-  const effectiveLiqLTV = totalCollateral > 0 ? weightedSumLiq / totalCollateral : DEFAULT_LIQ;
-  const weightedAvgLiqLTV = Math.round(effectiveLiqLTV * 100) / 100;
-
-  // Default slider value
-  const liquidationLTV = DEFAULT_LIQ;
-
-  // Margin call: usar el valor más bajo entre todas las monedas de colateral
-  let marginCallLTV = 100;
-  for (const coinData of collateralData) {
-    const mc = parseFloat(coinData.marginCallLTV) * 100;
-    if (mc > 0 && mc < marginCallLTV) marginCallLTV = mc;
-  }
-  if (marginCallLTV === 100) marginCallLTV = 85;
+  const blendedLiqLTV = totalWeight > 0 ? Math.round((weightedSumLiq / totalWeight) * 100) / 100 : DEFAULT_LIQ;
+  const blendedMarginCallLTV = totalWeight > 0 ? Math.round((weightedSumMC / totalWeight) * 100) / 100 : 85;
 
   return {
     debts,
     collateral,
-    liquidationLTV,
     totalDebt,
     totalCollateral,
     ltvFromExchange,
-    marginCallLTV,
     perCoinLiqLTV,
-    weightedAvgLiqLTV,
+    perCoinMarginCallLTV,
+    blendedLiqLTV,
+    blendedMarginCallLTV,
+    // Legacy fields for backwards compatibility
+    liquidationLTV: blendedLiqLTV,
+    marginCallLTV: blendedMarginCallLTV,
+    weightedAvgLiqLTV: blendedLiqLTV,
   };
 }
 

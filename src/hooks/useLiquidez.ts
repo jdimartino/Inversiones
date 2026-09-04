@@ -187,7 +187,7 @@ export function useBinanceFundingBalance() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setFunding(data.funding ?? { USDT: 0 });
+      setFunding(data.fundingWallet ?? { USDT: 0 });
       setSpot(data.spot ?? { USDT: 0 });
       setError(null);
     } catch (err: any) {

@@ -26,8 +26,8 @@ const LoansSummaryCard: React.FC<LoansSummaryCardProps> = ({
 }) => {
     const stats = useMemo(() => {
         const calcExchange = (data: typeof exchangeData.bybit) => ({
-            debt: data.debts.reduce((sum, d) => sum + d.amount * d.price, 0),
-            collateral: data.collateral.reduce((sum, c) => sum + c.amount * c.price, 0),
+            debt: data.debts.reduce((sum, d) => sum + (d.amountUSD ?? d.amount * d.price), 0),
+            collateral: data.collateral.reduce((sum, c) => sum + (c.adjustedValueUSD ?? c.amount * c.price), 0),
         });
         const bybit = calcExchange(exchangeData.bybit);
         const binance = calcExchange(exchangeData.binance);
