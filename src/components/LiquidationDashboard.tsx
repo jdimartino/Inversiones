@@ -165,9 +165,6 @@ export default function LiquidationDashboard() {
   const hoursIntoMonth = (now.getTime() - startOfMonth.getTime()) / (1000 * 60 * 60);
   const hoursInMonth = (endOfMonth.getTime() - startOfMonth.getTime()) / (1000 * 60 * 60);
 
-  // Interés pendiente actual (dato de la API)
-  const accruedInterestTotal = currentData.debts.reduce((sum, item) => sum + (item.accruedInterest || 0), 0);
-
   // Interés diario estimado (cálculo propio, ESTIMADO)
   const estimatedDailyInterest = currentData.debts.reduce((sum, item) => {
     const hourlyRate = item.hourlyRate || (item.rate ? item.rate / 100 / 365 / 24 : 0);
@@ -363,11 +360,9 @@ export default function LiquidationDashboard() {
           </div>
           <div className="bg-[#181A20] p-3 rounded-xl border border-gray-800 text-center flex flex-col items-center justify-center min-h-[110px] col-span-2 md:col-span-1 cursor-pointer hover:border-orange-500/50 transition-colors" onClick={() => setShowInterestHistory(true)}>
             <div className="text-gray-400 text-sm mb-1 capitalize">Intereses {monthLabel}</div>
-            <div className="text-xs text-orange-400/70 mb-0.5">Pendiente</div>
-            <div className="text-sm font-bold text-orange-400">${accruedInterestTotal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-            <div className="text-xs text-orange-400/60 mt-0.5">Estimado MTD</div>
+            <div className="text-xs text-orange-400/60 mb-0.5">Estimado MTD</div>
             <div className="text-sm font-bold text-orange-300">~${estimatedInterestMTD.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-            <div className="text-xs text-orange-300/60">Est. fin de mes: ~${estimatedEndOfMonthInterest.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+            <div className="text-xs text-orange-300/60 mt-0.5">Est. fin de mes: ~${estimatedEndOfMonthInterest.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
           </div>
           <div className="bg-[#181A20] p-3 rounded-xl border border-gray-800 relative overflow-hidden flex flex-col justify-center min-h-[110px] col-span-2 md:col-span-1">
             <div className="text-gray-400 text-sm mb-1 text-center">LTV Actual</div>
@@ -401,36 +396,34 @@ export default function LiquidationDashboard() {
               </div>
               
               <div className="overflow-x-auto">
-                <div className="grid grid-cols-12 gap-2 text-xs font-medium text-gray-400 px-1 uppercase tracking-wider">
-                  <div className="col-span-4 sm:col-span-3">Activo</div>
-                  <div className="col-span-4 sm:col-span-2 text-right">Deuda</div>
-                  <div className="col-span-4 sm:col-span-2 text-right">Valor USD</div>
-                  <div className="col-span-4 sm:col-span-3 text-right" title="Tasa de interés Anual">Tasa</div>
-                  <div className="col-span-3 text-right hidden sm:block">Pendiente</div>
-                </div>
+                <div className="min-w-[320px]">
+                  <div className="grid grid-cols-4 gap-1 text-[10px] font-medium text-gray-400 px-1 uppercase tracking-wider">
+                    <div className="col-span-1">Activo</div>
+                    <div className="col-span-1 text-right">Deuda</div>
+                    <div className="col-span-1 text-right" title="Tasa de interés Anual">Tasa</div>
+                    <div className="col-span-1 text-right">USD</div>
+                  </div>
 
-                {currentData.debts.map((item) => (
-                  <div key={item._id} className="grid grid-cols-12 gap-2 items-center bg-[#0E1014] p-2 rounded-lg border border-gray-800">
-                  <div className="col-span-4 sm:col-span-3 flex items-center gap-1">
-                    <span className="w-full bg-transparent text-white font-bold uppercase px-1.5 py-1.5">{item.id || '---'}</span>
-                    {item.synced && (
-                      <span className="text-[9px] bg-green-500/20 text-green-400 px-1 rounded whitespace-nowrap flex-shrink-0">{activeTab.toUpperCase()}</span>
-                    )}
-                  </div>
-                  <div className="col-span-4 sm:col-span-2 text-right text-white px-1.5 py-1.5">
-                    {fmtNum(item.amount)}
-                  </div>
-                  <div className="col-span-4 sm:col-span-2 text-right text-white px-1.5 py-1.5">
-                    ${fmtNum(item.amountUSD ?? item.amount)}
-                  </div>
-                  <div className="col-span-4 sm:col-span-3 text-right text-white px-1.5 py-1.5">
-                    {fmtNum(item.rate || 0)}%
-                  </div>
-                  <div className="col-span-3 text-right hidden sm:block px-1.5 py-1.5 text-orange-400">
-                    ${fmtNum(item.accruedInterest || 0)}
-                  </div>
+                  {currentData.debts.map((item) => (
+                    <div key={item._id} className="grid grid-cols-4 gap-1 items-center bg-[#0E1014] p-1.5 rounded-lg border border-gray-800">
+                      <div className="col-span-1 flex items-center gap-1 min-w-0">
+                        <span className="bg-transparent text-white font-bold uppercase text-xs truncate">{item.id || '---'}</span>
+                        {item.synced && (
+                          <span className="text-[8px] bg-green-500/20 text-green-400 px-1 rounded whitespace-nowrap flex-shrink-0">{activeTab.toUpperCase()}</span>
+                        )}
+                      </div>
+                      <div className="col-span-1 text-right text-white text-xs tabular-nums truncate" title={fmtNum(item.amount)}>
+                        {fmtNum(item.amount)}
+                      </div>
+                      <div className="col-span-1 text-right text-white text-xs tabular-nums">
+                        {fmtNum(item.rate || 0)}%
+                      </div>
+                      <div className="col-span-1 text-right text-white text-xs tabular-nums truncate" title={`$${fmtNum(item.amountUSD ?? item.amount)}`}>
+                        ${fmtNum(item.amountUSD ?? item.amount)}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
               </div>
             </div>
 
