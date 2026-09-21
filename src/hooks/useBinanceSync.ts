@@ -1,14 +1,14 @@
 import { useState, useCallback } from "react";
 import { FIREBASE_FUNCTIONS_URL } from "../lib/firebase";
 import { fetchDynamicPrices } from "../lib/binance";
-import type { ExchangeLiqData } from "./useLiquidationData";
+import type { ExchangeLiqData, BinanceIndividualLoan } from "./useLiquidationData";
 
 // ─── Tipos de la respuesta cruda de Binance ────────────────────────
 interface BinanceOngoingRow {
   loanCoin: string;
   collateralCoin: string;
   totalDebt: string;
-  accruedInterest: string;
+  accruedInterest?: string;
   collateralAmount: string;
   currentLTV: string;
 }
@@ -56,7 +56,7 @@ function mapBinanceToExchangeData(
   for (const row of ongoing) {
     const loanCoin = row.loanCoin;
     const amount = parseFloat(row.totalDebt) || 0;
-    const accrued = parseFloat(row.accruedInterest) || 0;
+    const accrued = parseFloat(row.accruedInterest || "0") || 0;
     if (amount <= 0) continue;
 
     if (!debtMap[loanCoin]) {
@@ -152,6 +152,55 @@ function mapBinanceToExchangeData(
   const blendedLiqLTV = totalWeight > 0 ? Math.round((weightedSumLiq / totalWeight) * 100) / 100 : DEFAULT_LIQ;
   const blendedMarginCallLTV = totalWeight > 0 ? Math.round((weightedSumMC / totalWeight) * 100) / 100 : 85;
 
+  // ── Préstamos individuales (1 fila raw = 1 préstamo) ───────────
+  const individualLoans: BinanceIndividualLoan[] = ongoing
+    .filter((row) => (parseFloat(row.totalDebt) || 0) > 0)
+    .map((row) => {
+      const debtAmount = parseFloat(row.totalDebt) || 0;
+      const collateralAmount = parseFloat(row.collateralAmount) || 0;
+      const currentLTV = (parseFloat(row.currentLTV) || 0) * 100;
+      const accruedInterest = parseFloat(row.accruedInterest || "0") || 0;
+
+      const loanCoin = row.loanCoin;
+      const collateralCoin = row.collateralCoin;
+
+      const loanData = loanableData.find((l) => l.loanCoin === loanCoin);
+      const interestRate = parseFloat(loanData?.flexibleInterestRate || "0");
+      const interestRateAnnual = interestRate * 100;
+
+      const debtPrice = loanCoin === "USDT" || loanCoin === "USDC" ? 1.0 : (prices[loanCoin] || 0);
+      const collateralPrice = prices[collateralCoin] || 0;
+
+      const debtAmountUSD = debtAmount * debtPrice;
+      const collateralAmountUSD = collateralAmount * collateralPrice;
+
+      const liqLTVThreshold = perCoinLiqLTV[collateralCoin] ?? DEFAULT_LIQ;
+      const marginCallLTVThreshold = perCoinMarginCallLTV[collateralCoin] ?? 85;
+
+      // Precio de liquidación = debtUSD / (liqLTV × collateralAmount)
+      // liqLTVThreshold viene en %, convertir a decimal
+      let liquidationPrice = 0;
+      if (collateralAmount > 0 && liqLTVThreshold > 0) {
+        liquidationPrice = debtAmountUSD / ((liqLTVThreshold / 100) * collateralAmount);
+      }
+
+      return {
+        _id: generateId(),
+        loanCoin,
+        collateralCoin,
+        debtAmount,
+        debtAmountUSD,
+        accruedInterest: accruedInterest > 0 ? accruedInterest : undefined,
+        collateralAmount,
+        collateralAmountUSD,
+        currentLTV,
+        interestRateAnnual,
+        liqLTVThreshold,
+        marginCallLTVThreshold,
+        liquidationPrice,
+      };
+    });
+
   return {
     debts,
     collateral,
@@ -166,6 +215,7 @@ function mapBinanceToExchangeData(
     liquidationLTV: blendedLiqLTV,
     marginCallLTV: blendedMarginCallLTV,
     weightedAvgLiqLTV: blendedLiqLTV,
+    individualLoans,
   };
 }
 
@@ -184,13 +234,16 @@ export function useBinanceSync() {
       const data: BinanceSyncResponse = await res.json();
       if ((data as any).error) throw new Error((data as any).error);
 
-      // Obtener precios para calcular valor USD del colateral
+      // Obtener precios para calcular valor USD del colateral y de la deuda
       const ongoing = data.ongoing || [];
       const collateralCoins = Array.from(new Set(ongoing.map((row) => row.collateralCoin)));
+      const loanCoins = Array.from(new Set(ongoing.map((row) => row.loanCoin)))
+        .filter((c) => c !== "USDT" && c !== "USDC");
+      const allCoins = Array.from(new Set([...collateralCoins, ...loanCoins]));
       let prices: Record<string, number> = { USDT: 1.0, USDC: 1.0 };
-      if (collateralCoins.length > 0) {
+      if (allCoins.length > 0) {
         try {
-          prices = { ...prices, ...(await fetchDynamicPrices(collateralCoins)) };
+          prices = { ...prices, ...(await fetchDynamicPrices(allCoins)) };
         } catch {
           // si fallan los precios, seguimos con lo que tengamos
         }

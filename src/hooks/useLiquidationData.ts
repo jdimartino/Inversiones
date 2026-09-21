@@ -65,6 +65,24 @@ export interface ExchangeLiqData {
   marginCallLTV?: number;
   /** @deprecated Usar blendedLiqLTV */
   weightedAvgLiqLTV?: number;
+  // Préstamos individuales de Binance (un registro por par loanCoin+collateralCoin)
+  individualLoans?: BinanceIndividualLoan[];
+}
+
+export interface BinanceIndividualLoan {
+  _id: string;
+  loanCoin: string;
+  collateralCoin: string;
+  debtAmount: number;
+  debtAmountUSD: number;
+  accruedInterest?: number;
+  collateralAmount: number;
+  collateralAmountUSD: number;
+  currentLTV: number;
+  interestRateAnnual: number;
+  liqLTVThreshold: number;
+  marginCallLTVThreshold: number;
+  liquidationPrice: number;
 }
 
 export interface MultiExchangeLiqData {

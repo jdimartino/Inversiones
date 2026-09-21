@@ -697,7 +697,7 @@ exports.syncBinanceLoans = functions
         }
         const { api_key: apiKey, api_secret: apiSecret } = bConfig;
         const [ongoingRes, collateralRes, loanableRes] = await Promise.all([
-            (0, apiClients_1.binanceRequest)("/sapi/v2/loan/flexible/ongoing/orders", "GET", {}, apiKey, apiSecret),
+            (0, apiClients_1.binanceRequest)("/sapi/v2/loan/flexible/ongoing/orders", "GET", { limit: "100" }, apiKey, apiSecret),
             (0, apiClients_1.binanceRequest)("/sapi/v2/loan/flexible/collateral/data", "GET", {}, apiKey, apiSecret),
             (0, apiClients_1.binanceRequest)("/sapi/v2/loan/flexible/loanable/data", "GET", {}, apiKey, apiSecret),
         ]);

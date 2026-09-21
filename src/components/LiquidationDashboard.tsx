@@ -383,11 +383,88 @@ export default function LiquidationDashboard() {
             <div className="text-xs text-gray-500 mt-1 flex justify-between">
               <span>0%</span>
               <span>Liq est.: {effectiveLiqLTV.toFixed(1)}%</span>
+</div>
+        </div>
+      </div>
+
+        {activeTab === 'binance' && currentData.individualLoans && currentData.individualLoans.length > 0 && (
+          <div className="bg-[#181A20] p-4 rounded-xl border border-gray-800 space-y-3 shadow-lg">
+            <div className="flex justify-between items-center mb-2 border-b border-gray-700 pb-2">
+              <h2 className="text-base font-semibold text-white">Préstamos Individuales (Binance)</h2>
+              <span className="text-[9px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded">API · SOLO LECTURA</span>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              {currentData.individualLoans.map((loan) => {
+                const mcThreshold = loan.marginCallLTVThreshold;
+                const liqThreshold = loan.liqLTVThreshold;
+                const currentLTV = loan.currentLTV;
+
+                // Etiqueta de riesgo
+                let riskLabel = "Riesgo bajo";
+                let riskColor = "text-green-400";
+                if (currentLTV >= liqThreshold) {
+                  riskLabel = "Riesgo alto";
+                  riskColor = "text-red-400";
+                } else if (currentLTV >= mcThreshold) {
+                  riskLabel = "Riesgo medio";
+                  riskColor = "text-yellow-400";
+                }
+
+                // Posición del marcador en la barra LTV (0-100%)
+                const markerPosition = Math.min(currentLTV, 100);
+                const mcPosition = Math.min(mcThreshold, 100);
+                const liqPosition = Math.min(liqThreshold, 100);
+
+                return (
+                  <div key={loan._id} className="bg-[#0E1014] rounded-lg border border-gray-800 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center text-yellow-500 text-xs font-bold">₮</span>
+                        <span className="text-white font-bold text-lg">{fmtNum(loan.debtAmount)} {loan.loanCoin}</span>
+                      </div>
+                      <span className="text-xs text-gray-400 px-2 py-0.5 rounded bg-gray-800">{loan.collateralCoin}</span>
+                    </div>
+
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-400">Cantidad de la garantía</span>
+                      <span className="text-white font-medium">{fmtNum(loan.collateralAmount)} {loan.collateralCoin}</span>
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-400">LTV</span>
+                        <span className={`font-bold ${riskColor}`}>{currentLTV.toFixed(0)}% {riskLabel}</span>
+                      </div>
+                      <div className="relative h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                        <div className="absolute top-0 bottom-0 bg-green-500" style={{ left: '0%', width: `${mcPosition}%` }} />
+                        <div className="absolute top-0 bottom-0 bg-yellow-500" style={{ left: `${mcPosition}%`, width: `${liqPosition - mcPosition}%` }} />
+                        <div className="absolute top-0 bottom-0 bg-red-500" style={{ left: `${liqPosition}%`, width: `${100 - liqPosition}%` }} />
+                        <div
+                          className="absolute top-1/2 w-3 h-3 rounded-full bg-white border-2 border-gray-700 transform -translate-y-1/2 shadow-lg z-10"
+                          style={{ left: `${markerPosition}%`, transform: `translate(-50%, -50%)` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between text-xs border-t border-gray-800 pt-2 space-x-4">
+                      <div className="flex flex-col flex-1">
+                        <span className="text-gray-400">Tasa de interés anual</span>
+                        <span className="text-white font-medium">{fmtNum(loan.interestRateAnnual)}%</span>
+                      </div>
+                      <div className="flex flex-col flex-1 text-right">
+                        <span className="text-gray-400">Precio de liquidación ({loan.collateralCoin}/{loan.loanCoin})</span>
+                        <span className="text-white font-medium">{loan.liquidationPrice > 0 ? fmtNum(loan.liquidationPrice) : '—'}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
-        </div>
+        )}
 
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <div className={`grid grid-cols-1 ${activeTab === 'bybit' ? 'xl:grid-cols-2' : 'xl:grid-cols-1'} gap-4`}>
           <div className="space-y-4">
             <div className="bg-[#181A20] p-4 rounded-xl border border-gray-800 space-y-3 shadow-lg">
               <div className="flex justify-between items-center mb-2 border-b border-gray-700 pb-2">
