@@ -1,5 +1,4 @@
 import React from "react";
-import OpenCodeZenCard from "./OpenCodeZenCard";
 import DeepSeekCard from "./DeepSeekCard";
 import OpenRouterCard from "./OpenRouterCard";
 
@@ -12,7 +11,6 @@ const MonitorTab: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <OpenCodeZenCard />
         <DeepSeekCard />
         <OpenRouterCard />
       </div>

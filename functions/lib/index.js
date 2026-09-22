@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.testTelemetryKz = exports.dailyTelemetryReportKz = exports.testTelemetry = exports.dailyTelemetryReport = exports.debugLogs = exports.debugInversiones = exports.debugAlerts = exports.testLoanSnapshot = exports.dailyLoanSnapshot = exports.syncBybitLoans = exports.syncBinanceLoans = exports.corsTest = exports.getBinanceWallet = exports.getDeepSeekBalance = exports.getOpenRouterUsage = exports.futuresSync = exports.signBinanceRequest = exports.analyzeMarket = exports.testDailyReport = exports.dailyPortfolioReport = exports.checkIntervalTasks = void 0;
+exports.testTelemetryKz = exports.dailyTelemetryReportKz = exports.testTelemetry = exports.dailyTelemetryReport = exports.debugLogs = exports.debugInversiones = exports.debugAlerts = exports.testLoanSnapshot = exports.dailyLoanSnapshot = exports.syncBybitLoans = exports.syncBinanceLoans = exports.corsTest = exports.getBinanceWallet = exports.getDeepSeekBalance = exports.getOpenRouterActivity = exports.getOpenRouterUsage = exports.futuresSync = exports.signBinanceRequest = exports.analyzeMarket = exports.testDailyReport = exports.dailyPortfolioReport = exports.checkIntervalTasks = void 0;
 const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 const axios_1 = require("axios");
@@ -15,6 +15,7 @@ const futuresSync_1 = require("./futuresSync");
 Object.defineProperty(exports, "futuresSync", { enumerable: true, get: function () { return futuresSync_1.futuresSync; } });
 const monitorUsage_1 = require("./monitorUsage");
 Object.defineProperty(exports, "getOpenRouterUsage", { enumerable: true, get: function () { return monitorUsage_1.getOpenRouterUsage; } });
+Object.defineProperty(exports, "getOpenRouterActivity", { enumerable: true, get: function () { return monitorUsage_1.getOpenRouterActivity; } });
 Object.defineProperty(exports, "getDeepSeekBalance", { enumerable: true, get: function () { return monitorUsage_1.getDeepSeekBalance; } });
 const telemetry_1 = require("./telemetry");
 Object.defineProperty(exports, "dailyTelemetryReport", { enumerable: true, get: function () { return telemetry_1.dailyTelemetryReport; } });

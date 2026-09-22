@@ -7,7 +7,7 @@ import { binanceRequest, bybitRequest } from "./apiClients";
 import { analyzeMarket } from "./analyzeMarket";
 import { signBinanceRequest } from "./signBinanceRequest";
 import { futuresSync } from "./futuresSync";
-import { getOpenRouterUsage, getDeepSeekBalance } from "./monitorUsage";
+import { getOpenRouterUsage, getOpenRouterActivity, getDeepSeekBalance } from "./monitorUsage";
 import { dailyTelemetryReport, testTelemetry } from "./telemetry";
 import { dailyTelemetryReportKz, testTelemetryKz } from "./telemetryKz";
 
@@ -650,7 +650,7 @@ async function binanceSignedRequest(
 export { analyzeMarket };
 export { signBinanceRequest };
 export { futuresSync };
-export { getOpenRouterUsage, getDeepSeekBalance };
+export { getOpenRouterUsage, getOpenRouterActivity, getDeepSeekBalance };
 
 export const getBinanceWallet = functions
     .region("europe-west1")

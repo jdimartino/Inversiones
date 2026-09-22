@@ -72,6 +72,57 @@ export const getOpenRouterUsage = functions
         }
     });
 
+// ─── OpenRouter Activity (detalle por modelo / día) ────────────────────────
+export const getOpenRouterActivity = functions
+    .region("europe-west1")
+    .runWith({ secrets: ["OPENROUTER_PROVISIONING_KEY"], memory: "128MB", timeoutSeconds: 15 })
+    .https.onRequest(async (req, res) => {
+        setCorsHeaders(res);
+        if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+
+        const apiKey = process.env.OPENROUTER_PROVISIONING_KEY;
+        if (!apiKey) {
+            res.status(200).json({ configured: false, error: "OPENROUTER_PROVISIONING_KEY no configurada" });
+            return;
+        }
+
+        try {
+            const params: Record<string, string> = {};
+            if (typeof req.query.date === "string" && req.query.date) params.date = req.query.date;
+
+            const { data } = await axios.get("https://openrouter.ai/api/v1/activity", {
+                headers: { Authorization: `Bearer ${apiKey}` },
+                params,
+                timeout: 10000,
+            });
+
+            // Logueo del payload crudo: la forma de respuesta de /activity no está
+            // del todo documentada, así que dejamos una línea para ver los
+            // nombres reales de los campos la primera vez que se corre.
+            console.log("[getOpenRouterActivity] raw:", JSON.stringify(data));
+
+            const items: any[] = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+            const rows = items.map((item: any) => ({
+                date: item?.date ?? null,
+                model: item?.model ?? null,
+                modelPermaslug: item?.model_permaslug ?? null,
+                provider: item?.provider_name ?? null,
+                endpointId: item?.endpoint_id ?? null,
+                requests: typeof item?.requests === "number" ? item.requests : 0,
+                promptTokens: typeof item?.prompt_tokens === "number" ? item.prompt_tokens : 0,
+                completionTokens: typeof item?.completion_tokens === "number" ? item.completion_tokens : 0,
+                reasoningTokens: typeof item?.reasoning_tokens === "number" ? item.reasoning_tokens : 0,
+                usage: typeof item?.usage === "number" ? item.usage : 0,
+                byokUsage: typeof item?.byok_usage_inference === "number" ? item.byok_usage_inference : 0,
+            }));
+
+            res.status(200).json({ configured: true, rows });
+        } catch (error: any) {
+            console.error("[getOpenRouterActivity] Error:", error.message);
+            res.status(200).json({ configured: true, error: error.message });
+        }
+    });
+
 // ─── DeepSeek ────────────────────────────────────────────────────────────
 export const getDeepSeekBalance = functions
     .region("europe-west1")
