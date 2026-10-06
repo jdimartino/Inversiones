@@ -397,19 +397,21 @@ async function checkFuturesAlerts(data: FuturesData): Promise<void> {
             notesByLevel.set(rule.targetAmount, existing ? `${existing} / ${note}` : note);
         }
 
-        const lines = ordered.map((c) => {
+        // Formato VIEJO del mensaje (una línea por nivel, sin separadores ni contador).
+        const header = sense === "up"
+            ? `🚨 *PNL Futuros* alcanzó *${formatSignedUsd(futuresGlobalPnl)}*`
+            : `📉 *PNL Futuros* cayó a *${formatSignedUsd(futuresGlobalPnl)}*`;
+        const details = ordered.map((c) => {
             const note = notesByLevel.get(c.level);
-            return `${c.dir === "up" ? "▲" : "▼"} Cruzó *${formatSignedUsd(c.level)}*` +
-                (note ? `\n   _📝 ${note}_` : "");
+            const detail = c.dir === "up"
+                ? `(Meta: 🔼 >= ${formatSignedUsd(c.level)})`
+                : `(Límite: 🔽 <= ${formatSignedUsd(c.level)})`;
+            return detail + (note ? `\n_📝 ${note}_` : "");
         });
 
+        // Un cruce ⇒ texto IDÉNTICO al viejo (una sola línea). Varios ⇒ cabecera + una línea por nivel.
         messages.push(
-            `🚨 *PNL Futuros* — *${formatSignedUsd(futuresGlobalPnl)}* ` +
-            `${sense === "up" ? "▲ subiendo" : "▼ bajando"}\n` +
-            `━━━━━━━━━━━━━━━━━━━━\n` +
-            `${lines.join("\n")}\n` +
-            `━━━━━━━━━━━━━━━━━━━━\n` +
-            `${ordered.length} nivel${ordered.length === 1 ? "" : "es"} cruzado${ordered.length === 1 ? "" : "s"}`
+            details.length === 1 ? `${header} ${details[0]}` : `${header}\n${details.join("\n")}`
         );
 
         console.log(
