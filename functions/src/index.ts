@@ -7,12 +7,15 @@ import { binanceRequest, bybitRequest } from "./apiClients";
 import { analyzeMarket } from "./analyzeMarket";
 import { signBinanceRequest } from "./signBinanceRequest";
 import { futuresSync } from "./futuresSync";
+import { evaluateGlobalCrossings, LevelState } from "./futuresGlobalCrossings";
 import { getOpenRouterUsage, getOpenRouterActivity, getDeepSeekBalance } from "./monitorUsage";
 
 admin.initializeApp();
 const db = admin.firestore();
 
 const DIVIDER = "────────────────────";
+/** Histéresis para los cruces de PNL Global de SPOT (rejilla real de $5.000). */
+const SPOT_CROSSING_MARGIN = 500;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface AlertRule {
@@ -243,38 +246,73 @@ async function runCheckAlerts() {
     }
 
     // ── Global Alerts ──────────────────────────────────────────────────────────
+    // Cruces en AMBOS sentidos con histéresis (mismo motor puro que Futuros).
+    // El estado vive en su propio doc (spotAlertState/global): el frontend no lo toca.
     const globalPNL = totalCurrentValue - totalInvested;
     const triggeredGlobalMessages: string[] = [];
-    let remainingGlobalAlerts: GlobalAlertRule[] = [];
-    let hasGlobalChanged = false;
+    const crossedTargets = new Set<number>();
 
-    for (const rule of globalAlerts) {
-        const target = rule.targetAmount;
-        const direction = rule.direction || (target >= 0 ? 'up' : 'down');
-        const currentSide: 'above' | 'below' = globalPNL >= target ? 'above' : 'below';
-        const prevSide = rule._lastSide;
-        let conditionMet = direction === 'up' ? globalPNL >= target : globalPNL <= target;
-        const isTriggered = conditionMet && (!rule.isPersistent || prevSide === undefined || prevSide !== currentSide);
+    const spotLevels = Array.from(
+        new Set(globalAlerts.map((r) => r.targetAmount).filter((v) => Number.isFinite(v)))
+    );
+    const spotStateRef = db.collection("spotAlertState").doc("global");
+    const spotStateSnap = await spotStateRef.get();
+    const spotStateData: any = spotStateSnap.exists ? spotStateSnap.data() || {} : {};
+    const spotLevelsState: Record<string, LevelState> = spotStateData.levels || {};
+    const lastPnl: number | undefined = typeof spotStateData.lastPnl === "number" ? spotStateData.lastPnl : undefined;
 
-        if (isTriggered) {
-            if (direction === 'up') {
-                triggeredGlobalMessages.push(`🚨 *PNL Global* alcanzó *${pnlSign(globalPNL)}$${fmt(globalPNL)}* (Meta: 🔼 >= ${pnlSign(target)}$${fmt(target)})` + (rule.note ? `\n_📝 ${rule.note}_` : ""));
-            } else {
-                triggeredGlobalMessages.push(`📉 *PNL Global* cayó a *${pnlSign(globalPNL)}$${fmt(globalPNL)}* (Límite: 🔽 <= ${pnlSign(target)}$${fmt(target)})` + (rule.note ? `\n_📝 ${rule.note}_` : ""));
-            }
-            console.log(`[ALERTA GLOBAL v3] PNL: $${globalPNL.toFixed(2)} — Target: ${direction === 'up' ? '>=' : '<='} $${target} — Tipo: ${rule.isPersistent ? 'PERMANENTE' : 'UNA VEZ'}`);
-            if (rule.isPersistent) { remainingGlobalAlerts.push({ ...rule, _lastSide: currentSide }); hasGlobalChanged = true; }
-            else { hasGlobalChanged = true; }
-        } else {
-            if (rule.isPersistent) {
-                if (prevSide !== currentSide) hasGlobalChanged = true;
-                remainingGlobalAlerts.push({ ...rule, _lastSide: currentSide });
-            } else {
-                remainingGlobalAlerts.push(rule);
-            }
+    const { crossings, newState } = evaluateGlobalCrossings(spotLevels, spotLevelsState, globalPNL, SPOT_CROSSING_MARGIN);
+
+    const persistSpotState = async (): Promise<void> => {
+        try {
+            await spotStateRef.set({ levels: newState, lastPnl: globalPNL });
+        } catch (e: any) {
+            // Se acepta: si el envío ya ocurrió podría repetirse el aviso en la próxima corrida.
+            console.error("[ALERTA GLOBAL v4] No se pudo guardar spotAlertState/global:", e?.message || e);
         }
+    };
+
+    if (crossings.length === 0) {
+        // Sin cruces: el estado se guarda igual en cada corrida.
+        await persistSpotState();
+    } else {
+        const sense: 'up' | 'down' = globalPNL >= (lastPnl ?? globalPNL) ? 'up' : 'down';
+        const orderedCrossings = [...crossings].sort((a, b) =>
+            sense === 'up' ? a.level - b.level : b.level - a.level
+        );
+
+        const notesByLevel = new Map<number, string>();
+        for (const rule of globalAlerts) {
+            const note = (rule.note || "").trim();
+            if (!note) continue;
+            const previousNote = notesByLevel.get(rule.targetAmount);
+            notesByLevel.set(rule.targetAmount, previousNote ? `${previousNote} / ${note}` : note);
+        }
+
+        // Formato VIEJO: un cruce ⇒ mensaje idéntico al antiguo (una sola línea).
+        // Varios ⇒ cabecera única (sentido del movimiento) + una línea de detalle por nivel.
+        const spotHeader = sense === 'up'
+            ? `🚨 *PNL Global* alcanzó *${pnlSign(globalPNL)}$${fmt(globalPNL)}*`
+            : `📉 *PNL Global* cayó a *${pnlSign(globalPNL)}$${fmt(globalPNL)}*`;
+        const spotDetails = orderedCrossings.map((c) => {
+            const note = notesByLevel.get(c.level);
+            const detail = c.dir === 'up'
+                ? `(Meta: 🔼 >= ${pnlSign(c.level)}$${fmt(c.level)})`
+                : `(Límite: 🔽 <= ${pnlSign(c.level)}$${fmt(c.level)})`;
+            return detail + (note ? `\n_📝 ${note}_` : "");
+        });
+        triggeredGlobalMessages.push(
+            spotDetails.length === 1 ? `${spotHeader} ${spotDetails[0]}` : `${spotHeader}\n${spotDetails.join("\n")}`
+        );
+
+        for (const c of orderedCrossings) crossedTargets.add(c.level);
+
+        console.log(
+            `[ALERTA GLOBAL v4] PNL: $${globalPNL.toFixed(2)} — cruces: ` +
+            `${orderedCrossings.map((c) => `${c.dir} ${c.level}`).join(", ")} (margen $${SPOT_CROSSING_MARGIN})`
+        );
+        // La persistencia se hace tras el envío OK (ver más abajo) para poder reintentar.
     }
-    if (hasGlobalChanged) dbUpdates.globalAlerts = remainingGlobalAlerts;
 
     // ── Watchlist Alerts ───────────────────────────────────────────────────────
     const triggeredWatchlistMessages: string[] = [];
@@ -367,7 +405,7 @@ async function runCheckAlerts() {
     }
 
     // ── Decisión final ─────────────────────────────────────────────────────────
-    const shouldAlert = triggeredGlobalMessages.length > 0 || triggeredIndividualMessages.length > 0 || triggeredWatchlistMessages.length > 0 || triggeredCandleMessages.length > 0;
+    const shouldAlert = crossings.length > 0 || triggeredGlobalMessages.length > 0 || triggeredIndividualMessages.length > 0 || triggeredWatchlistMessages.length > 0 || triggeredCandleMessages.length > 0;
 
     if (shouldAlert) {
         let message = ``;
@@ -397,9 +435,33 @@ async function runCheckAlerts() {
                     individualAssets.map(a => [a.id, { coin: a.coin, pnl: a.pnl, roi: a.roi }])
                 ),
             });
+
+            // Cruces de PNL Global: el estado se guarda SÓLO tras un envío OK, para que un fallo
+            // de Telegram reintente el mismo cruce en la próxima corrida (10 min).
+            if (crossings.length > 0) {
+                await persistSpotState();
+            }
+
+            // Alertas 1x cruzadas: se borran con transacción para no pisar cambios de la UI.
+            if (crossedTargets.size > 0) {
+                const configRef = db.collection("config").doc("alerts");
+                try {
+                    await db.runTransaction(async (tx) => {
+                        const snap = await tx.get(configRef);
+                        if (!snap.exists) return;
+                        const current: GlobalAlertRule[] = (snap.data()?.globalAlerts as GlobalAlertRule[]) || [];
+                        const remaining = current.filter((r) => !(!r.isPersistent && crossedTargets.has(r.targetAmount)));
+                        if (remaining.length === current.length) return;
+                        tx.update(configRef, { globalAlerts: remaining });
+                        console.log(`[ALERTA GLOBAL v4] Eliminadas ${current.length - remaining.length} alerta(s) 1x por cruce`);
+                    });
+                } catch (e: any) {
+                    console.error("[ALERTA GLOBAL v4] Error eliminando alertas 1x:", e?.message || e);
+                }
+            }
             return { sent: true, summary: "Alerta enviada" };
         } else {
-            console.error("[ERROR] Telegram falló. Alertas ONE-SHOT no eliminadas para reintentar.");
+            console.error("[ERROR] Telegram falló. Cruces NO persistidos (se reintentan la próxima corrida) y alertas ONE-SHOT no eliminadas.");
             return { sent: false, summary: "Fallo envío Telegram" };
         }
     } else {
