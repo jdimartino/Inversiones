@@ -3,6 +3,7 @@ import * as admin from "firebase-admin";
 import * as crypto from "crypto";
 import axios from "axios";
 import { defineSecret } from "firebase-functions/params";
+import { evaluateGlobalCrossings, LevelState } from "./futuresGlobalCrossings";
 
 const binanceConfigRaw = defineSecret("FUNCTIONS_CONFIG_EXPORT");
 
@@ -234,27 +235,6 @@ async function runFuturesSync(): Promise<FuturesData | null> {
     }
 }
 
-function normalizeFuturesGlobalAlerts(rawArray: any[]): FuturesGlobalAlertRule[] {
-    if (!Array.isArray(rawArray)) return [];
-    return rawArray.map((alert: any) => ({
-        ...alert,
-        direction: alert.direction || (alert.targetAmount >= 0 ? "up" : "down"),
-    }));
-}
-
-function migrateGlobalAlertDirections(alerts: FuturesGlobalAlertRule[], currentPnl: number): { migrated: FuturesGlobalAlertRule[]; changed: boolean } {
-    let changed = false;
-    const migrated = alerts.map((alert) => {
-        const correctDirection: "up" | "down" = alert.targetAmount >= currentPnl ? "up" : "down";
-        if (alert.direction !== correctDirection) {
-            changed = true;
-            return { ...alert, direction: correctDirection };
-        }
-        return alert;
-    });
-    return { migrated, changed };
-}
-
 function formatSignedUsd(value: number): string {
     return `${value >= 0 ? "+" : "-"}$${Math.abs(value).toFixed(2)}`;
 }
@@ -382,66 +362,87 @@ async function checkFuturesAlerts(data: FuturesData): Promise<void> {
         }
     }
 
-    // Check global futures PNL alerts — identical logic to Watchlist (index.ts:278-312)
-    const globalAlertsRaw = normalizeFuturesGlobalAlerts(futuresAlerts.globalAlerts || []);
+    // ── Global futures PNL crossings (either direction, with hysteresis) ───────
+    // State lives in its own document (futuresAlertState/global) — the frontend never
+    // touches it, so a UI save of config/alerts cannot wipe the crossing state.
     const futuresGlobalPnl = data.account.totalUnrealizedProfit;
+    const globalRules: FuturesGlobalAlertRule[] = futuresAlerts.globalAlerts || [];
+    const levels = Array.from(
+        new Set(globalRules.map((r) => r.targetAmount).filter((v) => Number.isFinite(v)))
+    );
 
-    // One-time migration: fix alerts created with inverted direction for negative PNL
-    let globalAlerts = globalAlertsRaw;
-    if (!futuresAlerts._globalAlertsDirectionsMigrated) {
-        const { migrated, changed } = migrateGlobalAlertDirections(globalAlertsRaw, futuresGlobalPnl);
-        if (changed) {
-            globalAlerts = migrated;
-            futuresAlerts._globalAlertsDirectionsMigrated = true;
-            console.log(`[FuturesSync] Migrated ${migrated.length} global alert directions`);
-        } else {
-            futuresAlerts._globalAlertsDirectionsMigrated = true;
+    const stateRef = admin.firestore().collection("futuresAlertState").doc("global");
+    const stateSnap = await stateRef.get();
+    const stateData: any = stateSnap.exists ? stateSnap.data() || {} : {};
+    const levelsState: Record<string, LevelState> = stateData.levels || {};
+    const lastPnl: number | undefined = typeof stateData.lastPnl === "number" ? stateData.lastPnl : undefined;
+
+    const { crossings, newState } = evaluateGlobalCrossings(levels, levelsState, futuresGlobalPnl);
+
+    // Persist the crossing state BEFORE notifying, so a retry/crash can never
+    // re-send the same crossing on the next cycle.
+    await stateRef.set({ levels: newState, lastPnl: futuresGlobalPnl });
+
+    if (crossings.length > 0) {
+        const sense: "up" | "down" = futuresGlobalPnl >= (lastPnl ?? futuresGlobalPnl) ? "up" : "down";
+        const ordered = [...crossings].sort((a, b) =>
+            sense === "up" ? a.level - b.level : b.level - a.level
+        );
+
+        const notesByLevel = new Map<number, string>();
+        for (const rule of globalRules) {
+            const note = (rule.note || "").trim();
+            if (!note) continue;
+            const existing = notesByLevel.get(rule.targetAmount);
+            notesByLevel.set(rule.targetAmount, existing ? `${existing} / ${note}` : note);
         }
+
+        const lines = ordered.map((c) => {
+            const note = notesByLevel.get(c.level);
+            return `${c.dir === "up" ? "▲" : "▼"} Cruzó *${formatSignedUsd(c.level)}*` +
+                (note ? `\n   _📝 ${note}_` : "");
+        });
+
+        messages.push(
+            `🚨 *PNL Futuros* — *${formatSignedUsd(futuresGlobalPnl)}* ` +
+            `${sense === "up" ? "▲ subiendo" : "▼ bajando"}\n` +
+            `━━━━━━━━━━━━━━━━━━━━\n` +
+            `${lines.join("\n")}\n` +
+            `━━━━━━━━━━━━━━━━━━━━\n` +
+            `${ordered.length} nivel${ordered.length === 1 ? "" : "es"} cruzado${ordered.length === 1 ? "" : "s"}`
+        );
+
+        console.log(
+            `[FuturesSync] Global crossings: ${ordered.map((c) => `${c.dir} ${c.level}`).join(", ")} ` +
+            `(PNL ${futuresGlobalPnl.toFixed(2)})`
+        );
+
+        // One-shot alerts (isPersistent === false): remove them with a transaction so a
+        // concurrent UI save is never clobbered by a blind overwrite of globalAlerts.
+        const crossedTargets = new Set(ordered.map((c) => c.level));
+        const configRef = admin.firestore().collection("config").doc("alerts");
+        await admin.firestore().runTransaction(async (tx) => {
+            const snap = await tx.get(configRef);
+            if (!snap.exists) return;
+            const current: FuturesGlobalAlertRule[] =
+                (snap.data()?.futuresAlerts?.globalAlerts as FuturesGlobalAlertRule[]) || [];
+            const remaining = current.filter(
+                (r) => !(!r.isPersistent && crossedTargets.has(r.targetAmount))
+            );
+            if (remaining.length === current.length) return;
+            tx.update(configRef, { "futuresAlerts.globalAlerts": remaining });
+            console.log(`[FuturesSync] Removed ${current.length - remaining.length} one-shot global alert(s)`);
+        });
     }
-
-    let remainingGlobalAlerts: FuturesGlobalAlertRule[] = [];
-    let hasGlobalChanged = false;
-
-    for (const rule of globalAlerts) {
-        const target = rule.targetAmount;
-        const direction = rule.direction || (target >= 0 ? "up" : "down");
-        const currentSide: "above" | "below" = futuresGlobalPnl >= target ? "above" : "below";
-        const prevSide = rule._lastSide;
-        const conditionMet = direction === "up" ? futuresGlobalPnl >= target : futuresGlobalPnl <= target;
-        const isTriggered = conditionMet && (!rule.isPersistent || prevSide === undefined || prevSide !== currentSide);
-
-        if (isTriggered) {
-            if (direction === "up") {
-                messages.push(
-                    `🚨 *PNL Futuros* alcanzó *${formatSignedUsd(futuresGlobalPnl)}* (Meta: 🔼 >= ${formatSignedUsd(target)})` +
-                    (rule.note ? `\n_📝 ${rule.note}_` : "")
-                );
-            } else {
-                messages.push(
-                    `📉 *PNL Futuros* cayó a *${formatSignedUsd(futuresGlobalPnl)}* (Límite: 🔽 <= ${formatSignedUsd(target)})` +
-                    (rule.note ? `\n_📝 ${rule.note}_` : "")
-                );
-            }
-            console.log(`[FuturesSync] Global alert triggered: PNL $${futuresGlobalPnl.toFixed(2)} — Target: ${direction === "up" ? ">=" : "<="} $${target} — ${rule.isPersistent ? "PERSISTENT" : "ONE-SHOT"}`);
-            if (rule.isPersistent) { remainingGlobalAlerts.push({ ...rule, _lastSide: currentSide }); hasGlobalChanged = true; }
-            else { hasGlobalChanged = true; }
-        } else {
-            if (rule.isPersistent) {
-                if (prevSide !== currentSide) hasGlobalChanged = true;
-                remainingGlobalAlerts.push({ ...rule, _lastSide: currentSide });
-            } else {
-                remainingGlobalAlerts.push(rule);
-            }
-        }
-    }
-    if (hasGlobalChanged) futuresAlerts.globalAlerts = remainingGlobalAlerts;
 
     // Send messages
     for (const msg of messages) {
         await sendTelegram(msg);
     }
 
-    // Save updated alert state
+    // Save updated alert state. globalAlerts is owned by the UI + futuresAlertState/global,
+    // so it is never rewritten here (avoids the old read-modify-write race).
+    delete futuresAlerts.globalAlerts;
     await admin.firestore().collection("config").doc("alerts").set({ futuresAlerts }, { merge: true });
 }
 
