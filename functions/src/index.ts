@@ -9,6 +9,14 @@ import { signBinanceRequest } from "./signBinanceRequest";
 import { futuresSync } from "./futuresSync";
 import { evaluateGlobalCrossings, LevelState } from "./futuresGlobalCrossings";
 import { getOpenRouterUsage, getOpenRouterActivity, getDeepSeekBalance } from "./monitorUsage";
+import {
+    evaluateCandleRules,
+    candleMapKey,
+    CandleAlertRuleInput,
+    CandleMap,
+    CandleNotification,
+    CandleState,
+} from "./candleAlerts";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -351,58 +359,135 @@ async function runCheckAlerts() {
     }
 
     // ── Candle Alerts ──────────────────────────────────────────────────────────
+    // El estado se lleva por ruleKey (`coin|interval|direction|targetPercent`) en
+    // candleAlertState/global, para no reescribir config/alerts en cada corrida.
     const triggeredCandleMessages: string[] = [];
-    const candleDbUpdates: any = {};
+    const triggeredCandleNotifications: CandleNotification[] = [];
+    const candleStateRef = db.collection("candleAlertState").doc("global");
+    const candleStateSnap = await candleStateRef.get();
+    const candleSeedOnly = !candleStateSnap.exists;
+    const candleState: CandleState = candleSeedOnly ? {} : (candleStateSnap.data()?.rules || {});
 
+    const candleRules: CandleAlertRuleInput[] = [];
+    const candlePairs = new Map<string, { coin: string; interval: string }>();
     for (const [coin, rules] of Object.entries(candleAlerts)) {
-        const symbol = `${coin}USDT`;
-        const currentPrice = prices[symbol] || 0;
-        if (currentPrice === 0) continue;
-        const updatedRules: CandleAlertRule[] = [];
-
+        if (!Array.isArray(rules)) continue;
         for (const rule of rules) {
-            if (rule.type !== 'candle_change') { updatedRules.push(rule); continue; }
-
-            let klineData: any[];
-            try {
-                const { data } = await axios.get(`https://api.binance.com/api/v3/klines`, {
-                    params: { symbol, interval: rule.interval, limit: 2 },
-                });
-                klineData = data;
-            } catch (e: any) {
-                console.error(`[CandleAlert] Error fetching klines for ${coin}:`, e.message);
-                updatedRules.push(rule);
-                continue;
-            }
-
-            const currentKline = klineData[klineData.length - 1];
-            const open = parseFloat(currentKline[1]);
-            const close = parseFloat(currentKline[4]);
-            const changePct = ((close - open) / open) * 100;
-            const threshold = rule.targetPercent;
-            const currentSide: 'above' | 'below' = changePct >= threshold ? 'above' : 'below';
-            const prevSide = rule._lastSide;
-            const conditionMet = rule.direction === 'up' ? changePct >= threshold : changePct <= -threshold;
-            const isTriggered = conditionMet && (!rule.isPersistent || prevSide === undefined || prevSide !== currentSide);
-
-            if (isTriggered) {
-                const emoji = changePct >= 0 ? '📈' : '📉';
-                triggeredCandleMessages.push(
-                    `${emoji} *${coin}* — Vela ${rule.interval.toUpperCase()}: *${pnlSign(changePct)}${changePct.toFixed(2)}%*\n` +
-                    `   Meta: ${rule.direction === 'up' ? '🔼' : '🔽'} Variación ${rule.direction === 'up' ? '>=' : '<='} ${threshold}%\n` +
-                    `   Apertura: ${fmtPrice(open)} · Cierre: ${fmtPrice(close)}` +
-                    (rule.note ? `\n   _📝 ${rule.note}_` : '')
-                );
-                console.log(`[CANDLE ALERT] ${coin} ${rule.interval}: ${changePct.toFixed(2)}% — Target: ${rule.direction === 'up' ? '>=' : '<='} ${threshold}%`);
-                if (rule.isPersistent) { updatedRules.push({ ...rule, _lastSide: currentSide }); }
-            } else {
-                if (rule.isPersistent) { updatedRules.push({ ...rule, _lastSide: currentSide }); }
-                else { updatedRules.push(rule); }
-            }
+            if (!rule || rule.type !== 'candle_change') continue;
+            candleRules.push({
+                coin,
+                interval: rule.interval,
+                direction: rule.direction,
+                targetPercent: rule.targetPercent,
+                isPersistent: rule.isPersistent,
+                note: rule.note,
+            });
+            candlePairs.set(candleMapKey(coin, rule.interval), { coin, interval: rule.interval });
         }
-        if (updatedRules.length === 0) { candleDbUpdates[`candleAlerts.${coin}`] = admin.firestore.FieldValue.delete(); }
-        else { candleDbUpdates[`candleAlerts.${coin}`] = updatedRules; }
     }
+
+    // Klines: UNA petición por par (coin, interval) único, no una por regla.
+    const candles: CandleMap = {};
+    for (const { coin, interval } of candlePairs.values()) {
+        const symbol = `${coin}USDT`;
+        try {
+            const { data } = await axios.get(`https://api.binance.com/api/v3/klines`, {
+                params: { symbol, interval, limit: 2 },
+            });
+            const kline = data[data.length - 1];
+            const open = parseFloat(kline[1]);
+            const close = parseFloat(kline[4]);
+            candles[candleMapKey(coin, interval)] = {
+                openTime: Number(kline[0]),
+                changePct: ((close - open) / open) * 100,
+                open,
+                close,
+            };
+        } catch (e: any) {
+            console.error(`[CandleAlert] Error fetching klines for ${coin} ${interval}:`, e.message);
+        }
+    }
+
+    const { notifications: candleNotifications, newState: newCandleState } =
+        evaluateCandleRules(candleRules, candles, candleState, candleSeedOnly);
+
+    for (const n of candleNotifications) {
+        const emoji = n.changePct >= 0 ? '📈' : '📉';
+        const meta = n.direction === 'up'
+            ? `Variación >= ${n.targetPercent}%`
+            : `Variación <= -${n.targetPercent}%`;
+        const priceLine = (n.open !== undefined && n.close !== undefined)
+            ? `\n   Apertura: ${fmtPrice(n.open)} · Cierre: ${fmtPrice(n.close)}`
+            : '';
+        triggeredCandleMessages.push(
+            `${emoji} *${n.coin}* — Vela ${n.interval.toUpperCase()}: *${pnlSign(n.changePct)}${n.changePct.toFixed(2)}%*\n` +
+            `   Meta: ${n.direction === 'up' ? '🔼' : '🔽'} ${meta}` +
+            priceLine +
+            (n.notes.length > 0 ? `\n   _📝 ${n.notes.join(' · ')}_` : '')
+        );
+        console.log(`[CANDLE ALERT] ${n.coin} ${n.interval}: ${n.changePct.toFixed(2)}% — Target: ${n.direction} ${n.targetPercent}%`);
+    }
+    triggeredCandleNotifications.push(...candleNotifications);
+
+    const hasCandleStateChanged =
+        JSON.stringify(candleState) !== JSON.stringify(newCandleState);
+
+    const persistCandleState = async (): Promise<void> => {
+        try {
+            await candleStateRef.set({ rules: newCandleState });
+        } catch (e: any) {
+            // Se acepta: peor caso, la misma vela se reintenta en la próxima corrida.
+            console.error("[CANDLE ALERT] No se pudo guardar candleAlertState/global:", e?.message || e);
+        }
+    };
+
+    if (candleSeedOnly && candleRules.length > 0) {
+        // Primer run tras el deploy: se siembra el estado SIN notificar.
+        console.log(`[CANDLE ALERT] Estado inicial sembrado (${Object.keys(newCandleState).length} reglas), sin avisos.`);
+        await persistCandleState();
+    } else if (candleNotifications.length === 0 && hasCandleStateChanged) {
+        // Sin avisos: sólo se persiste la limpieza de reglas que ya no existen.
+        await persistCandleState();
+    }
+
+    // Alertas one-shot de vela: se borran con transacción para no pisar cambios de la UI.
+    const deleteFiredOneShotCandleRules = async (): Promise<void> => {
+        const fired = triggeredCandleNotifications
+            .map((n) => {
+                const rule = candleRules.find((r) =>
+                    r.coin === n.coin && r.interval === n.interval &&
+                    r.direction === n.direction && r.targetPercent === n.targetPercent);
+                return { n, rule };
+            })
+            .filter(({ rule }) => !!rule && !rule.isPersistent)
+            .map(({ n }) => n);
+        if (fired.length === 0) return;
+
+        const configRef = db.collection("config").doc("alerts");
+        try {
+            await db.runTransaction(async (tx) => {
+                const snap = await tx.get(configRef);
+                if (!snap.exists) return;
+                const current: Record<string, CandleAlertRule[]> = snap.data()?.candleAlerts || {};
+                const next: Record<string, CandleAlertRule[]> = {};
+                let removed = 0;
+                for (const [coin, rules] of Object.entries(current)) {
+                    if (!Array.isArray(rules)) { next[coin] = rules; continue; }
+                    const remaining = rules.filter((r) => !fired.some((f) =>
+                        f.coin === coin && f.interval === r.interval &&
+                        f.direction === r.direction && f.targetPercent === r.targetPercent));
+                    removed += rules.length - remaining.length;
+                    if (remaining.length > 0) next[coin] = remaining;
+                }
+                if (removed === 0) return;
+                tx.update(configRef, { candleAlerts: next });
+                console.log(`[CANDLE ALERT] Eliminadas ${removed} alerta(s) de vela 1x`);
+            });
+        } catch (e: any) {
+            console.error("[CANDLE ALERT] Error eliminando alertas de vela 1x:", e?.message || e);
+        }
+    };
+
 
     // ── Decisión final ─────────────────────────────────────────────────────────
     const shouldAlert = crossings.length > 0 || triggeredGlobalMessages.length > 0 || triggeredIndividualMessages.length > 0 || triggeredWatchlistMessages.length > 0 || triggeredCandleMessages.length > 0;
@@ -417,7 +502,7 @@ async function runCheckAlerts() {
         const sent = await sendTelegram(message);
         if (sent) {
             console.log("✅ Alerta enviada.");
-            const allUpdates = { ...dbUpdates, ...watchlistDbUpdates, ...candleDbUpdates };
+            const allUpdates = { ...dbUpdates, ...watchlistDbUpdates };
             if (Object.keys(allUpdates).length > 0) {
                 await db.collection("config").doc("alerts").update(allUpdates);
             }
@@ -440,6 +525,14 @@ async function runCheckAlerts() {
             // de Telegram reintente el mismo cruce en la próxima corrida (10 min).
             if (crossings.length > 0) {
                 await persistSpotState();
+            }
+
+            // Alertas de vela: el estado se guarda SÓLO tras un envío OK, para que un fallo de
+            // Telegram reintente el mismo aviso en la próxima corrida (10 min). Las one-shot
+            // disparadas se borran después de ese envío exitoso.
+            if (triggeredCandleNotifications.length > 0) {
+                await deleteFiredOneShotCandleRules();
+                await persistCandleState();
             }
 
             // Alertas 1x cruzadas: se borran con transacción para no pisar cambios de la UI.
@@ -465,7 +558,7 @@ async function runCheckAlerts() {
             return { sent: false, summary: "Fallo envío Telegram" };
         }
     } else {
-        const allUpdatesNoAlert = { ...dbUpdates, ...watchlistDbUpdates, ...candleDbUpdates };
+        const allUpdatesNoAlert = { ...dbUpdates, ...watchlistDbUpdates };
         if (Object.keys(allUpdatesNoAlert).length > 0) {
             await db.collection("config").doc("alerts").update(allUpdatesNoAlert);
         }
