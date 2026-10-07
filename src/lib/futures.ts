@@ -142,14 +142,18 @@ export function positionKey(symbol: string, side: string): string {
 
 export function formatPnl(pnl: number): string {
     if (!Number.isFinite(pnl)) return "+$0.00";
-    const sign = pnl >= 0 ? "+" : "";
-    return `${sign}$${Math.abs(pnl).toFixed(2)}`;
+    const rounded = Math.abs(pnl).toFixed(2);
+    // "0.00" keeps the "+" so a value like -0.004 never renders as "-$0.00".
+    const sign = pnl >= 0 || rounded === "0.00" ? "+" : "-";
+    return `${sign}$${rounded}`;
 }
 
 export function formatPnlSigned(pnl: number): string {
     if (!Number.isFinite(pnl)) return "$0.00";
-    const sign = pnl >= 0 ? "+" : "";
-    return `${sign}$${Math.abs(pnl).toFixed(2)}`;
+    const rounded = Math.abs(pnl).toFixed(2);
+    // Same "-$0.00" guard as formatPnl.
+    const sign = pnl >= 0 || rounded === "0.00" ? "+" : "-";
+    return `${sign}$${rounded}`;
 }
 
 export function formatRoe(roe: number): string {
