@@ -25,6 +25,7 @@ import { useBinanceSymbols } from "../hooks/useBinanceSymbols";
 import { fmtUSD, fmtPrice } from "../lib/format";
 import { useAlertLevelState } from "../hooks/useAlertLevelState";
 import { SPOT_HYSTERESIS, getLevelDisplay, levelStateKey } from "../lib/alertLevelDisplay";
+import { computeSpotGlobalPnl } from "../lib/spotGlobalPnl";
 import { FIREBASE_FUNCTIONS_URL } from "../lib/firebase";
 
 interface AlertSettingsProps {
@@ -88,26 +89,6 @@ function SortableCoinChip({ coin, onRemove }: { coin: string, onRemove: (c: stri
 
 const FIAT_COINS = ["EUR"];
 
-/**
- * Suffix of the coins the Cloud Function CANNOT price for the Spot global PNL alert.
- *
- * `runCheckAlerts` in functions/src/index.ts now builds its Binance symbol list
- * dynamically from every `inv.coin` in `inversiones` (see `priceCoins` / `fetchSpotPrices`),
- * so ALL USDT-quoted coins are priced — there is no hardcoded 13-coin list any more.
- *
- * EUR-quoted coins are the only remaining exception: the frontend prices them with Bybit's
- * public tickers (src/lib/bybit.ts `fetchBybitTickers`), while the Cloud Function cannot
- * mirror that (its `bybitRequest` needs Bybit API keys that `checkIntervalTasks` does not
- * bind) and values them at 0. The frontend must ignore them too, otherwise `spotGlobalPnl`
- * would not match `globalPNL` (and the stored `side`/`notified` state derived from it).
- * Mirrors `UNPRICEABLE_COIN_SUFFIX` in functions/src/index.ts. KEEP IN SYNC.
- */
-const CF_UNPRICED_COIN_SUFFIX = "EUR";
-
-/** True when the Cloud Function prices `coin` (`prices[`${coin}USDT`]` on its side). */
-const isPricedByCloudFunction = (coin: string): boolean =>
-    !coin.endsWith(CF_UNPRICED_COIN_SUFFIX);
-
 function AlertSettings({ config, saveConfig, onRefresh, refreshing, onEditGlobal, onEditInvestment, onOpenWatchlist, onEditWatchlistAlert, onOpenCandleAlert, onEditCandleAlert, sales, totalPnl = 0, selectedCoins = [], onSelectedCoinsChange, tickerSpeed = 35, onTickerSpeedChange, prices }: AlertSettingsProps) {
     const { portfolio } = usePortfolio();
     // Real crossing state owned by the Cloud Function (spotAlertState/global).
@@ -115,16 +96,11 @@ function AlertSettings({ config, saveConfig, onRefresh, refreshing, onEditGlobal
 
     // PNL used by the Spot global alert levels. It MUST be the same value the Cloud
     // Function uses (functions/src/index.ts: globalPNL = totalCurrentValue - totalInvested):
-    // sum over ALL open investments (inversiones) of price × quantity − invested, with the
-    // same prices the function has — every usdt-quoted coin priced, EUR-quoted coins at 0
-    // (see `isPricedByCloudFunction`). The `totalPnl` prop is NOT used because it also
-    // includes open sales (ventas), which the Cloud Function does not count for this alert.
+    // the shared helper keeps it identical to the modal's number and to the Cloud
+    // Function's `prices[`${inv.coin}USDT`]` loop. The `totalPnl` prop is NOT used because
+    // it also includes open sales (ventas), which the Cloud Function does not count here.
     const spotGlobalPnl = useMemo(
-        () =>
-            portfolio.reduce((sum, i) => {
-                const price = isPricedByCloudFunction(i.coin) ? prices[i.coin] || 0 : 0;
-                return sum + price * i.quantity - i.invested;
-            }, 0),
+        () => computeSpotGlobalPnl(portfolio, prices),
         [portfolio, prices],
     );
 

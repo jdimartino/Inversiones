@@ -1,10 +1,17 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { X, Bell, Trash2, Edit2, Plus, Repeat, Clock, Check } from "lucide-react";
 import { GlobalAlert } from "../hooks/useAlerts";
 import { fmtUSD } from "../lib/format";
+import { useAlertLevelState } from "../hooks/useAlertLevelState";
+import { SPOT_HYSTERESIS, getLevelDisplay, levelStateKey } from "../lib/alertLevelDisplay";
+import { computeSpotGlobalPnl, SpotPnlInvestment } from "../lib/spotGlobalPnl";
 
 interface GlobalAlertModalProps {
     totalPnl: number;
+    /** Every open investment (`inversiones`) — only used for the exact Spot PNL. */
+    portfolio: readonly SpotPnlInvestment[];
+    /** Live prices (the same object AlertSettings receives from App). */
+    prices: Record<string, number>;
     currentAlerts: GlobalAlert[];
     onSaveAlerts: (alerts: GlobalAlert[]) => Promise<void>;
     onClose: () => void;
@@ -13,11 +20,24 @@ interface GlobalAlertModalProps {
 
 export default function GlobalAlertModal({
     totalPnl,
+    portfolio,
+    prices,
     currentAlerts,
     onSaveAlerts,
     onClose,
     initialEditIndex,
 }: GlobalAlertModalProps) {
+    // Real crossing state owned by the Cloud Function (spotAlertState/global), the same
+    // one the AlertSettings list uses.
+    const { levels: spotLevels, loading: spotLevelsLoading } = useAlertLevelState("spot");
+
+    // Exact Spot PNL of the Cloud Function (see src/lib/spotGlobalPnl.ts). App's
+    // `totalPnl` is NOT used for the arrows/badges because it also adds open sales.
+    const spotGlobalPnl = useMemo(
+        () => computeSpotGlobalPnl(portfolio, prices),
+        [portfolio, prices],
+    );
+
     const [draftAlerts, setDraftAlerts] = useState<GlobalAlert[]>(currentAlerts);
     // Determine a reasonable default target amount based on current PNL, or 0 if PNL is 0
     const defaultTarget = totalPnl !== 0 ? Math.round(totalPnl * 1.05 / 100) * 100 : 1000;
@@ -137,12 +157,30 @@ export default function GlobalAlertModal({
                         </p>
                     ) : (
                         <div className="space-y-2 mb-4">
-                            {draftAlerts.map((alert, index) => (
+                            {draftAlerts.map((alert, index) => {
+                                // Arrow and badge come from the state stored by the Cloud
+                                // Function for this exact level, never from a local
+                                // comparison (same rule as the AlertSettings list). Draft
+                                // levels have no stored entry yet, so getLevelDisplay falls
+                                // back to an armed level with the side inferred from the PNL.
+                                const display = getLevelDisplay({
+                                    targetAmount: alert.targetAmount,
+                                    pnl: spotGlobalPnl,
+                                    levelState: spotLevels[levelStateKey(alert.targetAmount)],
+                                    margin: SPOT_HYSTERESIS,
+                                });
+                                // While the state document is loading, keep a neutral badge
+                                // instead of flashing a wrong one. One-shot alerts ("Una Vez")
+                                // are not affected by the crossing state.
+                                const isPending = spotLevelsLoading;
+                                const isPaused = !isPending && display.status === 'paused';
+                                const showUp = !isPending && display.arrow === '▲';
+                                return (
                                 <div key={index} className="flex items-center justify-between bg-slate-800 border border-slate-700 rounded-xl px-4 py-3">
                                     <div className="flex items-center gap-3">
                                         <div className="flex flex-col">
-                                            <span className={`flex items-center gap-1 text-base font-bold ${alert.targetAmount >= totalPnl ? "text-green-400" : "text-red-400"}`}>
-                                                {alert.targetAmount >= totalPnl ? '🔼' : '🔽'}
+                                            <span className={`flex items-center gap-1 text-base font-bold ${isPending ? "text-slate-500" : showUp ? "text-green-400" : "text-red-400"}`}>
+                                                {isPending ? '•' : showUp ? '🔼' : '🔽'}
                                                 {alert.targetAmount >= 0 ? "+" : "-"}{fmtUSD(Math.abs(alert.targetAmount))}
                                             </span>
                                             {alert.note && (
@@ -150,8 +188,8 @@ export default function GlobalAlertModal({
                                             )}
                                         </div>
                                         {alert.isPersistent ? (
-                                            <span className="flex items-center gap-1 text-[10px] bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-2 py-0.5 rounded-full font-bold">
-                                                <Repeat className="w-3 h-3" /> Permanente
+                                            <span className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold border ${isPending ? 'bg-slate-700/50 text-slate-400 border-slate-600' : isPaused ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' : 'bg-green-500/20 text-green-400 border-green-500/30'}`}>
+                                                <Repeat className="w-3 h-3" /> {isPending ? '…' : isPaused ? 'En Pausa' : 'Armada'}
                                             </span>
                                         ) : (
                                             <span className="flex items-center gap-1 text-[10px] bg-slate-700 text-slate-400 border border-slate-600 px-2 py-0.5 rounded-full font-bold">
@@ -176,7 +214,8 @@ export default function GlobalAlertModal({
                                         </button>
                                     </div>
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
 

@@ -661,6 +661,8 @@ const App: React.FC = () => {
       {isGlobalAlertModalOpen && (
         <GlobalAlertModal
           totalPnl={totalPnl}
+          portfolio={portfolio}
+          prices={prices}
           currentAlerts={config.globalAlerts || []}
           onSaveAlerts={handleSaveGlobalAlerts}
           onClose={() => {
