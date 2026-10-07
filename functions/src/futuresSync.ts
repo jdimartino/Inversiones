@@ -4,6 +4,7 @@ import * as crypto from "crypto";
 import axios from "axios";
 import { defineSecret } from "firebase-functions/params";
 import { evaluateGlobalCrossings, LevelState } from "./futuresGlobalCrossings";
+import { sendTelegramMessage } from "./telegram";
 
 const binanceConfigRaw = defineSecret("FUNCTIONS_CONFIG_EXPORT");
 
@@ -35,23 +36,7 @@ async function binanceGet(
 }
 
 async function sendTelegram(text: string): Promise<boolean> {
-    const token = process.env.TELEGRAM_TOKEN;
-    const chatId = process.env.TELEGRAM_CHAT_ID;
-    if (!token || !chatId) return false;
-
-    try {
-        const resp = await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
-            chat_id: chatId,
-            text,
-            parse_mode: "Markdown",
-            disable_web_page_preview: true,
-        });
-        console.log(`[FuturesSync] Telegram enviado OK (status ${resp.status})`);
-        return true;
-    } catch (e: any) {
-        console.error("[FuturesSync] Telegram error:", e.response?.data || e.message);
-        return false;
-    }
+    return sendTelegramMessage(text);
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────

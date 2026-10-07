@@ -7,6 +7,7 @@ import { binanceRequest, bybitRequest } from "./apiClients";
 import { analyzeMarket } from "./analyzeMarket";
 import { signBinanceRequest } from "./signBinanceRequest";
 import { futuresSync } from "./futuresSync";
+import { sendTelegramMessage } from "./telegram";
 import { evaluateGlobalCrossings, LevelState } from "./futuresGlobalCrossings";
 import { getOpenRouterUsage, getOpenRouterActivity, getDeepSeekBalance } from "./monitorUsage";
 import {
@@ -63,7 +64,6 @@ interface CandleAlertRule {
 }
 
 // ─── Utils ────────────────────────────────────────────────────────────────────
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const fmt = (n: number): string => new Intl.NumberFormat('en-US').format(Math.round(n));
 const pnlSign = (n: number): string => n >= 0 ? "+" : "";
 const pnlEmoji = (pnl: number): string => pnl >= 0 ? "🟢" : "🔴";
@@ -76,26 +76,7 @@ const fmtPrice = (price: number): string => {
 };
 
 async function sendTelegram(text: string): Promise<boolean> {
-    const token = process.env.TELEGRAM_TOKEN;
-    const chatId = process.env.TELEGRAM_CHAT_ID;
-    if (!token || !chatId) {
-        console.error("[Telegram] Faltan credenciales.");
-        return false;
-    }
-
-    const payload = { chat_id: chatId, text, parse_mode: "Markdown", disable_web_page_preview: true };
-    for (let attempt = 1; attempt <= 3; attempt++) {
-        try {
-            const resp = await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, payload);
-            console.log(`[Telegram] Mensaje enviado OK (status ${resp.status}, attempt ${attempt})`);
-            return true;
-        } catch (e: any) {
-            console.error(`[Telegram] Intento ${attempt} fallido:`, e.response?.data || e.message);
-            if (attempt < 3) await sleep(2000 * attempt);
-        }
-    }
-    console.error("[Telegram] Fallo definitivo tras 3 intentos.");
-    return false;
+    return sendTelegramMessage(text);
 }
 
 // ─── Helpers: Normalización ──────────────────────────────────────────────────
