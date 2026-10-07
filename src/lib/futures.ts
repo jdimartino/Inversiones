@@ -65,6 +65,12 @@ export interface FuturesPositionAlert {
 
 export interface FuturesGlobalAlert {
     targetAmount: number;
+    /**
+     * @deprecated The backend now owns the global crossing state (`futuresAlertState/global`,
+     * with $200 hysteresis) and global alerts notify in BOTH directions, so this field no
+     * longer drives the arrow or the Armada/Pausa badge. The UI derives both from the stored
+     * state through `src/lib/alertLevelDisplay.ts`. Kept for backward compatibility.
+     */
     direction: "up" | "down";
     isPersistent: boolean;
     note?: string;
@@ -102,6 +108,15 @@ export const DEFAULT_FUTURES_ALERTS: FuturesAlertConfig = {
     globalAlerts: [],
 };
 
+/**
+ * @deprecated The Cloud Functions now own the global alert crossing state
+ * (`futuresAlertState/global`, with $200 hysteresis — see `functions/src/futuresSync.ts`
+ * and `functions/src/futuresGlobalCrossings.ts`), and global alerts are notified in both
+ * directions. The panel derives the arrow and the Armada/Pausa badge from that stored state
+ * via `src/lib/alertLevelDisplay.ts`, so rewriting `direction` from the live PNL no longer
+ * matches the backend. This helper is kept only for backward compatibility and is not used
+ * anywhere; do not reintroduce it into the UI.
+ */
 export function migrateGlobalAlertDirections(alerts: FuturesGlobalAlert[], currentPnl: number): FuturesGlobalAlert[] {
     return alerts.map((alert) => {
         const correctDirection: "up" | "down" = alert.targetAmount >= currentPnl ? "up" : "down";

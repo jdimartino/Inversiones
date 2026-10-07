@@ -23,6 +23,8 @@ import { usePortfolio } from "../hooks/usePortfolio";
 import { useNotificationLogs } from "../hooks/useNotificationLogs";
 import { useBinanceSymbols } from "../hooks/useBinanceSymbols";
 import { fmtUSD, fmtPrice } from "../lib/format";
+import { useAlertLevelState } from "../hooks/useAlertLevelState";
+import { SPOT_HYSTERESIS, getLevelDisplay, levelStateKey } from "../lib/alertLevelDisplay";
 import { FIREBASE_FUNCTIONS_URL } from "../lib/firebase";
 
 interface AlertSettingsProps {
@@ -86,8 +88,44 @@ function SortableCoinChip({ coin, onRemove }: { coin: string, onRemove: (c: stri
 
 const FIAT_COINS = ["EUR"];
 
+/**
+ * Coins the Cloud Function CAN price for the Spot global PNL alert.
+ *
+ * `runCheckAlerts` in functions/src/index.ts uses a hardcoded `SYMBOL_MAP` (lines 107-121)
+ * and queries Binance for exactly those `${COIN}USDT` pairs, so its `prices` object only
+ * contains those symbols. Every investment on any other coin (newer listings, EUR pairs,
+ * USDT itself…) is valued at `prices[`${inv.coin}USDT`] || 0 === 0` (line 154).
+ *
+ * To mirror the same number (the one the stored `side`/`notified` state was computed from)
+ * the frontend has to ignore prices for coins outside that list as well. KEEP IN SYNC with
+ * the backend map; if a coin is added/removed there, update this list too.
+ */
+const CF_PRICED_COINS = new Set([
+    "BTC", "ETH", "ADA", "DOGE", "LTC", "BNB", "SOL",
+    "XRP", "DOT", "MATIC", "SHIB", "AVAX", "LINK",
+]);
+
 function AlertSettings({ config, saveConfig, onRefresh, refreshing, onEditGlobal, onEditInvestment, onOpenWatchlist, onEditWatchlistAlert, onOpenCandleAlert, onEditCandleAlert, sales, totalPnl = 0, selectedCoins = [], onSelectedCoinsChange, tickerSpeed = 35, onTickerSpeedChange, prices }: AlertSettingsProps) {
     const { portfolio } = usePortfolio();
+    // Real crossing state owned by the Cloud Function (spotAlertState/global).
+    const { levels: spotLevels, loading: spotLevelsLoading } = useAlertLevelState("spot");
+
+    // PNL used by the Spot global alert levels. It MUST be the same value the Cloud
+    // Function uses (functions/src/index.ts: globalPNL = totalCurrentValue - totalInvested):
+    // sum over ALL open investments (inversiones) of price × quantity − invested, where the
+    // price exists only for the coins in CF_PRICED_COINS (any other coin is 0, exactly like
+    // `prices[`${inv.coin}USDT`] || 0` in the Cloud Function). The `totalPnl` prop is NOT
+    // used because it also includes open sales (ventas), which the Cloud Function does not
+    // count for this alert.
+    const spotGlobalPnl = useMemo(
+        () =>
+            portfolio.reduce((sum, i) => {
+                const price = CF_PRICED_COINS.has(i.coin) ? prices[i.coin] || 0 : 0;
+                return sum + price * i.quantity - i.invested;
+            }, 0),
+        [portfolio, prices],
+    );
+
     const { logs, loading: logsLoading } = useNotificationLogs(15);
     const [savingId, setSavingId] = useState<string | null>(null);
     const [showTickerConfig, setShowTickerConfig] = useState(false);
@@ -728,26 +766,35 @@ function AlertSettings({ config, saveConfig, onRefresh, refreshing, onEditGlobal
                 {config.globalAlerts && config.globalAlerts.length > 0 ? (
                     <div className="space-y-1.5">
                         {config.globalAlerts.map((alertData: GlobalAlert, index: number) => {
-                            const isOnHold = alertData.isPersistent && (
-                                alertData.direction === 'up' ? totalPnl >= alertData.targetAmount : totalPnl <= alertData.targetAmount
-                            );
+                            // Arrow and badge come from the state stored by the Cloud
+                            // Function for this exact level, not from a local comparison.
+                            const display = getLevelDisplay({
+                                targetAmount: alertData.targetAmount,
+                                pnl: spotGlobalPnl,
+                                levelState: spotLevels[levelStateKey(alertData.targetAmount)],
+                                margin: SPOT_HYSTERESIS,
+                            });
+                            // While the state document is loading, keep a neutral badge
+                            // instead of flashing a wrong one. One-shot alerts ("Una Vez")
+                            // are not affected by the crossing state.
+                            const isPending = spotLevelsLoading;
+                            const isPaused = !isPending && display.status === 'paused';
+                            const showUp = !isPending && display.arrow === '▲';
                             return (
                             <div key={`global-${index}`} className="flex items-center justify-between bg-slate-900/60 border border-slate-700/40 rounded-lg px-3 py-2">
                                 <div className="flex items-center gap-2 min-w-0 flex-wrap">
                                     <div className="flex flex-col">
-                                        {(() => { const showUp = isOnHold ? alertData.direction !== 'up' : alertData.direction === 'up'; return (
-                                        <span className={`flex items-center gap-1 text-xs font-bold whitespace-nowrap ${showUp ? "text-green-400" : "text-red-400"}`}>
-                                            {showUp ? '🔼' : '🔽'}
+                                        <span className={`flex items-center gap-1 text-xs font-bold whitespace-nowrap ${isPending ? "text-slate-500" : showUp ? "text-green-400" : "text-red-400"}`}>
+                                            {isPending ? '•' : showUp ? '🔼' : '🔽'}
                                             {alertData.targetAmount >= 0 ? "+" : "-"}{fmtUSD(Math.abs(alertData.targetAmount))}
                                         </span>
-                                        ); })()}
                                         {alertData.note && (
                                             <span className="text-[10px] text-slate-400 italic mt-0.5">📝 {alertData.note}</span>
                                         )}
                                     </div>
                                     {alertData.isPersistent ? (
-                                        <span className={`flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap border ${isOnHold ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' : (alertData.direction === 'up' ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30')}`}>
-                                            <Repeat className="w-2.5 h-2.5" /> {isOnHold ? 'En Pausa' : 'Armada'}
+                                        <span className={`flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap border ${isPending ? 'bg-slate-700/50 text-slate-400 border-slate-600' : isPaused ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' : 'bg-green-500/20 text-green-400 border-green-500/30'}`}>
+                                            <Repeat className="w-2.5 h-2.5" /> {isPending ? '…' : isPaused ? 'En Pausa' : 'Armada'}
                                         </span>
                                     ) : (
                                         <span className="flex items-center gap-1 text-[9px] bg-slate-700/50 text-slate-400 border border-slate-600 px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap">

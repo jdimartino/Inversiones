@@ -10,6 +10,8 @@ import {
     Edit2,
 } from "lucide-react";
 import type { FuturesGlobalAlert } from "../lib/futures";
+import { useAlertLevelState } from "../hooks/useAlertLevelState";
+import { FUTURES_HYSTERESIS, getLevelDisplay, levelStateKey } from "../lib/alertLevelDisplay";
 import { fmtUSD } from "../lib/format";
 
 interface FuturesGlobalAlertModalProps {
@@ -34,6 +36,8 @@ export default function FuturesGlobalAlertModal({
     const [note, setNote] = useState("");
     const [editIndex, setEditIndex] = useState<number | null>(initialEditIndex ?? null);
     const [saving, setSaving] = useState(false);
+    // Real crossing state owned by the Cloud Function (futuresAlertState/global).
+    const { levels, loading } = useAlertLevelState("futures");
 
     // If editing, pre-fill form from existing alert
     React.useEffect(() => {
@@ -132,20 +136,27 @@ export default function FuturesGlobalAlertModal({
                             <div className="bg-slate-800 border border-slate-700 rounded-lg p-2">
                                 <div className="flex flex-wrap gap-1.5">
                                     {draftAlerts.map((alert, index) => {
-                                        const isOnHold = alert.isPersistent && (
-                                            alert.direction === "up"
-                                                ? currentPnl >= alert.targetAmount
-                                                : currentPnl <= alert.targetAmount
-                                        );
+                                        // Arrow and badge come from the state owned by the
+                                        // Cloud Function (futuresAlertState/global), not from
+                                        // a local comparison against the live PNL.
+                                        const display = getLevelDisplay({
+                                            targetAmount: alert.targetAmount,
+                                            pnl: currentPnl,
+                                            levelState: levels[levelStateKey(alert.targetAmount)],
+                                            margin: FUTURES_HYSTERESIS,
+                                        });
+                                        const isPending = loading;
+                                        const isPaused = !isPending && display.status === "paused";
+                                        const showUp = !isPending && display.arrow === "▲";
                                         return (
                                             <div key={index} className="flex flex-col bg-slate-900/80 px-2 py-1.5 rounded-md">
                                                 <div className="flex items-center gap-1.5">
-                                                    <span className={`text-[11px] font-bold ${(isOnHold ? alert.direction !== "up" : alert.direction === "up") ? "text-green-400" : "text-red-400"}`}>
-                                                        {(isOnHold ? alert.direction !== "up" : alert.direction === "up") ? "🔼" : "🔽"} {alert.targetAmount >= 0 ? "+" : "-"}${Math.abs(alert.targetAmount).toFixed(2)}
+                                                    <span className={`text-[11px] font-bold ${isPending ? "text-slate-500" : showUp ? "text-green-400" : "text-red-400"}`}>
+                                                        {isPending ? "•" : showUp ? "🔼" : "🔽"} {alert.targetAmount >= 0 ? "+" : "-"}${Math.abs(alert.targetAmount).toFixed(2)}
                                                     </span>
                                                     {alert.isPersistent ? (
-                                                        <span className={`text-[8px] px-1 py-0.5 rounded-full font-bold ${isOnHold ? "bg-orange-500/20 text-orange-400" : (alert.direction === "up" ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400")}`}>
-                                                            {isOnHold ? "⏸P" : "▶P"}
+                                                        <span className={`text-[8px] px-1 py-0.5 rounded-full font-bold ${isPending ? "bg-slate-700 text-slate-400" : isPaused ? "bg-orange-500/20 text-orange-400" : "bg-green-500/20 text-green-400"}`}>
+                                                            {isPending ? "…" : isPaused ? "⏸P" : "▶P"}
                                                         </span>
                                                     ) : (
                                                         <span className="text-[8px] bg-slate-700 text-slate-500 px-1 py-0.5 rounded-full font-bold">1×</span>
@@ -230,20 +241,11 @@ export default function FuturesGlobalAlertModal({
                             </button>
                         </div>
 
-                        {Number.isFinite(targetAmount) && targetAmount !== 0 ? (() => {
-                            const conditionAlreadyMet = direction === "up"
-                                ? currentPnl >= targetAmount
-                                : currentPnl <= targetAmount;
-                            return conditionAlreadyMet ? (
-                                <p className="text-center text-[10px] font-bold mb-1.5 text-yellow-400">
-                                    ⚠️ El PNL actual ya {direction === "up" ? "supera" : "está por debajo de"} {targetAmount >= 0 ? "+" : "-"}${Math.abs(targetAmount).toFixed(2)} — se disparará en el próximo ciclo
-                                </p>
-                            ) : (
-                                <p className={`text-center text-[10px] font-bold mb-1.5 ${direction === "up" ? "text-green-400" : "text-red-400"}`}>
-                                    Notificar cuando el PNL {direction === "up" ? "suba a" : "baje a"} {targetAmount >= 0 ? "+" : "-"}${Math.abs(targetAmount).toFixed(2)}
-                                </p>
-                            );
-                        })() : null}
+                        {Number.isFinite(targetAmount) && targetAmount !== 0 && (
+                            <p className="text-center text-[10px] font-bold mb-1.5 text-yellow-400">
+                                🔔 Te avisará cada vez que el PNL cruce este nivel ({targetAmount >= 0 ? "+" : "-"}${Math.abs(targetAmount).toFixed(2)}), ya sea subiendo o bajando.
+                            </p>
+                        )}
 
                         <input
                             type="text"

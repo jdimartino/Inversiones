@@ -24,6 +24,8 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useFutures, useFuturesAlerts } from "../hooks/useFutures";
+import { useAlertLevelState } from "../hooks/useAlertLevelState";
+import { FUTURES_HYSTERESIS, getLevelDisplay, levelStateKey } from "../lib/alertLevelDisplay";
 import { useFuturesSync } from "../hooks/useFuturesSync";
 import { useBinanceFuturesMarkPrices, FuturesWSStatus } from "../hooks/useBinanceFuturesWS";
 import {
@@ -352,6 +354,9 @@ function GlobalPnlAlerts({
     account: FuturesAccount;
     onOpenGlobalAlertModal: () => void;
 }) {
+    // Real crossing state owned by the Cloud Function (futuresAlertState/global).
+    const { levels, loading } = useAlertLevelState("futures");
+
     return (
         <section className="rounded-xl border border-white/[0.06] bg-white/[0.025] p-4">
             <div className="flex items-center justify-between mb-3">
@@ -385,27 +390,44 @@ function GlobalPnlAlerts({
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5">
                     {alerts.globalAlerts.map((alert, index) => {
-                        const currentPnlVal = account.totalUnrealizedProfit;
-                        const isOnHold = alert.isPersistent && (
-                            alert.direction === "up"
-                                ? currentPnlVal >= alert.targetAmount
-                                : currentPnlVal <= alert.targetAmount
-                        );
+                        // Same PNL the Cloud Function uses for the global crossings
+                        // (functions/src/futuresSync.ts) — never the websocket PNL.
+                        const pnl = account.totalUnrealizedProfit;
+                        const display = getLevelDisplay({
+                            targetAmount: alert.targetAmount,
+                            pnl,
+                            levelState: levels[levelStateKey(alert.targetAmount)],
+                            margin: FUTURES_HYSTERESIS,
+                        });
+                        // While the state document is loading, show a neutral badge
+                        // instead of flashing a wrong one. One-shot alerts keep their
+                        // badge ("1x") untouched.
+                        const isPending = loading;
+                        const isPaused = !isPending && display.status === "paused";
+                        const arrowColor = isPending
+                            ? "text-slate-500"
+                            : display.arrow === "▲"
+                              ? "text-emerald-400"
+                              : "text-rose-400";
                         return (
                             <div key={`${alert.direction}-${alert.targetAmount}-${index}`} className="group relative flex items-center justify-between rounded-lg border border-white/[0.06] bg-black/20 px-2 py-1.5">
                                 <div className="flex items-center gap-1.5 min-w-0">
-                                    <span className={`text-[11px] font-bold whitespace-nowrap ${alert.direction === "up" ? "text-emerald-400" : "text-rose-400"}`}>
-                                        {alert.direction === "up" ? "▲" : "▼"} {alert.targetAmount >= 0 ? "+" : "-"}${Math.abs(alert.targetAmount).toFixed(2)}
+                                    <span className={`text-[11px] font-bold whitespace-nowrap ${arrowColor}`}>
+                                        {isPending ? "•" : display.arrow} {alert.targetAmount >= 0 ? "+" : "-"}${Math.abs(alert.targetAmount).toFixed(2)}
                                     </span>
                                     <span className={`inline-flex items-center gap-0.5 rounded-full border px-1 py-0.5 text-[9px] font-bold whitespace-nowrap ${
-                                        isOnHold
-                                            ? "border-orange-500/30 bg-orange-500/15 text-orange-400"
-                                            : alert.isPersistent
-                                              ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-400"
-                                              : "border-white/[0.08] bg-white/[0.04] text-slate-400"
+                                        isPending && alert.isPersistent
+                                            ? "border-white/[0.08] bg-white/[0.04] text-slate-400"
+                                            : isPaused
+                                              ? "border-orange-500/30 bg-orange-500/15 text-orange-400"
+                                              : alert.isPersistent
+                                                ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-400"
+                                                : "border-white/[0.08] bg-white/[0.04] text-slate-400"
                                     }`}>
                                         {alert.isPersistent ? <Repeat size={8} /> : <Clock size={8} />}
-                                        {isOnHold ? "Pausa" : alert.isPersistent ? "Armada" : "1x"}
+                                        {alert.isPersistent
+                                            ? isPending ? "…" : isPaused ? "Pausa" : "Armada"
+                                            : "1x"}
                                     </span>
                                     {alert.note && <span className="text-[9px] text-slate-500 italic truncate hidden sm:inline">{alert.note}</span>}
                                 </div>
