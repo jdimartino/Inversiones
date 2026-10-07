@@ -110,13 +110,13 @@ const PriceTicker: React.FC<PriceTickerProps> = ({
 
     // Desktop (lg+): the enclosing <header> (App.tsx) and <nav> (NavBar.tsx) are already `sm:sticky`,
     // so this strip rides that pinned block. The lg: classes below make the desktop behaviour
-    // explicit, guarantee an opaque band (nothing shows through while pinned) and keep the strip one
-    // step below the NavBar (z-40) and below every modal overlay (z-50 / z-[100] / z-[9999]).
-    // Below lg none of them apply, so the original static strip is preserved byte for byte.
+    // explicit: strip is pinned (top-0, z-30), the marquee is stopped (animate-none) and centred
+    // (w-full/justify-center) with wrapping (flex-wrap), and the band is opaque (bg-slate-900).
+    // Below lg none of them apply, so the scrolling marquee is preserved byte for byte.
     return (
         <div className="relative overflow-hidden border-t border-slate-800 bg-slate-900/50 lg:sticky lg:top-0 lg:z-30 lg:bg-slate-900">
-            <div className="animate-ticker w-max flex items-center gap-0 py-1.5 px-2" style={{ animationDuration: `${tickerSpeed}s` }}>
-                <div className="flex items-center gap-0 pr-8">
+            <div className="animate-ticker w-max flex items-center gap-0 py-1.5 px-2 lg:animate-none lg:w-full lg:justify-center" style={{ animationDuration: `${tickerSpeed}s` }}>
+                <div className="flex items-center gap-0 pr-8 lg:flex-wrap">
                     {items}
                 </div>
             </div>
