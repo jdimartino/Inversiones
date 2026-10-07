@@ -357,6 +357,13 @@ function GlobalPnlAlerts({
     // Real crossing state owned by the Cloud Function (futuresAlertState/global).
     const { levels, loading } = useAlertLevelState("futures");
 
+    // Header value, same convention as the level chips below
+    // (`{targetAmount >= 0 ? "+" : "-"}${Math.abs(...).toFixed(2)}`). `formatPnl`
+    // (src/lib/futures.ts:143) prints the absolute value, so it drops the minus sign of a
+    // negative PNL; this header must show it like the chips do. Only this header changes.
+    const pnlValue = Number.isFinite(account.totalUnrealizedProfit) ? account.totalUnrealizedProfit : 0;
+    const pnlLabel = `${pnlValue >= 0 ? "+" : "-"}$${Math.abs(pnlValue).toFixed(2)}`;
+
     return (
         <section className="rounded-xl border border-white/[0.06] bg-white/[0.025] p-4">
             <div className="flex items-center justify-between mb-3">
@@ -368,7 +375,7 @@ function GlobalPnlAlerts({
                             account.totalUnrealizedProfit >= 0 ? "text-emerald-400" : "text-rose-400"
                         }`}
                     >
-                        {formatPnl(account.totalUnrealizedProfit)}
+                        {pnlLabel}
                     </span>
                     {(alerts.globalAlerts || []).length > 0 && (
                         <span className="text-[9px] bg-amber-500/15 text-amber-400 border border-amber-500/30 rounded-full px-1.5 py-0.5 font-bold">
