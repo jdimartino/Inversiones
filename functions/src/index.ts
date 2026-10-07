@@ -101,24 +101,83 @@ function normalizeGlobalAlerts(rawArray: any[]): GlobalAlertRule[] {
     }));
 }
 
+// ─── Precios Spot ─────────────────────────────────────────────────────────────
+/**
+ * Monedas que deben seguir teniendo precio aunque YA NO estén en `inversiones`,
+ * porque otras alertas de esta función las referencian:
+ *   • alertas de venta  → `prices[`${meta.coin}USDT`]`
+ *   • alertas watchlist → `prices[`${coin}USDT`]`
+ * NO es el universo de precios del PNL Global: `runCheckAlerts` añade encima TODAS
+ * las monedas de `inversiones` (antes había una lista fija de 13 y el PNL Global
+ * quedaba subestimado para cualquier otra moneda).
+ */
+const EXTRA_PRICE_COINS: string[] = [
+    "BTC", "ETH", "ADA", "DOGE", "LTC", "BNB", "SOL",
+    "XRP", "DOT", "MATIC", "SHIB", "AVAX", "LINK",
+];
+
+/**
+ * Sufijo de las monedas que esta función NO puede valorar (pares cotizados en EUR).
+ * El frontend las pide a Bybit (`fetchBybitTickers`, endpoint público sin firmar) y
+ * aquí no se puede replicar: `bybitRequest` (apiClients.ts) exige API keys de Bybit
+ * que `checkIntervalTasks` no tiene enlazadas (`runWith({ secrets: [...] })`).
+ * Se valoran a 0 en AMBOS lados; el frontend lo refleja con
+ * `CF_UNPRICED_COIN_SUFFIX` en src/components/AlertSettings.tsx. KEEP IN SYNC.
+ */
+const UNPRICEABLE_COIN_SUFFIX = "EUR";
+
+/**
+ * Precios de Binance (`${coin}USDT`) para las monedas indicadas.
+ *
+ * Una sola petición `symbols=[...]` no sobrevive a un símbolo inválido: Binance
+ * responde HTTP 400 `{"code":-1121,"msg":"Invalid symbol."}` para TODA la lista
+ * (verificado contra api.binance.com), lo que pondría a 0 todos los precios y con
+ * ellos el PNL Global completo. Por eso, si la petición por lotes falla, se cae al
+ * mapa completo de tickers (sin parámetro `symbols`, ningún símbolo puede romperlo)
+ * y se registran las monedas que no se pudieron valorar.
+ *
+ * Si también falla el fallback, el error se propaga: la corrida se aborta sin
+ * calcular PNL (mejor eso que valorar todo a 0 y disparar cruces falsos a la baja).
+ */
+async function fetchSpotPrices(coins: string[]): Promise<Record<string, number>> {
+    const pairs = Array.from(new Set(
+        coins
+            .filter((coin) => !!coin && !coin.endsWith(UNPRICEABLE_COIN_SUFFIX))
+            .map((coin) => `${coin}USDT`)
+    ));
+    const prices: Record<string, number> = {};
+    if (pairs.length === 0) return prices;
+
+    const requested = new Set(pairs);
+    const fill = (rows: any[]): void => {
+        for (const item of rows) {
+            if (!requested.has(item.symbol)) continue;
+            const value = parseFloat(item.price);
+            if (Number.isFinite(value)) prices[item.symbol] = value;
+        }
+    };
+
+    try {
+        const { data } = await axios.get(
+            `https://api.binance.com/api/v3/ticker/price?symbols=${encodeURIComponent(JSON.stringify(pairs))}`
+        );
+        fill(data);
+    } catch (e: any) {
+        console.warn(`[PRECIOS] Falló la petición por lotes (${e?.message || e}); reintentando con el mapa completo de Binance.`);
+        const { data } = await axios.get("https://api.binance.com/api/v3/ticker/price");
+        fill(data);
+    }
+
+    const missing = pairs.filter((pair) => prices[pair] === undefined);
+    if (missing.length > 0) {
+        console.warn(`[PRECIOS] Sin precio para ${missing.join(", ")} — se valoran a 0 (PNL Global subestimado).`);
+    }
+    return prices;
+}
+
 // ─── Core: Alertas ────────────────────────────────────────────────────────────
 async function runCheckAlerts() {
     console.log("[v2.4] Iniciando comprobación de alertas...");
-    const SYMBOL_MAP: Record<string, string> = {
-        BTC: "BTCUSDT", ETH: "ETHUSDT", ADA: "ADAUSDT", DOGE: "DOGEUSDT",
-        LTC: "LTCUSDT", BNB: "BNBUSDT", SOL: "SOLUSDT", XRP: "XRPUSDT",
-        DOT: "DOTUSDT", MATIC: "MATICUSDT", SHIB: "SHIBUSDT", AVAX: "AVAXUSDT",
-        LINK: "LINKUSDT",
-    };
-    const symbols = Object.values(SYMBOL_MAP);
-    const { data: tickerData } = await axios.get(`https://api.binance.com/api/v3/ticker/price?symbols=${encodeURIComponent(JSON.stringify(symbols))}`);
-    const prices: Record<string, number> = {};
-    const reverseMap = Object.fromEntries(Object.entries(SYMBOL_MAP).map(([k, v]) => [v, k]));
-    for (const item of tickerData) {
-        prices[item.symbol] = parseFloat(item.price);
-        const coin = reverseMap[item.symbol];
-        if (coin) prices[`${coin}USDT`] = parseFloat(item.price);
-    }
 
     const configSnap = await db.collection("config").doc("alerts").get();
     let investmentAlerts: Record<string, AlertRule[]> = {};
@@ -140,10 +199,23 @@ async function runCheckAlerts() {
         if (conf.saleMeta) saleMeta = conf.saleMeta;
     }
 
-    const dbUpdates: any = {};
-    const triggeredIndividualMessages: string[] = [];
+    // Los snapshots se leen ANTES de pedir precios: la lista de símbolos ya no es fija,
+    // se deriva de las monedas realmente en cartera.
     const snap = await db.collection("inversiones").get();
     const ventasSnap = await db.collection("ventas").get();
+
+    // Universo de precios = TODAS las monedas de `inversiones` (dinámico) + las que
+    // siguen necesitando las alertas de venta (`saleMeta`) y de watchlist, que pueden
+    // ya no estar en cartera. Convención de claves intacta: `prices["BTCUSDT"]`, que es
+    // lo que leen los consumidores con `prices[`${coin}USDT`]`.
+    const priceCoins = Array.from(new Set([
+        ...EXTRA_PRICE_COINS,
+        ...snap.docs.map((d) => String(d.data().coin ?? "")),
+    ]));
+    const prices = await fetchSpotPrices(priceCoins);
+
+    const dbUpdates: any = {};
+    const triggeredIndividualMessages: string[] = [];
     const activeSaleIds = new Set(ventasSnap.docs.map(d => `sale_${d.id}`));
 
     let totalInvested = 0, totalCurrentValue = 0;
